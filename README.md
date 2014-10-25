@@ -37,6 +37,12 @@ the second fires if the configuration file changes.  The event type _self_ is sh
 In both cases, the event will cause the task to be stopped.  As both tasks have the _wait_ `control`, they will then be
 restarted.
 
+### Included Modules ###
+*watch_files.py* handles triggering events to the event select loop when a file changes.
+
+*watch_modules.py* handles triggering events to the event select loop when any of the modules of a python application change.
+    It uses watch_files.py to detect the changes and *modulefinder* to identify the important modules used by an application.
+
 ### ToDo ###
 * Add pyinotify support so it operates efficiently with Linux
 * Extend support for python 3
