@@ -1,0 +1,721 @@
+#!/usr/bin/env python
+# ________________________________________________________________________
+#
+#  Copyright (C) 2014 Andrew Fullford
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+# ________________________________________________________________________
+#
+
+import sys, os, time, errno, select
+import utils
+#from ns_utils import ses
+#import ns_log
+#from ns_log import ns_Caller as my
+
+#  These values are used internally to select watch mode.
+#
+WF_POLLING = 0
+WF_KQUEUE = 1
+WF_INOTIFY = 2
+
+class watch(object):
+	"""
+	Sets up an instance that can be included in a select/poll set.  The
+	descriptor will become readable whenever registered files change.
+
+	Because the class has a fileno() method, the class instance can generally
+	be used directly with select/poll.
+
+	The intent of this interface is to insulate the caller from the
+	system-dependent implementations of Unix file system event notification
+	(kevent on *BSD/MacOS, inotify on Linux).  The interface also supports
+	a polling mode which is much less efficient, but probably better than
+	nothing.
+
+	At the moment, inotify is not supported, so Linux systems will operate
+	in polling mode.
+
+	Apart from simplifying the use of select.kqueue calls, the intent is to
+	mask changes that might be needed if linux inotify needs to be supported.
+	Because of this, the interface avoids providing features that would be
+	hard to implement in one or other interface.
+
+	All open file descriptors are automatically closed when the instance
+	is removed.
+
+	The following params can be set when the class is initialized and
+	overridden in methods where appropriate.
+
+	  timeout       -  Aggregation timeout.  Because file change events
+			   tend to arrive in bursts, setting an aggregation
+			   timeout limits the number of calls and cuts
+			   duplication of changes on a single file.  The
+			   effect is that the method will keep retrieving
+			   events until none arrive within the timeout period.
+			   That means the get() method will block for at least
+			   the timeout period, so the timeout should be small
+			   (perhaps 0.1 seconds).  The default is 0 which
+			   means the get() method will return immediately.
+
+			   Note that even with a zero timeout, get() may still
+			   return multiple events if multiple changes are
+			   pending when it is called.
+
+	  limit         -  Limit the number of change events that will
+			   collected due to the aggregation timeout.  The
+			   default is None (no limit).  The value is ignored
+			   if a timeout is not set.  Note that the limit may
+			   be exceeded if the last event read returns more
+			   than one event.
+
+	  commit        -  If False, skip rebuilding watch list after each
+			   add() or remove().  The caller should then call
+			   commit() directly to commit changes.
+
+	  missing       -  If True, a file does not need to pre-exist
+			   when add() is called.  In addition, a file added
+			   with this flag set can disappear and reappear which
+			   will cause an event each time.  With the flag False
+			   which is the default, add() and get() will raise
+			   exceptions if the file is initially missing or is
+			   removed or renamed, and the file will cease being
+			   watched until add() is called again.
+
+	  polling	-  Force the interface into polling mode.  Only available
+			   when instantiating the class.  Polling mode has no
+			   practical advantage over file system events so this
+			   param really exists for testing polling mode.
+
+	  log		-  An ns_log instance for logging.
+"""
+	def __init__(self, polling=False, **params):
+		self._params = params
+
+		self._mode_map = dict((val, nam) for nam, val in globals().items() if nam.startswith('WF_'))
+
+		#  Set up the access mode.  If select.kqueue() is callable, WF_KQUEUE
+		#  mode will be used, otherwise polling will be used.  The get_mode()
+		#  method supplies read-only access to th attribute.  The value is not
+		#  settable after the class is instantiated.
+		#
+		if polling:
+			self._mode = WF_POLLING
+		elif 'kqueue' in dir(select) and callable(select.kqueue):
+			self._mode = WF_KQUEUE
+		else:
+			self._mode = WF_POLLING
+
+		#  Holds all paths that have been added, whether actually being watched or not.
+		self.paths = {}
+
+		#  Holds paths that have been opened and are being watched
+		#
+		self.paths_open = {}
+
+		#  Holds paths where "missing" was True and the path could not be opened.
+		#
+		self.paths_pending = {}
+
+		#  Associates all open file descriptors and the opened path
+		#
+		self.fds_open = {}
+
+		#  Provided to caller to observe the last set of changes.  The
+		#  value of the dict is the time the change was noted.
+		#  This is also used for internal processing to allow get()
+		#  and _kq_handle() to both maintine the list.  The value is
+		#  reset to empty whenever get() is called.
+		#
+		self.last_changes = {}
+
+		self._discard = ns_log.logger(name=__name__, handler='discard')
+		self.unprocessed_event = None
+
+		if self._mode == WF_KQUEUE:
+			#  Immediately create a kernel event queue so that an immediate
+			#  call to fileno() will return the correct controlling fd.
+			#
+			self._kq = select.kqueue()
+		elif self._mode == WF_POLLING:
+			#  This sets up a self-pipe so we can hand back an fd to
+			#  the caller event though there is no event handling.
+			#  The ends of the pipe are set non-blocking so it
+			#  doesn't really matter if a bunch of events fill
+			#  the pipe buffer.
+			#
+			import fcntl
+
+			self._poll_fd, self._poll_send = os.pipe()
+			for fd in [self._poll_fd, self._poll_send]:
+				fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+				fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+			self._poll_stat = {}
+
+			#  Holds paths that were removed or renamed until get() is
+			#  called.
+			#
+			self._poll_pending = {}
+
+	def __del__(self):
+		if self._mode == WF_KQUEUE and self._kq:
+			#  The is actually auto-closed, so this bit is not
+			#  strictly needed.
+			#
+			try: self._kq.close()
+			except: pass
+			self._kq = None
+		elif self._mode == WF_POLLING:
+			for fd in [self._poll_fd, self._poll_send]:
+				try: os.close(fd)
+				except: pass
+
+		#  However, these are not automatically closed, so we
+		#  definitely need the destructor here.
+		#
+		for fd in self.fds_open.keys():
+			try: os.close(fd)
+			except: pass
+			del self.fds_open[fd]
+
+	def fileno(self):
+		if self._mode == WF_KQUEUE:
+			return self._kq.fileno()
+		else:
+			return self._poll_fd
+
+	def get_mode(self):
+		return self._mode
+
+	def get_mode_name(self, mode=None):
+		if mode is None:
+			mode = self._mode
+		if mode in self._mode_map:
+			return self._mode_map[mode]
+		else:
+			return "Mode" + str(mode)
+
+	def _getparam(self, tag, default = None, **params):
+		val = params.get(tag)
+		if val is None:
+			val = self._params.get(tag)
+		if val is None:
+			val = default
+		return val
+
+	def _disappeared(self, fd, path, **params):
+		"""
+		Called when an open path is no longer acessible.  This will either
+		move the path to pending (if the 'missing' param is set for the
+		file), or fire an exception.
+	"""
+		log = self._getparam('log', self._discard, **params)
+
+		log.debug("%s Path '%s' removed or renamed, handling removal", my(self), path)
+
+		try: os.close(fd)
+		except: pass
+		del self.fds_open[fd]
+		del self.paths_open[path]
+		if self._mode == WF_POLLING and fd in self._poll_stat:
+			del self._poll_stat[fd]
+		if self.paths[path]:
+			try:
+				if self._add_file(path, **params):
+					log.debug("%s Path '%s' immediately reappeared, pending transition skipped", my(self), path)
+					return
+			except Exception as e:
+				log.debug("%s Path '%s' reappearance check failed -- %s", my(self), path, str(e))
+			log.debug("%s Path '%s' marked as pending", my(self), path)
+			self.paths_pending[path] = True
+		else:
+			del self.paths[path]
+			raise Exception("Path '%s' has been removed or renamed" % (path,))
+
+	def _poll_get_stat(self, fd, path):
+		"""
+		Check the status of an open path.  Note that we have to use stat() rather
+		than fstat() because we want to detect file removes and renames.
+	"""
+		try:
+			st = os.stat(path)
+			fstate = (st.st_mode, st.st_nlink, st.st_uid, st.st_gid, st.st_size, st.st_mtime)
+		except Exception as e:
+			log = self._getparam('log', self._discard)
+			log.debug("%s stat failed on %s -- %s", my(self), path, str(e))
+			self._poll_pending[path] = time.time()
+			self._disappeared(fd, path)
+			fstate = None
+		return fstate
+
+	def _poll_trigger(self):
+		"""
+		Trigger activity for the caller by writting a NUL to the self-pipe.
+	"""
+		try:
+			os.write(self._poll_send, '\0')
+		except Exception as e:
+			log = self._getparam('log', self._discard)
+			log.debug("%s Ignoring self-pipe write error -- %s", my(self), str(e))
+
+	def _clean_failed_fds(self, fdlist):
+		for fd in fdlist:
+			if fd in self.fds_open:
+				path = self.fds_open[fd]
+				del self.fds_open[fd]
+				if path in self.paths_open:
+					del self.paths_open[path]
+			try: os.close(fd)
+			except: pass
+
+	def _trigger(self, fd, **params):
+		"""
+		In WF_KQUEUE mode, This simulates triggering an event by firing
+		a oneshot timer event to fire immediately (0 msecs).  Because
+		this uses the file descriptor as the timer ident and get() doesn't
+		care what filter actually fired the event, the outside world sees
+		this as a file change.
+
+		We need to trigger events on fire appearance because the code
+		doesn't see the file until after it has been created.
+
+		In WF_POLLING mode, this resets our knowledge of the stat
+		info, and then triggers file activity to wake up the caller.
+	"""
+		log = self._getparam('log', self._discard, **params)
+		if self._mode == WF_POLLING:
+			self._poll_stat[fd] = ()
+			self._poll_trigger()
+		elif self._mode == WF_KQUEUE:
+			try:
+				ev = select.kevent(fd, filter=select.KQ_FILTER_TIMER,
+							flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR | select.KQ_EV_ONESHOT, data=0)
+				self._kq.control([ev], 0, 0)
+				log.debug("%s Added timer event following pending file promotion", my(self))
+			except Exception as e:
+				log.error("%s Failed to add timer event following pending file promotion -- %s", my(self), str(e))
+
+	def _add_file(self, path, **params):
+		"""
+		Attempt to add a file to the system monitoring mechanism.
+	"""
+		log = self._getparam('log', self._discard, **params)
+		fd = None
+		try:
+			fd = os.open(path, os.O_RDONLY)
+		except Exception as e:
+			if not self.paths[path]:
+				log.error("%s open failed on watched path '%s' -- %s",
+								my(self), path, str(e), exc_info=log.isEnabledFor(ns_log.DEBUG))
+				raise e
+			elif path in self.paths_pending:
+				log.debug("%s path '%s' is still pending -- %s", my(self), path, str(e))
+			else:
+				self.paths_pending[path] = True
+				log.debug("%s added '%s' to pending list after open failure -- %s",
+							my(self), path, str(e))
+			return False
+		log.debug("%s path %s opened as fd %d", my(self), path, fd)
+		if self._mode == WF_KQUEUE:
+			try:
+				ev = select.kevent(fd,
+					filter=select.KQ_FILTER_VNODE,
+					flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR,
+					fflags=select.KQ_NOTE_WRITE | select.KQ_NOTE_ATTRIB | select.KQ_NOTE_LINK |
+								select.KQ_NOTE_DELETE | select.KQ_NOTE_RENAME)
+				self._kq.control([ev], 0, 0)
+			except Exception as e:
+				log.error("%s kevent failed on watched path '%s' -- %s", my(self), path, str(e))
+				try: os.close(fd)
+				except: pass
+				raise e
+
+		if self._mode == WF_POLLING:
+			fstate = self._poll_get_stat(fd, path)
+			if fstate:
+				self._poll_stat[fd] = fstate
+
+		self.paths_open[path] = fd
+		self.fds_open[fd] = path
+		return True
+
+	def commit(self, **params):
+		"""
+		Rebuild kevent operations by removing open files
+		that no longer need to be watched, and adding new
+		files if they are not currently being watched.
+
+		This is done by comparing self.paths to
+		self.paths_open.
+	"""
+		log = self._getparam('log', self._discard, **params)
+
+		#  Find all the modules that no longer need watching
+		#
+		removed = 0
+		added = 0
+		for path in self.paths_open.keys():
+			if path not in self.paths:
+				fd = self.paths_open[path]
+				if self._mode == WF_KQUEUE:
+					#  kevent automatically deletes the event when the fd is closed
+					try:
+						os.close(fd)
+					except Exception as e:
+						log.warning("%s close failed on watched file '%s' -- %s", my(self), path, str(e))
+				elif self._mode == WF_POLLING:
+					if fd in self._poll_stat:
+						del self._poll_stat[fd]
+					else:
+						log.warning("%s fd watched path '%s' missing from _poll_stat map", my(self), path)
+				if fd in self.fds_open:
+					del self.fds_open[fd]
+				else:
+					log.warning("%s fd watched path '%s' missing from fd map", my(self), path)
+				del self.paths_open[path]
+				log.debug("%s Removed watch for path '%s'", my(self), path)
+				removed += 1
+
+		#  Find all the paths that are new and should be watched
+		#
+		fdlist = []
+		failed = []
+		last_exc = None
+		log.debug("%s %d watched path%s", my(self), len(self.paths), ses(len(self.paths)))
+		for path in self.paths.keys():
+			if path not in self.paths_open:
+				try:
+					if not self._add_file(path, **params):
+						continue
+				except Exception as e:
+					last_exc = e
+					failed.append(path)
+					continue
+				fdlist.append(self.paths_open[path])
+
+				if path in self.paths_pending:
+					log.debug("%s pending path '%s' has now appeared", my(self), path)
+					del self.paths_pending[path]
+					self._trigger(self.paths_open[path], **params)
+
+				added += 1
+				log.debug("%s Added watch for path '%s'", my(self), path)
+		if failed:
+			self._clean_failed_fds(fdlist)
+			raise Exception("Failed to set watch on %s -- %s" % (str(failed), str(last_exc)))
+		log.debug("%s %d added, %d removed", my(self), added, removed)
+
+	def _kq_handle(self, ev, **params):
+		"""
+		Process an event.  If an event indicates a path is no longer
+		accessible, this will:
+
+		-  Cause a return of events processed so far if there
+		   are any, recording this event for the next call to get().
+		   Returns False, indicating processing should stop and
+		   get() should return the data so far.
+		-  If not, and "missing" is False, raise an exception.
+		-  If not, and "missing" is True, close the file and
+		   move the path to the pending list.
+		-  Otherwise, add the file to the last_changes list and
+		   return True to indicate changed processing should
+		   continue.
+	"""
+		log = self._getparam('log', self._discard, **params)
+		if ev.ident in self.fds_open:
+			self.unprocessed_event = None
+			path = self.fds_open[ev.ident]
+			if path not in self.paths:
+				log.error("%s Ignoring path '%s' missing from watched list", my(self), path)
+				return True
+			if ev.fflags & (select.KQ_NOTE_DELETE | select.KQ_NOTE_RENAME):
+				if len(self.last_changes) > 0:
+					log.debug("%s Path '%s' removed or renamed, returning prior changes", my(self), path)
+					self.unprocessed_event = ev
+					return False
+				self._disappeared(ev.ident, path, **params)
+			self.last_changes[path] = time.time()
+			log.debug("%s Change on '%s'", my(self), path)
+		else:
+			log.error("%s Event for fd %d had no matching open fd recorded", my(self), ev.ident)
+		return True
+
+	def get(self, **params):
+		"""
+		Return a list of watched paths that where affected by a recent
+		change, following a successful poll() return for the controlling
+		file descriptor.
+
+		If param "timeout" is greater than 0, the event queue will be read
+		multiple times and reads continue until a timeout occurs.
+
+		With a timeout active, if param "limit" is greater than 0,
+		event reads will stop when the number of changes exceeds the
+		limit.  This guarantees that the time the method will block
+		will never be greater than timeout*limit seconds.
+
+		Note that with a timeout active, multiple changes to a
+		single path will only be reported once.
+	"""
+		log = self._getparam('log', self._discard, **params)
+
+		self.last_changes = {}
+
+		if self._mode == WF_KQUEUE:
+			timeout = self._getparam('timeout', 0, **params)
+			if not timeout or timeout < 0:
+				timeout = 0
+			limit = self._getparam('limit', None, **params)
+			if not limit or limit < 0:
+				limit = None
+
+			total = 0
+			max_events = limit if limit else 10000
+
+			if self.unprocessed_event:
+				self._kq_handle(self.unprocessed_event, **params)
+			while True:
+				try:
+					evlist = self._kq.control(None, max_events, timeout)
+				except OSError as e:
+					if e.errno == errno.EINTR:
+						break
+					raise e
+				if not evlist:
+					break
+
+				log.debug("%s kq.control() returned %d event%s", my(self), len(evlist), ses(len(evlist)))
+				for ev in evlist:
+					if self._kq_handle(ev, **params):
+						total += 1
+					else:
+						break
+				if limit and total >= limit:
+					break
+		elif self._mode == WF_POLLING:
+			#  Consume any pending data from the self-pipe.  Read
+			#  until EOF.  The fd is already non-blocking so this
+			#  terminates on zero read or any error.
+			#
+			cnt = 0
+			while True:
+				try:
+					data = os.read(self._poll_fd, 1024)
+					if data == '':
+						break
+					cnt += len(data)
+				except OSError as e:
+					if e.errno != errno.EAGAIN:
+						log.warning("%s Ignoring self-pipe read failure -- %s", my(self), str(e))
+					break
+				except Exception as e:
+					log.warning("%s Ignoring self-pipe read failure -- %s", my(self), str(e))
+					break
+			log.debug("%s Self-pipe read consumed %d byte%s", my(self), cnt, ses(cnt))
+			now = time.time()
+			for path in self._poll_pending:
+				self.last_changes[path] = self._poll_pending[path]
+			self._poll_pending = {}
+			for fd in self._poll_stat.keys():
+				path = self.fds_open[fd]
+				fstate = self._poll_get_stat(fd, path)
+				if fstate is None:
+					self.last_changes[path] = now
+				elif self._poll_stat[fd] != fstate:
+					self._poll_stat[fd] = fstate
+					self.last_changes[path] = now
+
+		else:
+			raise Exception("Unsupported polling mode " + self.get_mode_name())
+		paths = self.last_changes.keys()
+		paths.sort()
+		log.debug("%s Change was to %d path%s", my(self), len(paths), ses(len(paths)))
+		return paths
+
+	def add(self, paths, **params):
+		"""
+		Add a path (or list of paths) to the list of paths being
+		watched.  The 'missing' setting for a file can also be
+		changed by re-adding the file.
+	"""
+		log = self._getparam('log', self._discard, **params)
+		missing = self._getparam('missing', True, **params)
+		commit = self._getparam('commit', True, **params)
+
+		if type(paths) is not list:
+			paths = [paths]
+
+		rebuild = False
+		for path in paths:
+			if path in self.paths:
+				if self.paths[path] == missing:
+					log.info("%s Ignoring attempt to add existing path '%s'", my(self), path)
+				else:
+					log.debug("%s Changing missing state from %s to %s on existing path '%s'",
+							my(self), str(self.paths[path]), str(missing), path)
+					self.paths[path] = missing
+			else:
+				log.debug("%s Adding path '%s'", my(self), path)
+				self.paths[path] = missing
+				rebuild = True
+		if commit and rebuild:
+			self.commit(**params)
+
+	def remove(self, paths, **params):
+		"""
+		Delete paths from the watched list.
+	"""
+		log = self._getparam('log', self._discard, **params)
+		commit = self._getparam('commit', True, **params)
+
+		if type(paths) is not list:
+			paths = [paths]
+
+		rebuild = False
+		for path in paths:
+			if path in self.paths_pending:
+				del self.paths_pending[path]
+			if path in self.paths:
+				del self.paths[path]
+				rebuild = True
+			else:
+				log.error("%s Attempt to remove '%s' which was never added", my(self), path)
+				raise Exception("Path '%s' has never been added" % (path,))
+		if commit and rebuild:
+			self.commit(**params)
+
+	def scan(self, **params):
+		"""
+		This method should be called periodically if files were added
+		with "missing=False".  It will check for the appearance of missing
+		files and ensure an event will be triggered for any that appear.
+
+		It also needs to be called if the instance could be in WF_POLLING
+		mode as file system changes will only be detected in WF_POLLING
+		mode when scan() is called.
+
+		The method should be called frequently (perhaps every 1-5 seconds)
+		as part of idle processing in a select/poll loop.
+
+		The approach is intended to support file appearance and disappearance
+		using kqueue/kevent on BSD while retaining the ability in the
+		future to transparently support inotify on Linux without any code
+		or efficiency impact on callers.
+
+		For WF_KQUEUE mode, processing consists of determining that a
+		pending path is now accessible, and then calling commit() to make
+		the necessary adjustments.  This will be efficient as long as the
+		list of pending paths is small.
+
+		For WF_POLLING mode, the entire list of open files is also scanned
+		looking for significant differences in the os.fstat info.
+
+		If/when inotify is supported here, it is expected that the scan()
+		method would be a no-op.
+	"""
+		log = self._getparam('log', self._discard, **params)
+		pending = len(self.paths_pending)
+		log.debug("%s Checking %d pending path%s", my(self), pending, ses(pending))
+		for path in self.paths_pending:
+			if os.path.exists(path):
+				log.debug("%s pending path %s now accessible, triggering commit()", my(self), path)
+				self.commit(**params)
+				return
+		if self._mode == WF_POLLING:
+			log.debug("%s Checking %d open path%s", my(self), len(self._poll_stat), ses(len(self._poll_stat)))
+			for fd in self._poll_stat.keys():
+				fstate = self._poll_get_stat(fd, self.fds_open[fd])
+				if fstate is None or self._poll_stat[fd] != fstate:
+					self._poll_trigger()
+					break
+
+
+if __name__ == '__main__':
+	import argparse, random, signal
+
+	def find_open_fds():
+		cnt = 0
+		for fd in range(1024):
+			try:
+				os.fstat(fd)
+				cnt += 1
+			except:
+				pass
+		return cnt
+
+	def catch(sig, frame):
+		global stopping
+		if sig == signal.SIGINT:
+			sys.stderr.write('\nInterrupt!\n')
+		stopping = True
+
+	p = argparse.ArgumentParser(
+		formatter_class=argparse.RawDescriptionHelpFormatter,
+		description="Test the %s module\n%s" %
+		(os.path.splitext(os.path.basename(__file__))[0], watch.__doc__))
+
+	p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
+	p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Warnings and errors only')
+	p.add_argument('-t', '--timeout', action='store', dest='timeout', type=float, default=0.0, help='Aggregation timeout')
+	p.add_argument('-l', '--limit', action='store', dest='limit', type=int, default=0, help='Aggregation limit')
+	p.add_argument('-p', '--polling', action='store_true', dest='polling', help='Using polling instead of file-system events')
+	p.add_argument('-m', '--missing', action='store_true', dest='missing', help='Allow files to be missing')
+	p.add_argument('-r', '--removal', action='store_true', dest='removal', help='Test path removal')
+	p.add_argument('file', nargs='+', help='List of files to watch')
+
+	args = p.parse_args()
+
+	log = ns_log.logger()
+	if args.verbose:
+		log.setLevel(ns_log.DEBUG)
+	if args.quiet:
+		log.setLevel(ns_log.WARNING)
+
+	if signal.signal(signal.SIGINT, catch) == signal.SIG_IGN:
+		signal.signal(signal.SIGINT, signal.SIG_IGN)
+	signal.signal(signal.SIGHUP, catch)
+	signal.signal(signal.SIGTERM, catch)
+
+	print "%s files open before watch started" % (find_open_fds(),)
+
+	snoop = watch(polling=args.polling, log=log, timeout=args.timeout, limit=args.limit)
+	log.info("Watching in %s mode", snoop.get_mode_name())
+	snoop.add(args.file, missing=True)
+
+	print "%s files open watching %d paths with watch started, before remove" % (find_open_fds(), len(snoop.paths_open))
+
+	#  test removal if that will leave at least one
+	if args.removal and len(args.file) > 1:
+		zapping = args.file[random.randrange(len(args.file))]
+		snoop.remove(zapping)
+		print "Removal test removed", zapping
+
+	print "%s files open watching %d paths with watch started" % (find_open_fds(), len(snoop.paths_open))
+	stopping = False
+	while not stopping:
+		try:
+			ready = select.select([snoop], [], [], 3)
+		except Exception as e:
+			if e[0] != errno.EINTR:
+				log.error("Select failed -- %s", str(e))
+			break
+		if ready == ([],[],[]):
+			snoop.scan()
+			continue
+		print 'Changes detected ...'
+		for path in snoop.get():
+			print '    ', path
+	del snoop
+	print "%s files open with watch removed" % (find_open_fds(),)
+	raise SystemExit(0)
