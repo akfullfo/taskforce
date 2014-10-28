@@ -1,0 +1,278 @@
+#!/usr/bin/env python
+# ________________________________________________________________________
+#
+#  Copyright (C) 2014 Andrew Fullford
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+# ________________________________________________________________________
+#
+
+force_interval = 300
+
+import os, time, sys, signal, argparse, logging
+from taskforce import utils, task
+
+cmd_at_startup = list(sys.argv)
+env_at_startup = {}
+for tag, val in os.environ.items():
+	env_at_startup[tag] = val
+
+program = utils.appname()
+def_pidfile = '/var/run/' + program + '.pid'
+def_roles_filelist = ['/var/local/etc/tf_roles.conf', '/usr/local/etc/tf_roles.conf' ]
+def_config_file = '/usr/local/etc/' + program + '.conf'
+
+def send_signal(pidfile, sig):
+	if pidfile is None:
+		raise Exception("No pid file specified")
+	pid = None
+	with open(pidfile, 'r') as f:
+		pidstr = None
+		try:
+			pidstr = f.readline().strip()
+			pid = int(pidstr)
+		except Exception as e:
+			raise Exception("Invalid pid '%s' in '%s' -- %s"%(str(pidstr), pidfile))
+	os.kill(pid, sig)
+
+def daemonize(**params):
+	"""
+This is a simple daemonization method.  It just does a double fork() and the
+parent exits after closing a good clump of possibly open file descriptors.  The
+child redirects stdin from /dev/null and sets a new process group and session.
+If you need fancier, suggest you look at http://pypi.python.org/pypi/python-daemon/
+
+Application logging setup needs to be delayed until after daemonize() is called.
+
+Supported params:
+
+	redir	- Redirect stdin, stdout, and stderr to /dev/null.  Default
+		  is True, use "redir=False" to leave std files unchanged.
+
+	log     - logging function, default is no logging.  A logging function
+		  works best if you use stderr or a higher fd because these are
+		  closed last.  But note that all fds are closed or associated
+		  with /dev/null, so the log param is really only useful for
+		  debugging this function itself.  A caller needing logging
+		  should probably use syslog.
+
+	plus params appropriate for taskforce.utils.closeall().
+"""
+	log = params.get('log')
+	redir = params.get('redir', True)
+
+	try:
+		if os.fork() != 0:
+			os._exit(0)
+	except Exception as e:
+		if log: log("First fork failed -- %s", str(e))
+		return False
+	try:
+		os.setsid()
+	except Exception as e:
+		if log: log("Setsid() failed -- %s", str(e))
+
+	try:
+		if os.fork() != 0:
+			os._exit(0)
+	except Exception as e:
+		if log: log("Second fork failed, pressing on -- %s", str(e))
+
+	try:
+		os.chdir('/')
+	except Exception as e:
+		if log: log("Chdir('/') failed -- %s", str(e))
+	if redir:
+		try: os.close(0)
+		except Exception as e:
+			if log: log("Stdin close failed -- %s", str(e))
+		try:
+			fd = os.open('/dev/null', os.O_RDONLY)
+		except Exception as e:
+			if log: log("Stdin open failed -- %s", str(e))
+		if fd != 0:
+			if log: log("Stdin open returned %d, should be 0", fd)
+		try: os.close(1)
+		except Exception as e:
+			if log: log("Stdout close failed -- %s", str(e))
+		try:
+			fd = os.open('/dev/null', os.O_WRONLY)
+		except Exception as e:
+			if log: log("Stdout open failed -- %s", str(e))
+		if fd != 1:
+			if log: log("Stdout open returned %d, should be 1", fd)
+
+	try:
+		os.setpgrp()
+	except Exception as e:
+		if log: log("Setpgrp failed -- %s", str(e))
+
+	if redir:
+		try: os.close(2)
+		except Exception as e:
+			if log: log("Stderr close failed -- %s", str(e))
+		try:
+			fd = os.dup(1)
+		except Exception as e:
+			if log: log("Stderr dup failed -- %s", str(e))
+		if fd != 2:
+			if log: log("Stderr dup returned %d, should be 2", fd)
+	if 'exclude' not in params:
+		params['exclude'] = [0,1,2]
+	utils.closeall(**params)
+
+p = argparse.ArgumentParser(description="Manage tasks and process pools")
+
+p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
+p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Quiet logging, warnings and errors only')
+p.add_argument('-e', '--log-stderr', action='store_true', dest='log_stderr', help='Log to stderr instead of syslog')
+p.add_argument('-b', '--background', action='store_true', dest='daemonize', help='Run in the background')
+p.add_argument('-p', '--pidfile', action='store', dest='pidfile', help='Pidfile path, default '+def_pidfile+', "-" means none')
+p.add_argument('-f', '--config-file', action='store', dest='config_file', default=def_config_file,
+			help='Configuration.  File will be watched for changes.  Default '+def_config_file)
+p.add_argument('-r', '--roles-file', action='store', dest='roles_file',
+			help='File to load roles from.  File will be watched for changes.  Default is selected from: ' +
+			', '.join(def_roles_filelist))
+p.add_argument('-C', '--check-config', action='store_true', dest='check', help='Check the config and exit')
+p.add_argument('-R', '--reset', action='store_true', dest='reset',
+			help="""Cause the background %s to reset.
+				All unadoptable tasks will be stopped and the program will restart itself."""%(program,))
+p.add_argument('-S', '--stop', action='store_true', dest='stop',
+			help='Cause the background %s to exit.  All unadoptable tasks will be stopped.'%(program,))
+
+args = p.parse_args()
+
+if args.pidfile is None and (args.daemonize or args.reset or args.stop):
+	pidfile = def_pidfile
+else:
+	pidfile = args.pidfile
+if pidfile == '' or pidfile == '-':
+	pidfile = None
+
+sig_to_send = None
+if args.reset:
+	sig_to_send = signal.SIGHUP
+elif args.stop:
+	sig_to_send = signal.SIGTERM
+
+if sig_to_send:
+	try:
+		send_signal(pidfile, sig_to_send)
+		sys.exit(0)
+	except Exception as e:
+		sys.stderr.write(str(e)+'\n')
+		sys.exit(1)
+
+if not args.roles_file:
+	for fname in def_roles_filelist:
+		try:
+			with open(fname, 'r') as f:
+				args.roles_file = fname
+				break
+		except:
+			pass
+
+if args.pidfile is None and args.daemonize:
+	pidfile = def_pidfile
+else:
+	pidfile = args.pidfile
+if pidfile == '' or pidfile == '-':
+	pidfile = None
+if pidfile:
+	pidfile = os.path.realpath(pidfile)
+
+#if args.daemonize:
+#	daemonize()
+
+if args.log_stderr:
+	log_handler = logging.StreamHandler()
+else:
+	logparams = {}
+	for addr in ['/dev/log', '/var/run/log']:
+		if os.path.exists(addr):
+			logparams['address'] = addr
+			break
+	log_handler = logging.handlers.SysLogHandler(**logparams)
+
+log = logging.getLogger()
+log.addHandler(log_handler)
+
+if args.verbose:
+	log.setLevel(logging.DEBUG)
+elif args.quiet:
+	log.setLevel(logging.WARNING)
+else:
+	log.setLevel(logging.INFO)
+if args.daemonize:
+	daemonize(log=log.warning)
+
+if not args.roles_file:
+	log.warning("None of the default roles files (%s) were accessible", ', '.join(def_roles_file))
+log.info("Starting, config '%s', roles '%s'", str(args.config_file), str(args.roles_file))
+
+if pidfile is not None:
+	try:
+		utils.pidclaim(pidfile)
+	except Exception as e:
+		log.critical('Fatal error -- %s', str(e), exc_info=args.verbose)
+		sys.exit(2)
+
+start_count = 0
+while True:
+	start_count += 1
+	restart = 2 * start_count
+	if restart > 60:
+		restart = 60
+	restart = time.time() + restart
+
+	try:
+		l = task.legion(log=log)
+		if not args.check:
+			l.set_own_module(cmd_at_startup[0])
+		if args.roles_file:
+			l.set_roles_file(args.roles_file)
+		if args.check:
+			try:
+				if l.set_config_file(args.config_file):
+					log.info("Config file '%s' appears valid", args.config_file)
+					sys.exit(0)
+				else:
+					log.error("Config load from '%s' failed", args.config_file)
+					sys.exit(1)
+			except Exception as e:
+				log.error('Config load failed -- %s', str(e), exc_info=args.verbose)
+				sys.exit(1)
+		l.set_config_file(args.config_file)
+		l.manage()
+		sys.exit(0)
+	except task.LegionReset as e:
+		log.warning("Restarting via exec due to LegionReset exception")
+		try:
+			utils.closeall(exclude=[0,1,2])
+			if pidfile is not None:
+				try: os.unlink(pidfile)
+				except:pass
+			os.execvpe(cmd_at_startup[0], cmd_at_startup, env_at_startup)
+		except Exception as e:
+			log.error("Restart exec failed, failing back to normal restart -- %s", str(e))
+	except Exception as e:
+		log.error('Legion processing error -- %s', str(e), exc_info=args.verbose)
+
+	now = time.time()
+	if restart > now:
+		delta = restart - now
+		log.info("Delaying %s before attempting restart", utils.deltafmt(delta, decimals=0))
+		time.sleep(delta)
+		log.info("Restarting now")
+	else:
+		log.info("Attempting immediate restart following error")
