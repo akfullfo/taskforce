@@ -38,16 +38,26 @@ In both cases, the event will cause the task to be stopped.  As both tasks have 
 restarted.
 
 ### Included Modules ###
+**task.py** holds the primary class `legion` which is the entry point into task management.  An effectively internal class
+`task` manages each task after it is defined by the configurtion.  There are also some classes and methods present for
+event handling and process execution.
+
 **watch_files.py** handles triggering events to the event select loop when a file changes.
 
 **watch_modules.py** handles triggering events to the event select loop when any of the modules of a python application change.
-    It uses *taskforce.watch_files* to detect the changes and *modulefinder* to identify the important modules used by an application.
+It uses *taskforce.watch_files* to detect the changes and *modulefinder* to identify the important modules used by an application.
+
+**utils.py** holds support methods and classes
+
+Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an
+example of how the `taskforce.task.legion()` class should be called.
 
 ### ToDo ###
 * Add pyinotify support so it operates efficiently with Linux
 * Extend support for python 3
 * Add a control path
 * Add status access
+* Support logging or other capture of task output
 * Add external events (snmp traps, nagios via NSCA)
 
 ---
@@ -69,3 +79,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ---
+### Acknowledgement ###
+This package is based on work done by Andrew Fullford at Netsocket, Inc.  Many thanks to Netsocket for agreeing
+to allow this code to be provided by me under the Apache License, on October 16, 2014,
