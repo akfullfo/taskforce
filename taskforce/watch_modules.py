@@ -17,12 +17,11 @@
 # ________________________________________________________________________
 #
 
-import sys, os, time, select
+import sys, os, time, select, logging
 import modulefinder
 import watch_files
 import utils
-#import ns_log
-#from ns_log import ns_Caller as my
+from utils import get_caller as my
 
 class watch(object):
 	"""
@@ -42,14 +41,15 @@ class watch(object):
 			The default is to use sys.path.
 	  path       -  The PATH value to use to find commands.  Default
 			is the PATH environment value.
-	  log	     -  An ns_log instance for logging.
+	  log	     -  A logging instance.
 
-	In addition, params supported by ns_watch_files will be relayed to it.
+	In addition, params supported by watch_files will be relayed to it.
 """
 	def __init__(self, **params):
 		self._params = params
-		self._watch = ns_watch_files.watch(**params)
-		self._discard = ns_log.logger(name=__name__, handler='discard')
+		self._watch = watch_files.watch(**params)
+		self._discard = logging.getLogger(__name__)
+		self._discard.addHandler(logging.NullHandler())
 		self.names = {}
 		self.modules = {}
 
@@ -71,7 +71,7 @@ class watch(object):
 		modules if they are not currently being watched.
 
 		This is done by comparing self.modules to
-		ns_watch_files.paths_open
+		watch_files.paths_open
 	"""
 		log = self._getparam('log', self._discard, **params)
 
@@ -305,11 +305,12 @@ if __name__ == '__main__':
 
 	args = p.parse_args()
 
-	log = ns_log.logger()
+	log = logging.getLogger(__name__)
+	log.addHandler(logging.StreamHandler())
 	if args.verbose:
-		log.setLevel(ns_log.DEBUG)
+		log.setLevel(logging.DEBUG)
 	if args.quiet:
-		log.setLevel(ns_log.WARNING)
+		log.setLevel(logging.WARNING)
 
 	snoop = watch(log=log, module_path=args.module_path)
 	for command in args.command:

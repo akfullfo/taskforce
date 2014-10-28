@@ -17,11 +17,10 @@
 # ________________________________________________________________________
 #
 
-import sys, os, time, errno, select
+import sys, os, time, errno, select, logging
 import utils
-#from ns_utils import ses
-#import ns_log
-#from ns_log import ns_Caller as my
+from utils import ses
+from utils import get_caller as my
 
 #  These values are used internally to select watch mode.
 #
@@ -97,7 +96,7 @@ class watch(object):
 			   practical advantage over file system events so this
 			   param really exists for testing polling mode.
 
-	  log		-  An ns_log instance for logging.
+	  log		-  A logging instance.
 """
 	def __init__(self, polling=False, **params):
 		self._params = params
@@ -139,7 +138,8 @@ class watch(object):
 		#
 		self.last_changes = {}
 
-		self._discard = ns_log.logger(name=__name__, handler='discard')
+		self._discard = logging.getLogger(__name__)
+		self._discard.addHandler(logging.NullHandler())
 		self.unprocessed_event = None
 
 		if self._mode == WF_KQUEUE:
@@ -317,7 +317,7 @@ class watch(object):
 		except Exception as e:
 			if not self.paths[path]:
 				log.error("%s open failed on watched path '%s' -- %s",
-								my(self), path, str(e), exc_info=log.isEnabledFor(ns_log.DEBUG))
+								my(self), path, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 				raise e
 			elif path in self.paths_pending:
 				log.debug("%s path '%s' is still pending -- %s", my(self), path, str(e))
@@ -676,11 +676,12 @@ if __name__ == '__main__':
 
 	args = p.parse_args()
 
-	log = ns_log.logger()
+	log = logging.getLogger(__name__)
+	log.addHandler(logging.StreamHandler())
 	if args.verbose:
-		log.setLevel(ns_log.DEBUG)
+		log.setLevel(logging.DEBUG)
 	if args.quiet:
-		log.setLevel(ns_log.WARNING)
+		log.setLevel(logging.WARNING)
 
 	if signal.signal(signal.SIGINT, catch) == signal.SIG_IGN:
 		signal.signal(signal.SIGINT, signal.SIG_IGN)

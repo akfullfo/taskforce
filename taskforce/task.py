@@ -17,12 +17,10 @@
 # ________________________________________________________________________
 #
 
-#import sys, os, fcntl, pwd, grp, signal, errno, time, socket, select, yaml, re
-import sys, os, fcntl, pwd, grp, signal, errno, time, socket, select, re
-#import ns_process
-#import utils
-#from utils import ses
-#from utils import get_caller as my
+import sys, os, fcntl, pwd, grp, signal, errno, time, socket, select, yaml, re
+import utils
+from utils import ses, deltafmt, statusfmt
+from utils import get_caller as my
 import watch_files
 import watch_modules
 import logging
@@ -77,9 +75,9 @@ def legion_create_handler(obj):
 
 class LegionReset(Exception):
 	"""
-	Raised by the legion instance when it is requesting that the caller
-	completely reset and restart.  This will happen if a SIGHUP is received
-	or in the registered program receives a module change event.
+Raised by the legion instance when it is requesting that the caller
+completely reset and restart.  This will happen if a SIGHUP is received
+or in the registered program receives a module change event.
 """
 	def __init__(self):
 		pass
@@ -160,7 +158,7 @@ def _exec_process(cmd_list, context, instance=0, log=None):
 """
 	if not log:
 		log = logging.getLogger(__name__)
-		log.handler = logging.NullHandler()
+		log.addHandler(logging.NullHandler())
 
 	#  Make sure we have a normalized clone of the cmd_list
 	#
@@ -237,8 +235,6 @@ def _exec_process(cmd_list, context, instance=0, log=None):
 	#  never escape to outside handlers or we might create zombie init tasks.
 	#
 	try:
-		log.reset()
-
 		# Add the pid to the context now that we have it.
 		#
 		context[context_prefix+'pid'] = os.getpid()
@@ -280,7 +276,7 @@ def _exec_process(cmd_list, context, instance=0, log=None):
 		for a in cmd_list:
 			cmd.append(_fmt_context(a, context))
 
-		log.debug("%s child, Execing: %s <%s>", my(), prog, ns_process.format_cmd(cmd))
+		log.debug("%s child, Execing: %s <%s>", my(), prog, utils.format_cmd(cmd))
 	except Exception as e:
 		#  Log any exceptions here while we still can.  After the closeall,
 		#  bets are off.
@@ -289,7 +285,11 @@ def _exec_process(cmd_list, context, instance=0, log=None):
 				my(), name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 		os._exit(84)
 	try:
-		ns_process.closeall(exclude=[0,1,2])
+		retain_fds = [0,1,2]
+		for log_fd in utils.log_filenos(log):
+			if log_fd not in retain_fds:
+				retain_fds.append(log_fd)
+		utils.closeall(exclude=retain_fds)
 		fd = None
 		try: os.close(0)
 		except: pass
@@ -317,7 +317,7 @@ def _exec_process(cmd_list, context, instance=0, log=None):
 			if val is not None:
 				env[tag] = _fmt_context(str(val), context)
 	except Exception as e:
-		#  At this point we can still see logs to stderr, so log these
+		#  At this point we can still send logs to stderr, so log these
 		#  too, just in case.
 		#
 		log.error("%s Child processing failed for task '%s', instance %d -- %s",
@@ -370,7 +370,7 @@ access must be done with blocking activity fed through the legion event loop.
 		self._key = parent if key is None else key
 		self._params = dict(params)
 		self._discard = logging.getLogger(__name__)
-		self._discard.handler = logging.NullHandler()
+		self._discard.addHandler(logging.NullHandler())
 		self._name = parent._name if hasattr(parent, '_name') else None
 
 		handler_names = set([method for method in dir(self)
@@ -384,16 +384,6 @@ access must be done with blocking activity fed through the legion event loop.
 		self._handler = getattr(self, handler_name)
 		self._handler_arg = arg
 
-	def _getparam(self, tag, default = None, **params):
-		val = None
-		if params is not None:
-			val = params.get(tag)
-		if val is None:
-			val = self._params.get(tag)
-		if val is None:
-			val = default
-		return val
-
 	def get_key(self):
 		return self._key
 
@@ -401,7 +391,7 @@ access must be done with blocking activity fed through the legion event loop.
 		return self._name
 
 	def handle(self, details=None):
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		log.debug("%s Received %s(%s) event for '%s', details: %s",
 				my(self), self._handler_name, '' if self._handler_arg is None else str(self._handler_arg),
 				str(self._name), str(details))
@@ -415,7 +405,7 @@ access must be done with blocking activity fed through the legion event loop.
 		A separate event is registered to handle the command exit.  This
 		simply logs the exit status.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		if '_config_running' not in dir(self._parent) or 'commands' not in self._parent._config_running:
 			log.error("%s Event parent '%s' has no 'commands' config section", my(self), self._name)
 			return
@@ -439,10 +429,10 @@ access must be done with blocking activity fed through the legion event loop.
 		"""
 		Handle the event when a utility command exits.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		pid = self._key
 		status = details
-		why = ns_process.statusfmt(status)
+		why = statusfmt(status)
 		if status:
 			log.warning("%s pid %d for %s(%s) %s", my(self), pid, self._name, str(self._handler_arg), why)
 		else:
@@ -452,10 +442,10 @@ access must be done with blocking activity fed through the legion event loop.
 		"""
 		Handle the event when one of the task processes exits.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		pid = self._key
 		status = details
-		why = ns_process.statusfmt(status)
+		why = statusfmt(status)
 		if pid not in self._parent._pids:
 			log.error("%s legion reported exit of unknown pid %s for task '%s' which %s",
 								my(self), str(pid), self._name, why)
@@ -481,15 +471,15 @@ access must be done with blocking activity fed through the legion event loop.
 		"""
 		Send a signal to all task processes.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		if '_signal' not in dir(self._parent) or not callable(getattr(self._parent, '_signal')):
 			log.error("%s Event parent '%s' has no '_signal' method", my(self), self._name)
 			return
-		sig = ns_process.signum(self._handler_arg)
+		sig = utils.signum(self._handler_arg)
 		if sig is None:
 			log.error("%s Invalid signal '%s' for task '%s'", my(self), self._handler_arg, sig._name)
 			return
-		log.info("%s sending %s to all '%s' processes", my(self), ns_process.signame(sig), self._name)
+		log.info("%s sending %s to all '%s' processes", my(self), utils.signame(sig), self._name)
 		self._parent._signal(sig)
 
 	def legion_config(self, details):
@@ -548,9 +538,9 @@ Params are:
 	def __init__(self, **params):
 		self._params = dict(params)
 		self._discard = logging.getLogger(__name__)
-		self._discard.handler = logging.NullHandler()
+		self._discard.addHandler(logging.NullHandler())
 
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 
 		#  Set to the program name (as delivered by set_own_module).
 		#  This is used to successfully dispatch legion events.
@@ -626,20 +616,20 @@ Params are:
 		#  the config and role files, and files watched on behalf
 		#  of tasks including non-python program executables.
 		#
-		self._watch_files = ns_watch_files.watch(log=log, timeout=0.1, missing=True)
+		self._watch_files = watch_files.watch(log=log, timeout=0.1, missing=True)
 		self._file_event_map = {}
-		if self._watch_files.get_mode() == ns_watch_files.WF_POLLING:
-			log.warning("ns_watch_files.watch() has ended up in polling mode")
+		if self._watch_files.get_mode() == watch_files.WF_POLLING:
+			log.warning("watch_files.watch() has ended up in polling mode")
 		else:
-			log.info("ns_watch_files.watch() is in %s mode", self._watch_files.get_mode_name())
+			log.info("watch_files.watch() is in %s mode", self._watch_files.get_mode_name())
 
 		#  The module watcher object.  This covers module changes for the program
 		#  itself and for managed programs that are flagged as python.
 		#  See the 'module_path' param about how to limit the extent of the
 		#  modules being watched.
 		#
-		self._watch_modules = ns_watch_modules.watch(log=log, timeout=0.3,
-						module_path=self._getparam('module_path', os.environ.get('PYTHONPATH')))
+		self._watch_modules = watch_modules.watch(log=log, timeout=0.3,
+						module_path=self._params.get('module_path', os.environ.get('PYTHONPATH')))
 		self._module_event_map = {}
 
 		#  The signal watcher.  This uses a self-pipe to cause the select event loop to
@@ -651,18 +641,8 @@ Params are:
 			fl = fcntl.fcntl(fd, fcntl.F_GETFL)
 			fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
-	def _getparam(self, tag, default = None, **params):
-		val = None
-		if params is not None:
-			val = params.get(tag)
-		if val is None:
-			val = self._params.get(tag)
-		if val is None:
-			val = default
-		return val
-
 	def _sig_handler(self, sig, frame):
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		if sig == signal.SIGCHLD:
 			log.debug("%s Received SIGCHLD", my(self))
 			try:
@@ -672,14 +652,14 @@ Params are:
 			return
 
 		if sig in set([signal.SIGHUP, signal.SIGINT, signal.SIGTERM]):
-			log.info("%s Stopping all unadoptable tasks on %s", my(self), ns_process.signame(sig))
+			log.info("%s Stopping all unadoptable tasks on %s", my(self), utils.signame(sig))
 			now = time.time()
 			self._exiting = now
 			if sig == signal.SIGHUP:
 				self._resetting = now
 			self.stop_all()
 		else:
-			log.info("%s Relaying %s to all registered tasks", my(self), ns_process.signame(sig))
+			log.info("%s Relaying %s to all registered tasks", my(self), utils.signame(sig))
 			self.signal_all(sig)
 		if sig in self._signal_prior and type(self._signal_prior[sig]) == type(self._sig_handler):
 			log.info("%s Chaining to prior signal handler %s", my(self), str(self._signal_prior[sig]))
@@ -718,7 +698,7 @@ Params are:
 		else:
 			return '(' + ', '.join(val) + ')'
 
-	def _load_roles(self, **params):
+	def _load_roles(self):
 		"""
 		Load the roles, one per line, from the roles file.  This is
 		called at startup and whenever the roles file changes.
@@ -732,7 +712,7 @@ Params are:
 		typically skipped at startup as the first apply() will not
 		yet have happened.
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 
 		new_role_set = None
 		if self._roles_file:
@@ -771,7 +751,7 @@ Params are:
 		with no role list will be in scope.  Otherwise the contents
 		is parsed as a set of roles, one per line.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		if path != self._roles_file:
 			if self._roles_file:
 				log.info("%s Roles file changed from '%s' to '%s'", my(self), self._config_file, path)
@@ -800,7 +780,7 @@ Params are:
 		Returns True if there was a change in config, False otherwise.
 		On any change, the config should be reapplied.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 
 		new_config = None
 		if self._config_file:
@@ -836,7 +816,7 @@ Params are:
 		be watched for future changes.  The changes will be activated
 		by appropriate changes to the running tasks.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		if path != self._config_file:
 			if self._config_file:
 				log.info("%s Config file changed from '%s' to '%s'", my(self), self._config_file, path)
@@ -853,7 +833,7 @@ Params are:
 		to be stopped and a LegionReset exception raised when any part of
 		the program's own module tree changes.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		self._name = path
 		self.module_add(event_target(self, 'legion_reset', key=path, log=log), path)
 
@@ -864,7 +844,7 @@ Params are:
 		for name, tinfo in self._tasknames.items():
 			tinfo[0].stop()
 			
-	def task_add(self, t, periodic=None, **params):
+	def task_add(self, t, periodic=None):
 		"""
 		Register a task in this legion.  "periodic" should be None, or
 		a callback function which will be called periodically when the
@@ -877,7 +857,7 @@ Params are:
 		self._tasknames[name] = (t, periodic)
 		self._tasks.add(t)
 
-	def task_del(self, t, **params):
+	def task_del(self, t):
 		"""
 		Remove a task in this legion.
 		If the task has active processes, an attempt is made to
@@ -890,19 +870,19 @@ Params are:
 		try:
 			t.stop()
 		except:
-			log = self._getparam('log', self._discard, **params)
+			log = self._params.get('log', self._discard)
 			log.error("%s Failed to stop processes for task '%s' -- %s", my(self), name)
 		for pid in t.get_procs():
 			self.proc_del(pid)
 
-	def task_list(self, pending=True, **params):
+	def task_list(self, pending=True):
 		"""
 		Return the list of scoped tasks (ie tasks that have
 		appropriate roles set) in correct execution order.
 
 		The result is a list of task objects.
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		tasks = [t for t in self._tasks if t.participant()]
 		requires = {}
 		for t in tasks:
@@ -954,7 +934,7 @@ Params are:
 		Register for python module change events.  If there is a module change, the
 		task will be notified with a call t.event(action).
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		key = ev.get_key()
 		if key is None:
 			raise TaskError(name, "Attempt to register python module event with no key available")
@@ -980,7 +960,7 @@ Params are:
 		path, each path is mapped to a dict of tasks pointing at actions.
 		A task can only register a single action with each path.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		if type(paths) is not list:
 			paths = [paths]
 		for path in paths:
@@ -1010,13 +990,13 @@ Params are:
 				self._watch_files.remove(path)
 				del self._file_event_map[path]
 
-	def _reap(self, **params):
+	def _reap(self):
 		"""
 		Reap all processes that have exited.  We try to reap bursts of
 		processes so that groups that cluster will tend to restart in the
 		configured order.
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		try:
 			cnt = len(os.read(self._watch_child, 102400))
 			log.debug("%s %d byte%s read from self-pipe", my(self), cnt, ses(cnt))
@@ -1043,35 +1023,35 @@ Params are:
 					self.proc_del(pid)
 				else:
 					log.error("%s Unknown pid %d %s, ignoring",
-								my(self), pid, ns_process.statusfmt(status))
+								my(self), pid, statusfmt(status))
 				continue
 			else:
 				return reaped
 
-	def _apply(self, **params):
-		log = self._getparam('log', self._discard, **params)
+	def _apply(self):
+		log = self._params.get('log', self._discard)
 		target_tasks = self.task_list()
 		for t in set(self._tasks_scoped):
 			if t not in target_tasks:
 				log.info("%s Removing task '%s' from scope", my(self), t.get_name())
 				self._tasks_scoped.discard(t)
-				t.stop(**params)
+				t.stop()
 		for t in target_tasks:
 			if t not in self._tasks_scoped:
 				log.info("%s Adding task '%s' to scope", my(self), t.get_name())
 				self._tasks_scoped.add(t)
-			t.apply(**params)
+			t.apply()
 
-	def manage(self, **params):
-		log = self._getparam('log', self._discard, **params)
-		timeout_short_cycle = self._getparam('short_cycle', def_short_cycle, **params)
-		timeout_long_cycle = self._getparam('long_cycle', def_long_cycle, **params)
+	def manage(self):
+		log = self._params.get('log', self._discard)
+		timeout_short_cycle = self._params.get('short_cycle', def_short_cycle)
+		timeout_long_cycle = self._params.get('long_cycle', def_long_cycle)
 
 		self._set_handler(signal.SIGHUP)
 		self._set_handler(signal.SIGINT, ignore=True)
 		self._set_handler(signal.SIGCHLD)
 		self._set_handler(signal.SIGTERM)
-		self._apply(**params)
+		self._apply()
 
 		last_timeout = None
 		last_idle_run = time.time()
@@ -1099,7 +1079,7 @@ Params are:
 
 				watching = [self._watch_child, self._watch_modules, self._watch_files]
 				if last_timeout != timeout:
-					log.debug("%s select() timeout is now %s", my(self), utils.deltafmt(timeout))
+					log.debug("%s select() timeout is now %s", my(self), deltafmt(timeout))
 					last_timeout = timeout
 				try:
 					ready = select.select(watching, [], [], timeout)
@@ -1112,7 +1092,7 @@ Params are:
 				idle_starving = (last_idle_run + idle_starvation < now)
 				if idle_starving:
 					log.warning("%s Idle starvation detected, last run was %s ago",
-										my(self), utils.deltafmt(now - last_idle_run))
+										my(self), deltafmt(now - last_idle_run))
 				if idle_starving or ready == ([],[],[]):
 					log.debug("%s idle", my(self))
 					last_idle_run = now
@@ -1124,13 +1104,13 @@ Params are:
 					#  happen.
 					#
 					for t in self._tasks_scoped:
-						if t.manage(**params) and timeout > timeout_short_cycle:
+						if t.manage() and timeout > timeout_short_cycle:
 							timeout = timeout_short_cycle
 
 					if self._reload_config:
 						try:
 							log.info("%s Reloading config for change from %s ago",
-								my(self), utils.deltafmt(time.time() - self._reload_config))
+								my(self), deltafmt(time.time() - self._reload_config))
 							self._load_roles()
 							self._load_config()
 							self._reload_config = None
@@ -1248,7 +1228,7 @@ Params are:
 		self._name = str(name)
 		self._params = dict(params)
 		self._discard = logging.getLogger(__name__)
-		self._discard.handler = logging.NullHandler()
+		self._discard.addHandler(logging.NullHandler())
 		self._config_running = None
 		self._config_pending = None
 		self._pids = []
@@ -1267,11 +1247,11 @@ Params are:
 		self._context = None
 
 		#  Register with legion
-		self._legion.task_add(self, periodic=self._task_periodic, **params)
+		self._legion.task_add(self, periodic=self._task_periodic)
 
 	def __del__(self):
 		if self._legion:
-			try: self._event_deregister(**params)
+			try: self._event_deregister()
 			except: pass
 			try: self._legion.task_del(self._name)
 			except: pass
@@ -1307,16 +1287,6 @@ Params are:
 		self._stopped = None
 		self._dnr = None
 
-	def _getparam(self, tag, default = None, **params):
-		val = None
-		if params is not None:
-			val = params.get(tag)
-		if val is None:
-			val = self._params.get(tag)
-		if val is None:
-			val = default
-		return val
-
 	def get_name(self):
 		return self._name
 
@@ -1337,7 +1307,7 @@ Params are:
 		The context consists of the entire os.environ, the config 'defines', and a set
 		of pre-defined values which have a common prefix from 'context_prefix'.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		log.debug("%s called with pending=%s", my(self), pending)
 		if pending:
 			conf = self._config_pending
@@ -1373,10 +1343,10 @@ Params are:
 		self._context_defines(context, conf)
 		return context
 
-	def get_path(self, **params):
+	def get_path(self):
 		if self._path is not None:
 			return self._path
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		if 'procpath' in self._config_running:
 			self._path = _fmt_context(self._config_running['procpath'], self._context)
 			log.debug("%s Task '%s' path '%s' (from 'procpath')", my(self), self._name, self._path)
@@ -1395,7 +1365,7 @@ Params are:
 				log.debug("%s Task '%s' path '%s' (direct from task name)", my(self), self._name, name)
 				return name
 			log.debug("%s Task '%s' using task name for path lookup", my(self), self._name, name)
-		path_list = self._getparam('path', os.environ['PATH'], **params).split(os.pathsep)
+		path_list = self._params.get('path', os.environ['PATH']).split(os.pathsep)
 		for dir in path_list:
 			path = os.path.join(dir, name)
 			try:
@@ -1415,17 +1385,17 @@ Params are:
 	def has_pid(self, pid):
 		return (pid in self._pids)
 
-	def get_config(self, pending=False, **params):
-		log = self._getparam('log', self._discard, **params)
+	def get_config(self, pending=False):
+		log = self._params.get('log', self._discard)
 		log.debug("%s %s '%s' config", my(self), 'pending' if pending else 'running', self._name)
 		if pending:
 			return self._config_pending
 		else:
 			return self._config_running
 
-	def get_requires(self, pending=False, **params):
-		log = self._getparam('log', self._discard, **params)
-		conf = self.get_config(pending=pending, **params)
+	def get_requires(self, pending=False):
+		log = self._params.get('log', self._discard)
+		conf = self.get_config(pending=pending)
 		req = conf.get('requires', [])
 		if type(req) is not list:
 			req = [req]
@@ -1444,18 +1414,18 @@ Params are:
 				', '.join([t._name for t in requires]))
 		return requires
 
-	def set_config(self, config, **params):
-		log = self._getparam('log', self._discard, **params)
+	def set_config(self, config):
+		log = self._params.get('log', self._discard)
 		log.debug("%s for '%s'", my(self), self._name)
 		self._config_pending = config.copy()
 
-	def participant(self,  **params):
+	def participant(self):
 		"""
 		True if the tasks roles meet the legion's constraints,
 		False otherwise.
 	"""
-		log = self._getparam('log', self._discard, **params)
-		conf = self._getparam('config', self._config_pending, **params)
+		log = self._params.get('log', self._discard)
+		conf = self._params.get('config', self._config_pending)
 
 		if conf.get('control') == 'off':
 			log.debug("%s Excluding task '%s' -- control is off", my(self), self._name)
@@ -1488,8 +1458,8 @@ Params are:
 		log.debug("%s Excluding task '%s' -- no role matches %s", my(self), self._name, str(active_roles))
 		return False
 
-	def _make_event_target(self, event, **params):
-		log = self._getparam('log', self._discard)
+	def _make_event_target(self, event):
+		log = self._params.get('log', self._discard)
 		handler = None
 		arg = None
 		for h in ['command', 'signal']:
@@ -1502,13 +1472,13 @@ Params are:
 			raise TaskError(self._name, "Event type '%s' has no handler defined" % (str(event.get('type')),))
 		return event_target(self, handler, arg=arg, key=self._name, log=log)
 
-	def _event_register(self, **params):
+	def _event_register(self):
 		"""
 		Do all necessary event registration with the legion for
 		events listed in the pending config.  The default event
 		action is to stop the task.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		if 'events' not in self._config_running:
 			log.debug("%s No events present for task '%s'", my(self), self._name)
 			return
@@ -1534,13 +1504,13 @@ Params are:
 			else:
 				log.error("%s Ignoring unknown event type '%s' in task '%s'", my(self), type, self._name)
 			
-	def _event_deregister(self, **params):
+	def _event_deregister(self):
 		"""
 		Deregister all legion events associated with this task
 		(or possibly those listed in the current config, but it
 		would be better to base deregistration on the task name).
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		if 'events' not in self._config_running:
 			log.debug("%s No events present for task '%s'", my(self), self._name)
 			return
@@ -1552,7 +1522,7 @@ Params are:
 			elif event.get('type') == 'file_change':
 				self._legion.file_del(self._name)
 
-	def _command_change(self, **params):
+	def _command_change(self):
 		"""
 		Returns True if the difference between the current and
 		pending configs represents a change to the command.
@@ -1562,7 +1532,7 @@ Params are:
 			-  Command changed (restart needed)
 			-  Environment changed (restart needed)
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		if self._config_running is None:
 			log.debug("%s Task '%s' change - no previous config", my(self), self._name)
 			return True
@@ -1583,7 +1553,7 @@ Params are:
 		from the legion.  The legion chooses when it might be called,
 		typically when it is otherwise idle.
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		log.debug("%s periodic", my(self))
 		self.manage()
 
@@ -1592,16 +1562,16 @@ Params are:
 		Send a signal to all pids associated with this task.  Never fails, but logs
 		signalling faults as warnings.
 	"""
-		log = self._getparam('log', self._discard)
+		log = self._params.get('log', self._discard)
 		for pid in self.get_pids():
 			try:
 				os.kill(pid, sig)
-				log.debug("%s Signalled '%s' pid %d with %s", my(self), self._name, pid, ns_process.signame(sig))
+				log.debug("%s Signalled '%s' pid %d with %s", my(self), self._name, pid, utils.signame(sig))
 			except Exception as e:
 				log.warning("%s Failed to signal '%s' pid %d with %s -- %s",
-									my(self), self._name, pid, ns_process.signame(sig), str(e))
+									my(self), self._name, pid, utils.signame(sig), str(e))
 
-	def onexit(self, **params):
+	def onexit(self):
 		"""
 		Runs any "onexit" functions present in the config.  This will
 		normally be called from the proc_exit event handler after all
@@ -1617,7 +1587,7 @@ Params are:
 				For that reason, 'start' may only be issued against
 				a "once" task.
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		conf = self._config_running
 		if 'onexit' not in conf:
 			log.debug("%s Task %s has no 'onexit' processing", my(self), self._name)
@@ -1660,7 +1630,7 @@ Params are:
 				log.error("%s Unknown type '%s' for task %s 'onexit' item %d", my(self), type, self._name, item)
 				continue
 
-	def _start(self, **params):
+	def _start(self):
 		"""
 		Start a task, which may involve starting more than one process.
 
@@ -1688,7 +1658,7 @@ Params are:
 		Returns True to request a shorter period before the next call,
 		False if nothing special is needed.
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		if self._stopping:
 			log.debug("%s %s task is stopping", my(self), self._name)
 			return True
@@ -1702,11 +1672,11 @@ Params are:
 				return False
 			elif once:
 				log.debug("%s 'once' task %s exited %s ago",
-							my(self), self._name, utils.deltafmt(time.time() - self._stopped))
+							my(self), self._name, deltafmt(time.time() - self._stopped))
 				return False
 			else:
 				log.debug("%s Restarting %s, task was stopped %s ago",
-							my(self), self._name, utils.deltafmt(time.time() - self._stopped))
+							my(self), self._name, deltafmt(time.time() - self._stopped))
 				self._reset_state()
 
 		start_delay = conf.get('start_delay')
@@ -1721,11 +1691,11 @@ Params are:
 		if self._starting and not self._started:
 			if now > self._starting + start_delay:
 				log.info("%s %s task marked started after %s",
-						my(self), self._name, utils.deltafmt(now - self._starting))
+						my(self), self._name, deltafmt(now - self._starting))
 				self._started = now
 				return False
 			log.debug("%s %s task has been starting for %s of %s",
-				my(self), self._name, utils.deltafmt(now - self._starting), utils.deltafmt(start_delay))
+				my(self), self._name, deltafmt(now - self._starting), deltafmt(start_delay))
 			return True
 
 		#  Check the required state to ensure dependencies have been started.  In the case of
@@ -1803,7 +1773,7 @@ Params are:
 						continue
 					if last_start_delta < reexec_delay:
 						log.debug("%s %s instance %d restart skipped, last attempt %s ago",
-							my(self), self._name, instance, utils.deltafmt(last_start_delta))
+							my(self), self._name, instance, deltafmt(last_start_delta))
 						continue
 				else:
 					log.debug("%s %s growing instance %d", my(self), self._name, instance)
@@ -1825,7 +1795,7 @@ Params are:
 							my(self), self._name, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 		return False
 
-	def stop(self, **params):
+	def stop(self, task_is_resetting=False):
 		"""
 		Stop a task.  This stops all processes for the task.  The approach
 		is to mark the task as "stopping" , send a SIGTERM to each process,
@@ -1840,8 +1810,7 @@ Params are:
 		Returns True to request a shorter period before the next call,
 		False if nothing special is needed.
 	"""
-		log = self._getparam('log', self._discard, **params)
-		task_is_resetting = self._getparam('reset', False, **params)
+		log = self._params.get('log', self._discard)
 
 		if self._stopped:
 			log.debug("%s '%s' is already stopped", my(self), self._name)
@@ -1857,11 +1826,11 @@ Params are:
 		if self._stopping:
 			if not self._legion.is_exiting() and self._config_running.get('control') == 'once':
 				log.debug("%s %d '%s' 'once' process%s still running %s",
-					my(self), running, self._name, ses(running, 'es'), utils.deltafmt(now - self._stopping))
+					my(self), running, self._name, ses(running, 'es'), deltafmt(now - self._stopping))
 				return False
 			elif self._killed:
 				log.warning("%s %d '%s' process%s still running %s after SIGKILL escalation",
-					my(self), running, self._name, ses(running, 'es'), utils.deltafmt(now - self._killed))
+					my(self), running, self._name, ses(running, 'es'), deltafmt(now - self._killed))
 				return True
 			elif self._stopping + sigkill_escalation < now:
 				log.warning("%s Excalating to SIGKILL with %d '%s' process%s still running",
@@ -1869,7 +1838,7 @@ Params are:
 				self._signal(signal.SIGKILL)
 			else:
 				log.debug("%s %d '%s' process%s still running %s after SIGTERM",
-					my(self), running, self._name, ses(running, 'es'), utils.deltafmt(now - self._stopping))
+					my(self), running, self._name, ses(running, 'es'), deltafmt(now - self._stopping))
 		else:
 			self._stopping = now
 			restart_target = None
@@ -1896,19 +1865,19 @@ Params are:
 				self._signal(signal.SIGTERM)
 		return True
 
-	def terminate(self, **params):
+	def terminate(self):
 		"""
 		Called when an existing task is removed from the configuration.
 		This sets a Do Not Resuscitate flag and then initiates a stop
 		sequence.  Once all processes have stopped, the task will delete
 		itself.
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		self._dnr = time.time()
 		self.stop()
 		log.info("%s Task '%s' marked for death", my(self), self._name)
 
-	def apply(self, **params):
+	def apply(self):
 		"""
 		Make the pending config become the running config for this task
 		by triggering any necessary changes in the running task.
@@ -1916,7 +1885,7 @@ Params are:
 		Returns True to request a shorter period before the next call,
 		False if nothing special is needed.
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		if not self._config_pending:
 			raise TaskError(self._name, "No configuration available to apply")
 
@@ -1925,27 +1894,25 @@ Params are:
 			control = 'wait'
 
 		log.debug("%s for '%s', control '%s'", my(self), self._name, control)
-		if self._command_change(**params) and len(self.get_pids()) > 0:
-			self._event_deregister(**params)
-			sparams = params.copy()
-			sparams['reset'] = True
-			self.stop(**sparams)
+		if self._command_change() and len(self.get_pids()) > 0:
+			self._event_deregister()
+			self.stop(task_is_resetting=True)
 
 		self._config_running = self._config_pending
 		self._context = self._context_build()
 
 		if control in set(['wait', 'nowait', 'adopt']):
-			self._event_register(**params)
-		return self.manage(**params)
+			self._event_register()
+		return self.manage()
 
-	def manage(self, **params):
+	def manage(self):
 		"""
 		Manage the task to handle restarts, reconfiguration, etc.
 
 		Returns True to request a shorter period before the next call,
 		False if nothing special is needed.
 	"""
-		log = self._getparam('log', self._discard, **params)
+		log = self._params.get('log', self._discard)
 		if self._stopping:
 			log.debug("%s Task '%s', stopping, retrying stop()", my(self), self._name)
 			return self.stop()
@@ -1953,13 +1920,13 @@ Params are:
 			log.debug("%s Not managing '%s', legion is exiting", my(self), self._name)
 			return False
 		log.debug("%s managing '%s'", my(self), self._name)
-		return self._start(**params)
+		return self._start()
 
 if __name__ == "__main__":
 	import argparse
 
-	def_roles_file = '/home/afullford/ns_roles.conf'
-	def_config_file = '/home/afullford/ns_init.conf'
+	def_roles_file = 'tf_roles.conf'
+	def_config_file = 'taskforce.conf'
 
 	p = argparse.ArgumentParser(
 		formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1975,12 +1942,15 @@ if __name__ == "__main__":
 
 	args = p.parse_args()
 
-	log = logging.getLogger(__name__)
-	log.handler = logging.StreamHandler()
+	log = logging.getLogger()
+	log.addHandler(logging.StreamHandler())
+
 	if args.verbose:
 		log.setLevel(logging.DEBUG)
 	elif args.quiet:
 		log.setLevel(logging.WARNING)
+	else:
+		log.setLevel(logging.INFO)
 
 	try:
 		l = legion(log=log)
