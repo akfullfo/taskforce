@@ -12,7 +12,7 @@ It will detect executable and/or module changes and automatically restart the af
 	maintainer = "Andrew Fullford",
 	maintainer_email = "pypi102014@fullford.com",
 	url = "https://github.com/akfullfo/taskforce",
-	download_url = "https://github.com/akfullfo/traskforce/tarball/0.1",
+	download_url = "https://github.com/akfullfo/taskforce/tarball/0.1",
 	license = "Apache License, Version 2.0",
 
 	packages = ['taskforce'],
