@@ -29,7 +29,7 @@ It will detect executable and/or module changes and automatically restart the af
 
 	'packages': ['taskforce'],
 	'scripts': ['bin/taskforce'],
-	'install_requires': ['yaml>=3.09'],
+	'install_requires': ['PyYAML>=3.09'],
 }
 try:
 	with open(readme_file, 'rt') as f:
