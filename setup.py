@@ -4,7 +4,7 @@ import re
 from setuptools import setup
 
 version_file = 'taskforce/__init__.py'
-readme_file = 'README.md'
+readme_file = 'README'
 version = ''
 with open(version_file, 'rt') as f:
 	m = re.search(r'''__version__\s*=\s*["'](\d+(\.\d+)+)["']''', f.read())
