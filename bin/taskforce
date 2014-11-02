@@ -173,7 +173,7 @@ if sig_to_send:
 		sys.stderr.write(str(e)+'\n')
 		sys.exit(1)
 
-if not args.roles_file:
+if args.roles_file is None:
 	for fname in def_roles_filelist:
 		try:
 			with open(fname, 'r') as f:
@@ -181,18 +181,6 @@ if not args.roles_file:
 				break
 		except:
 			pass
-
-if args.pidfile is None and args.daemonize:
-	pidfile = def_pidfile
-else:
-	pidfile = args.pidfile
-if pidfile == '' or pidfile == '-':
-	pidfile = None
-if pidfile:
-	pidfile = os.path.realpath(pidfile)
-
-#if args.daemonize:
-#	daemonize()
 
 if args.log_stderr:
 	log_handler = logging.StreamHandler()
@@ -213,11 +201,16 @@ elif args.quiet:
 	log.setLevel(logging.WARNING)
 else:
 	log.setLevel(logging.INFO)
-if args.daemonize:
-	daemonize(log=log.warning)
 
-if not args.roles_file:
-	log.warning("None of the default roles files (%s) were accessible", ', '.join(def_roles_file))
+if pidfile:
+	pidfile = os.path.realpath(pidfile)
+
+if args.roles_file is None:
+	log.warning("None of the default roles files (%s) were accessible", ', '.join(def_roles_filelist))
+
+if args.daemonize:
+	daemonize()
+
 log.info("Starting, config '%s', roles '%s'", str(args.config_file), str(args.roles_file))
 
 if pidfile is not None:
