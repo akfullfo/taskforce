@@ -31,10 +31,10 @@ It will detect executable and/or module changes and automatically restart the af
 	'scripts': ['bin/taskforce'],
 	'install_requires': ['PyYAML>=3.09'],
 }
-try:
-	with open(readme_file, 'rt') as f:
-		setup_parms['long_description'] = f.read()
-except:
-	pass
+#try:
+#	with open(readme_file, 'rt') as f:
+#		setup_parms['long_description'] = f.read()
+#except:
+#	pass
 
 setup(**setup_parms)
