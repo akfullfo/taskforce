@@ -43,6 +43,14 @@ type _self_ is shorthand for the equivalent _file_change_ event.  In both cases,
 the event will cause the task to be stopped.  As both tasks have the _wait_
 `control`, they will then be restarted.
 
+### Configuration File ###
+
+`taskforce` configuration is traditionally done using YAML flow style which is
+effectlively JSON with comments and better error messages for format errors.  It
+is loaded using `yaml.safe_load()` so there should be no reason you can't use
+block style if you prefer.
+
+
 ### Included Modules ###
 **task.py** holds the primary class `legion` which is the entry point into task
 management.  An effectively internal class `task` manages each task after it is
@@ -59,10 +67,43 @@ by an application.
 
 **utils.py** holds support methods and classes
 
+### Application ###
 Also included is **bin/taskforce** which provides an operational harness for
 running a taskforce legion.  It also serves as an example of how the
 `taskforce.task.legion()` class should be called.
 
+Here is the help message:
+```AsciiDoc
+
+usage: taskforce [-h] [-v] [-q] [-e] [-b] [-p PIDFILE] [-f CONFIG_FILE]
+                 [-r ROLES_FILE] [-C] [-R] [-S]
+
+Manage tasks and process pools
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -v, --verbose         Verbose logging for debugging
+  -q, --quiet           Quiet logging, warnings and errors only
+  -e, --log-stderr      Log to stderr instead of syslog
+  -b, --background      Run in the background
+  -p PIDFILE, --pidfile PIDFILE
+                        Pidfile path, default /var/run/taskforce.pid, "-"
+                        means none
+  -f CONFIG_FILE, --config-file CONFIG_FILE
+                        Configuration. File will be watched for changes.
+                        Default /usr/local/etc/taskforce.conf
+  -r ROLES_FILE, --roles-file ROLES_FILE
+                        File to load roles from. File will be watched for
+                        changes. Default is selected from:
+                        /var/local/etc/tf_roles.conf,
+                        /usr/local/etc/tf_roles.conf
+  -C, --check-config    Check the config and exit
+  -R, --reset           Cause the background taskforce to reset. All
+                        unadoptable tasks will be stopped and the program will
+                        restart itself.
+  -S, --stop            Cause the background taskforce to exit. All
+                        unadoptable tasks will be stopped.
+```
 ### ToDo ###
 * Add pyinotify support so it operates efficiently with Linux
 * Extend support for python 3
