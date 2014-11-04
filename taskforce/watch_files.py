@@ -26,7 +26,15 @@ from utils import get_caller as my
 #
 WF_POLLING = 0
 WF_KQUEUE = 1
-WF_INOTIFY = 2
+WF_INOTIFYX = 2
+
+wf_inotifyx_available = False
+try:
+	import inotifyx
+	if callable(inotifyx.init):
+		wf_inotifyx_available = True
+except:
+	pass
 
 class watch(object):
 	"""
@@ -110,6 +118,8 @@ class watch(object):
 		#
 		if polling:
 			self._mode = WF_POLLING
+		elif wf_inotifyx_available:
+			self._mode = WF_INOTIFYX
 		elif 'kqueue' in dir(select) and callable(select.kqueue):
 			self._mode = WF_KQUEUE
 		else:
@@ -132,9 +142,6 @@ class watch(object):
 
 		#  Provided to caller to observe the last set of changes.  The
 		#  value of the dict is the time the change was noted.
-		#  This is also used for internal processing to allow get()
-		#  and _kq_handle() to both maintine the list.  The value is
-		#  reset to empty whenever get() is called.
 		#
 		self.last_changes = {}
 
@@ -147,19 +154,13 @@ class watch(object):
 			#  call to fileno() will return the correct controlling fd.
 			#
 			self._kq = select.kqueue()
-		elif self._mode == WF_POLLING:
-			#  This sets up a self-pipe so we can hand back an fd to
-			#  the caller event though there is no event handling.
-			#  The ends of the pipe are set non-blocking so it
-			#  doesn't really matter if a bunch of events fill
-			#  the pipe buffer.
+		elif self._mode == WF_INOTIFYX:
+			#  Immediately create an inotifyx channel identified by a
+			#  file descriptor.
 			#
-			import fcntl
-
-			self._poll_fd, self._poll_send = os.pipe()
-			for fd in [self._poll_fd, self._poll_send]:
-				fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-				fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+			self._inx_fd = inotifyx.init()
+		elif self._mode == WF_POLLING:
+			self._self_pipe()
 
 			self._poll_stat = {}
 
@@ -176,6 +177,10 @@ class watch(object):
 			try: self._kq.close()
 			except: pass
 			self._kq = None
+		elif self._mode == WF_INOTIFYX:
+			try: os.close(self._inx_fd)
+			except: pass
+			self._inx_fd = None
 		elif self._mode == WF_POLLING:
 			for fd in [self._poll_fd, self._poll_send]:
 				try: os.close(fd)
@@ -192,6 +197,8 @@ class watch(object):
 	def fileno(self):
 		if self._mode == WF_KQUEUE:
 			return self._kq.fileno()
+		elif self._mode == WF_INOTIFYX:
+			return self._inx_fd
 		else:
 			return self._poll_fd
 
@@ -214,6 +221,32 @@ class watch(object):
 			val = default
 		return val
 
+	def _close(self, fd):
+		"""
+		Close the descriptor used for a path regardless
+		of mode.
+	"""
+		if self._mode == WF_INOTIFYX:
+			try: inotifyx.rm_watch(fd)
+			except: pass
+		else:
+			try: os.close(fd)
+			except: pass
+
+	def _self_pipe(self):
+		"""
+		This sets up a self-pipe so we can hand back an fd to the caller
+		allowing the object to manage event triggers.  The ends of the pipe are
+		set non-blocking so it doesn't really matter if a bunch of events fill
+		the pipe buffer.
+	"""
+		import fcntl
+
+		self._poll_fd, self._poll_send = os.pipe()
+		for fd in [self._poll_fd, self._poll_send]:
+			fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+			fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
 	def _disappeared(self, fd, path, **params):
 		"""
 		Called when an open path is no longer acessible.  This will either
@@ -223,13 +256,11 @@ class watch(object):
 		log = self._getparam('log', self._discard, **params)
 
 		log.debug("%s Path '%s' removed or renamed, handling removal", my(self), path)
-
-		try: os.close(fd)
-		except: pass
-		del self.fds_open[fd]
-		del self.paths_open[path]
+		self._close(fd)
 		if self._mode == WF_POLLING and fd in self._poll_stat:
 			del self._poll_stat[fd]
+		del self.fds_open[fd]
+		del self.paths_open[path]
 		if self.paths[path]:
 			try:
 				if self._add_file(path, **params):
@@ -276,28 +307,30 @@ class watch(object):
 				del self.fds_open[fd]
 				if path in self.paths_open:
 					del self.paths_open[path]
-			try: os.close(fd)
-			except: pass
+			self._close(fd)
 
 	def _trigger(self, fd, **params):
 		"""
-		In WF_KQUEUE mode, This simulates triggering an event by firing
+		We need to trigger events on fire appearance because the code
+		doesn't see the file until after it has been created.
+
+		In WF_KQUEUE mode, this simulates triggering an event by firing
 		a oneshot timer event to fire immediately (0 msecs).  Because
-		this uses the file descriptor as the timer ident and get() doesn't
+		this uses the file descriptor as the timer identity and get() doesn't
 		care what filter actually fired the event, the outside world sees
 		this as a file change.
 
-		We need to trigger events on fire appearance because the code
-		doesn't see the file until after it has been created.
+		In WF_INOTIFYX mode, this triggers an event by opening the file
+		in read-only mode and closing it.  The file is not discovered
+		unless it can be opened so this is reliable, although it does
+		mean that IN_OPEN must always be included in the inotify event
+		mask, which adds some unnecessary traffic out to the caller.
 
 		In WF_POLLING mode, this resets our knowledge of the stat
 		info, and then triggers file activity to wake up the caller.
 	"""
 		log = self._getparam('log', self._discard, **params)
-		if self._mode == WF_POLLING:
-			self._poll_stat[fd] = ()
-			self._poll_trigger()
-		elif self._mode == WF_KQUEUE:
+		if self._mode == WF_KQUEUE:
 			try:
 				ev = select.kevent(fd, filter=select.KQ_FILTER_TIMER,
 							flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR | select.KQ_EV_ONESHOT, data=0)
@@ -305,6 +338,21 @@ class watch(object):
 				log.debug("%s Added timer event following pending file promotion", my(self))
 			except Exception as e:
 				log.error("%s Failed to add timer event following pending file promotion -- %s", my(self), str(e))
+		elif self._mode == WF_INOTIFYX:
+			if fd in self.fds_open:
+				try:
+					path = self.fds_open[fd]
+					tfd = os.open(path, os.O_RDONLY);
+					try: os.close(tfd)
+					except: pass
+				except Exception as e:
+					log.error("%s Failed to trigger event via os.open() following pending file promotion -- %s",
+											my(self), str(e))
+			else:
+				log.error("%s Pending file promotion of unknown wd %d failed", my(self), fd)
+		elif self._mode == WF_POLLING:
+			self._poll_stat[fd] = ()
+			self._poll_trigger()
 
 	def _add_file(self, path, **params):
 		"""
@@ -326,8 +374,8 @@ class watch(object):
 				log.debug("%s added '%s' to pending list after open failure -- %s",
 							my(self), path, str(e))
 			return False
-		log.debug("%s path %s opened as fd %d", my(self), path, fd)
 		if self._mode == WF_KQUEUE:
+			log.debug("%s path %s opened as fd %d", my(self), path, fd)
 			try:
 				ev = select.kevent(fd,
 					filter=select.KQ_FILTER_VNODE,
@@ -341,7 +389,22 @@ class watch(object):
 				except: pass
 				raise e
 
-		if self._mode == WF_POLLING:
+		elif self._mode == WF_INOTIFYX:
+			#  inotify doesn't need the target paths open, so now it is known to be
+			#  accessible, close the actual fd and use the watch-descriptor as the fd.
+			#
+			try: os.close(fd)
+			except: pass
+			try:
+				fd = inotifyx.add_watch(self._inx_fd, path,
+						inotifyx.IN_ALL_EVENTS & ~(inotifyx.IN_ACCESS | inotifyx.IN_CLOSE))
+				log.debug("%s path %s watched with wd %d", my(self), path, fd)
+			except Exception as e:
+				log.error("%s inotify failed on watched path '%s' -- %s", my(self), path, str(e))
+				raise e
+
+		elif self._mode == WF_POLLING:
+			log.debug("%s path %s opened as fd %d", my(self), path, fd)
 			fstate = self._poll_get_stat(fd, path)
 			if fstate:
 				self._poll_stat[fd] = fstate
@@ -352,12 +415,10 @@ class watch(object):
 
 	def commit(self, **params):
 		"""
-		Rebuild kevent operations by removing open files
-		that no longer need to be watched, and adding new
-		files if they are not currently being watched.
+		Rebuild kevent operations by removing open files that no longer need to
+		be watched, and adding new files if they are not currently being watched.
 
-		This is done by comparing self.paths to
-		self.paths_open.
+		This is done by comparing self.paths to self.paths_open.
 	"""
 		log = self._getparam('log', self._discard, **params)
 
@@ -374,6 +435,11 @@ class watch(object):
 						os.close(fd)
 					except Exception as e:
 						log.warning("%s close failed on watched file '%s' -- %s", my(self), path, str(e))
+				elif self._mode == WF_INOTIFYX:
+					try:
+						inotifyx.rm_watch(fd)
+					except Exception as e:
+						log.warning("%s remove failed on watched file '%s' -- %s", my(self), path, str(e))
 				elif self._mode == WF_POLLING:
 					if fd in self._poll_stat:
 						del self._poll_stat[fd]
@@ -410,51 +476,16 @@ class watch(object):
 					self._trigger(self.paths_open[path], **params)
 
 				added += 1
-				log.debug("%s Added watch for path '%s'", my(self), path)
+				log.debug("%s Added watch for path '%s' with ident %d", my(self), path, self.paths_open[path])
 		if failed:
 			self._clean_failed_fds(fdlist)
 			raise Exception("Failed to set watch on %s -- %s" % (str(failed), str(last_exc)))
 		log.debug("%s %d added, %d removed", my(self), added, removed)
 
-	def _kq_handle(self, ev, **params):
-		"""
-		Process an event.  If an event indicates a path is no longer
-		accessible, this will:
-
-		-  Cause a return of events processed so far if there
-		   are any, recording this event for the next call to get().
-		   Returns False, indicating processing should stop and
-		   get() should return the data so far.
-		-  If not, and "missing" is False, raise an exception.
-		-  If not, and "missing" is True, close the file and
-		   move the path to the pending list.
-		-  Otherwise, add the file to the last_changes list and
-		   return True to indicate changed processing should
-		   continue.
-	"""
-		log = self._getparam('log', self._discard, **params)
-		if ev.ident in self.fds_open:
-			self.unprocessed_event = None
-			path = self.fds_open[ev.ident]
-			if path not in self.paths:
-				log.error("%s Ignoring path '%s' missing from watched list", my(self), path)
-				return True
-			if ev.fflags & (select.KQ_NOTE_DELETE | select.KQ_NOTE_RENAME):
-				if len(self.last_changes) > 0:
-					log.debug("%s Path '%s' removed or renamed, returning prior changes", my(self), path)
-					self.unprocessed_event = ev
-					return False
-				self._disappeared(ev.ident, path, **params)
-			self.last_changes[path] = time.time()
-			log.debug("%s Change on '%s'", my(self), path)
-		else:
-			log.error("%s Event for fd %d had no matching open fd recorded", my(self), ev.ident)
-		return True
-
 	def get(self, **params):
 		"""
-		Return a list of watched paths that where affected by a recent
-		change, following a successful poll() return for the controlling
+		Return a list of watched paths that where affected by recent
+		changes, following a successful poll() return for the controlling
 		file descriptor.
 
 		If param "timeout" is greater than 0, the event queue will be read
@@ -472,19 +503,19 @@ class watch(object):
 
 		self.last_changes = {}
 
+		timeout = self._getparam('timeout', 0, **params)
+		if not timeout or timeout < 0:
+			timeout = 0
+		limit = self._getparam('limit', None, **params)
+		if not limit or limit < 0:
+			limit = None
+
+		max_events = limit if limit else 10000
+		if self.unprocessed_event:
+			log.debug("%s Will handle unprocessed event", my(self))
+
 		if self._mode == WF_KQUEUE:
-			timeout = self._getparam('timeout', 0, **params)
-			if not timeout or timeout < 0:
-				timeout = 0
-			limit = self._getparam('limit', None, **params)
-			if not limit or limit < 0:
-				limit = None
-
-			total = 0
-			max_events = limit if limit else 10000
-
-			if self.unprocessed_event:
-				self._kq_handle(self.unprocessed_event, **params)
+			evagg = {}
 			while True:
 				try:
 					evlist = self._kq.control(None, max_events, timeout)
@@ -497,12 +528,51 @@ class watch(object):
 
 				log.debug("%s kq.control() returned %d event%s", my(self), len(evlist), ses(len(evlist)))
 				for ev in evlist:
-					if self._kq_handle(ev, **params):
-						total += 1
-					else:
-						break
-				if limit and total >= limit:
+					if ev.ident in self.fds_open:
+						path = self.fds_open[ev.ident]
+						if path in evagg:
+							evagg[path].fflags |= ev.fflags
+						else:
+							evagg[path] = ev
+				if limit and len(evagg) >= limit:
 					break
+			for path, ev in evagg.items():
+				if ev.fflags & (select.KQ_NOTE_DELETE | select.KQ_NOTE_RENAME):
+					self._disappeared(ev.ident, path, **params)
+				self.last_changes[path] = time.time()
+				log.debug("%s Change on '%s'", my(self), path)
+
+		elif self._mode == WF_INOTIFYX:
+			evagg = {}
+			while True:
+				try:
+					evlist = inotifyx.get_events(self._inx_fd, timeout)
+				except OSError as e:
+					if e.errno == errno.EINTR:
+						break
+					raise e
+				if not evlist:
+					break
+
+				log.debug("%s inotifyx.get_events() returned %d event%s", my(self), len(evlist), ses(len(evlist)))
+
+				for ev in evlist:
+					if ev.wd in self.fds_open:
+						path = self.fds_open[ev.wd]
+						if path in evagg:
+							evagg[path].mask |= ev.mask
+						else:
+							evagg[path] = ev
+					else:
+						log.warning("%s attempt to handle unknown inotify event wd %d", my(self), ev.wd)
+				if limit and len(evagg) >= limit:
+					break
+			for path, ev in evagg.items():
+				if ev.mask & (inotifyx.IN_DELETE_SELF | inotifyx.IN_MOVE_SELF):
+					self._disappeared(ev.wd, path, **params)
+				self.last_changes[path] = time.time()
+				log.debug("%s Change on '%s' -- %s", my(self), path, ev.get_mask_description())
+
 		elif self._mode == WF_POLLING:
 			#  Consume any pending data from the self-pipe.  Read
 			#  until EOF.  The fd is already non-blocking so this
@@ -535,7 +605,6 @@ class watch(object):
 				elif self._poll_stat[fd] != fstate:
 					self._poll_stat[fd] = fstate
 					self.last_changes[path] = now
-
 		else:
 			raise Exception("Unsupported polling mode " + self.get_mode_name())
 		paths = self.last_changes.keys()
@@ -613,10 +682,15 @@ class watch(object):
 		future to transparently support inotify on Linux without any code
 		or efficiency impact on callers.
 
-		For WF_KQUEUE mode, processing consists of determining that a
-		pending path is now accessible, and then calling commit() to make
-		the necessary adjustments.  This will be efficient as long as the
+		For WF_KQUEUE and WF_INOTIFYX mode, processing consists of determining
+		that a pending path is now accessible, and then calling commit() to
+		make the necessary adjustments.  This will be efficient as long as the
 		list of pending paths is small.
+
+		At some point this should be optimized by watching the directory of
+		a pending target (assuming it exists).	If the directory changes to
+		indicate the pending path might have appeared, then the next get()
+		call should perform a scan().
 
 		For WF_POLLING mode, the entire list of open files is also scanned
 		looking for significant differences in the os.fstat info.
@@ -676,7 +750,7 @@ if __name__ == '__main__':
 
 	args = p.parse_args()
 
-	log = logging.getLogger(__name__)
+	log = logging.getLogger()
 	log.addHandler(logging.StreamHandler())
 	if args.verbose:
 		log.setLevel(logging.DEBUG)
