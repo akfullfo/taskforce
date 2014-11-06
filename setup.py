@@ -1,7 +1,57 @@
 #!/usr/bin/env python
 
-import re
+import re, sys, os
 from setuptools import setup
+
+def has_inotifyx():
+	ok = False
+	try:
+		import inotifyx
+		ok = True
+	except: pass
+	return ok
+
+def has_developer_tools():
+	ok = False
+	try:
+		from distutils import sysconfig
+		python_h = os.path.join(sysconfig.get_config_vars()['INCLUDEPY'], 'Python.h')
+		if os.path.exists(python_h):
+			ok = True
+	except Exception as e:
+		sys.stderr.write("Warning: Could not determine if python-dev is installed -- " + str(e))
+	return ok
+
+def get_requires(namesonly = False):
+	requires = ['PyYAML>=3.09']
+	if sys.platform.startswith('linux'):
+		if has_developer_tools():
+			requires += ['inotifyx>=0.2.2']
+		elif not has_inotifyx():
+			sys.stderr.write("""
+---------------------------------------------------------------------
+
+WARNING: The linux implementation will use the "inotifyx" bindings to
+	 inotify(7) if available.  On this system, "inotifyx" is not
+	 already present and the "python-dev" system is not loaded so
+	 "inotifyx" can't be installed.  "taskforce" will still work,
+	 but with a higher overhead and lower responsiveness.
+
+	 If you would like to gain full performance, install the
+	 "python-dev" package which is needed to install "inotifyx",
+	 for example, using:
+
+		sudo apt-get install python-dev
+	 or:
+		sudo yum install python-devel
+
+	 Then rerun the the "taskforce" installation as:
+
+		sudo pip install --upgrade --force taskforce
+
+---------------------------------------------------------------------
+""")
+	return requires
 
 version_file = 'taskforce/__init__.py'
 readme_file = 'README'
@@ -13,8 +63,13 @@ with open(version_file, 'rt') as f:
 if not re.match(r'^\d+(\.\d+)+$', version):
 	raise Exception("Invalid version '%s' found in version file '%s'" % (version, version_file))
 
+name = 'taskforce'
+
+requires = get_requires()
+
 setup_parms = {
-	'name': "taskforce",
+	'name': name,
+	'provides': [name],
 	'version': version,
 	'description': """Taskforce starts and restarts daemon processes.
 It will detect executable and/or module changes and automatically restart the affected processes.""",
@@ -26,15 +81,31 @@ It will detect executable and/or module changes and automatically restart the af
 	'download_url': "https://github.com/akfullfo/taskforce/tarball/" + version,
 	'license': "Apache License, Version 2.0",
 	'include_package_data': True,
+	'platforms': ['linux', 'bsd'],
+	'classifiers': [
+		'Development Status :: 3 - Alpha',
+		'Environment :: No Input/Output (Daemon)',
+		'Intended Audience :: Developers',
+		'Intended Audience :: System Administrators',
+		'License :: OSI Approved :: Apache Software License',
+		'Operating System :: POSIX :: Linux',
+		'Operating System :: POSIX :: BSD',
+		'Programming Language :: Python :: 2.7',
+		'Topic :: System :: Distributed Computing',
+		'Topic :: System :: Software Distribution',
+		'Topic :: System :: Systems Administration',
+		'Topic :: Utilities'
+	],
 
-	'packages': ['taskforce'],
-	'scripts': ['bin/taskforce'],
-	'install_requires': ['PyYAML>=3.09'],
+	'packages': [name],
+	'scripts': [os.path.join('bin', name)],
+	'requires': [re.sub(r'\W.*', '', item) for item in requires],
+	'install_requires': requires
 }
-#try:
-#	with open(readme_file, 'rt') as f:
-#		setup_parms['long_description'] = f.read()
-#except:
-#	pass
+try:
+	with open(readme_file, 'rt') as f:
+		setup_parms['long_description'] = f.read()
+except:
+	pass
 
 setup(**setup_parms)
