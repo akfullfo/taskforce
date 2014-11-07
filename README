@@ -1,6 +1,3 @@
-Taskforce starts and restarts daemon processes.  It will detect executable and
-python module changes and automatically restart the affected processes.
-
 Initially this supports python 2.7 on Unix derivatives.  It has specific support
 for select.kqueue on MacOS and \*BSD and the inotifyx bindings for Linux inotify.
 If neither of these facilities is available, `taskforce` operates in polling mode
