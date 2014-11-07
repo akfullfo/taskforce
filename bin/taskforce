@@ -20,6 +20,7 @@
 force_interval = 300
 
 import os, time, sys, signal, argparse, logging
+from taskforce.watch_files import WF_POLLING
 from taskforce import utils, task
 
 cmd_at_startup = list(sys.argv)
@@ -155,6 +156,8 @@ def sanity_test(l):
 }
 '''
 	try:
+		if l._watch_files.get_mode() == WF_POLLING and sys.platform.startswith('linux'):
+			log.warning("Warning - Polling on a linux system.  Installing 'inotifyx' will improve performance")
 		temp = tempfile.NamedTemporaryFile('w')
 		temp.write(sanity_config)
 		temp.flush()
