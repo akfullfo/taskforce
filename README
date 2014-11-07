@@ -2,12 +2,12 @@ Taskforce starts and restarts daemon processes.  It will detect executable and
 python module changes and automatically restart the affected processes.
 
 Initially this supports python 2.7 on Unix derivatives.  It has specific support
-for select.kqueue on MacOS and *BSD and the inotifyx bindings for Linux inotify.
+for select.kqueue on MacOS and \*BSD and the inotifyx bindings for Linux inotify.
 If neither of these facilities is available, `taskforce` operates in polling mode
 which adds some latency and processing overhead but is functionally the same.
 
 Commands to be run are defined in a configuration file in YAML format.  Let's go
-straight to a quick example:
+straight to a quick example::
 
     {
         "tasks": {
@@ -36,8 +36,8 @@ not detach themselves.  If either program exits, it will be restarted.
 configuration file name.  This is convenient for when the element is used in
 multiple places.  It also adds two events.  The first fires if the executable
 file changes, and the second fires if the configuration file changes.  The event
-type _self_ is shorthand for the equivalent _file_change_ event.  In both cases,
-the event will cause the task to be stopped.  As both tasks have the _wait_
-`control`, they will then be restarted.
+type ``self`` is shorthand for the equivalent ``file_change`` event.  In both cases,
+the event will cause the task to be stopped.  As both tasks have the ``wait``
+control, they will then be restarted.
 
-Visit the Home Page for more information.
+Visit the `Home Page <https://github.com/akfullfo/taskforce/>`_ for more information.
