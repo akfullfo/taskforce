@@ -2,14 +2,11 @@ taskforce
 =========
 
 ### Introduction ###
-Taskforce starts and restarts daemon processes.  It will detect executable and/or
-module changes and automatically restart the affected processes.
+Taskforce starts and restarts daemon processes.  It will detect executable and/or module changes and automatically restart the affected processes.
 
-Initially this supports python 2.7 on Unix derivatives.  At the moment it has
-specific support for select.kqueue so operates efficiently on MacOS and *BSD.
+Initially this supports python 2.7 on Unix derivatives.  At the moment it has specific support for select.kqueue so operates efficiently on MacOS and *BSD.
 
-Commands to be run are defined in a configuration file in YAML format.  Let's go
-straight to a quick example:
+Commands to be run are defined in a configuration file in YAML format.  Let's go straight to a quick example:
 
 ```YAML
 {
@@ -31,49 +28,29 @@ straight to a quick example:
     }
 }
 ```
-In this example, `taskforce` starts `sshd` and then starts `ntpd`.  `taskforce`
-is set to wait on both programs and both programs are started so that they will
-not detach themselves.  If either program exits, it will be restarted.
+In this example, `taskforce` starts `sshd` and then starts `ntpd`.  `taskforce` is set to wait on both programs and both programs are started so that they will not detach themselves.  If either program exits, it will be restarted.
 
-`ntpd` is run with a couple of extra features.  First, it defines a tag for the
-configuration file name.  This is convenient for when the element is used in
-multiple places.  It also adds two events.  The first fires if the executable
-file changes, and the second fires if the configuration file changes.  The event
-type _self_ is shorthand for the equivalent _file_change_ event.  In both cases,
-the event will cause the task to be stopped.  As both tasks have the _wait_
-`control`, they will then be restarted.
+`ntpd` is run with a couple of extra features.  First, it defines a tag for the configuration file name.  This is convenient for when the element is used in multiple places.  It also adds two events.  The first fires if the executable file changes, and the second fires if the configuration file changes.  The event type _self_ is shorthand for the equivalent _file_change_ event.  In both cases, the event will cause the task to be stopped.  As both tasks have the _wait_ `control`, they will then be restarted.
 
 ### Configuration File ###
 
-`taskforce` configuration is traditionally done using YAML flow style which is
-effectlively JSON with comments and better error messages for format errors.  It
-is loaded using `yaml.safe_load()` so there should be no reason you can't use
-block style if you prefer.
+`taskforce` configuration is traditionally done using YAML flow style which is effectlively JSON with comments and better error messages for format errors.  It is loaded using `yaml.safe_load()` so there should be no reason you can't use block style if you prefer.
 
 
 ### Included Modules ###
-**task.py** holds the primary class `legion` which is the entry point into task
-management.  An effectively internal class `task` manages each task after it is
-defined by the configurtion.  There are also some classes and methods present for
-event handling and process execution.
+**task.py** holds the primary class `legion` which is the entry point into task management.  An effectively internal class `task` manages each task after it is defined by the configurtion.  There are also some classes and methods present for event handling and process execution.
 
-**watch_files.py** handles triggering events to the event select loop when a file
-changes.
+**watch_files.py** handles triggering events to the event select loop when a file changes.
 
-**watch_modules.py** handles triggering events to the event select loop when any
-of the modules of a python application change.  It uses *taskforce.watch_files*
-to detect the changes and *modulefinder* to identify the important modules used
-by an application.
+**watch_modules.py** handles triggering events to the event select loop when any of the modules of a python application change.  It uses *taskforce.watch_files* to detect the changes and *modulefinder* to identify the important modules used by an application.
 
 **utils.py** holds support methods and classes
 
 ### Application ###
-Also included is **bin/taskforce** which provides an operational harness for
-running a taskforce legion.  It also serves as an example of how the
-`taskforce.task.legion()` class should be called.
+Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
 
 Here is the help message:
-```AsciiDoc
+```
 
 usage: taskforce [-h] [-v] [-q] [-e] [-b] [-p PIDFILE] [-f CONFIG_FILE]
                  [-r ROLES_FILE] [-C] [-R] [-S]
@@ -105,7 +82,6 @@ optional arguments:
                         unadoptable tasks will be stopped.
 ```
 ### ToDo ###
-* Add pyinotify support so it operates efficiently with Linux
 * Extend support for python 3
 * Add a control path
 * Add status access
@@ -118,20 +94,12 @@ optional arguments:
 Copyright &copy; 2014 Andrew Fullford
 </center>
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License.  You may obtain a copy of the License at
 
       http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the License for the specific language governing permissions and limitations under the License.
 
 ---
 ### Acknowledgement ###
-This package is based on work done by Andrew Fullford at Netsocket, Inc.  Many
-thanks to Netsocket for agreeing to allow this code to be provided by me under
-the Apache License, on October 16, 2014,
+This package is based on work done by Andrew Fullford at Netsocket, Inc.  On October 16, 2014, Netsocket allowed this code to be publicly released under the Apache License.
