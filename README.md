@@ -1,6 +1,24 @@
 taskforce
 =========
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](http://doctoc.herokuapp.com/)*
+
+- [taskforce](#taskforce)
+    - [Introduction](#introduction)
+    - [Configuration File](#configuration-file)
+    - [Included Modules](#included-modules)
+    - [Application](#application)
+    - [ToDo](#todo)
+  - [](#)
+    - [License](#license)
+  - [](#-1)
+    - [Acknowledgement](#acknowledgement)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+
 ### Introduction ###
 Taskforce starts and restarts daemon processes.  It will detect executable and/or module changes and automatically restart the affected processes.
 
