@@ -90,6 +90,7 @@ It will detect executable and/or module changes and automatically restart the af
 		'License :: OSI Approved :: Apache Software License',
 		'Operating System :: POSIX :: Linux',
 		'Operating System :: POSIX :: BSD',
+		'Operating System :: MacOS :: MacOS X',
 		'Programming Language :: Python :: 2.7',
 		'Topic :: System :: Distributed Computing',
 		'Topic :: System :: Software Distribution',

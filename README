@@ -37,4 +37,4 @@ type ``self`` is shorthand for the equivalent ``file_change`` event.  In both ca
 the event will cause the task to be stopped.  As both tasks have the ``wait``
 control, they will then be restarted.
 
-Visit the `Home Page <https://github.com/akfullfo/taskforce/>`_ for more information.
+Visit `<https://github.com/akfullfo/taskforce/>`_ for more information.
