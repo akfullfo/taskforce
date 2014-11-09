@@ -7,10 +7,11 @@ taskforce
 
 - [Introduction](#introduction)
 - [Roles](#roles)
-- [Configuration File](#configuration-file)
-  - [Top-level Tags](#top-level-tags)
-  - [The `tasks` tag](#the-tasks-tag)
 - [Included Modules](#included-modules)
+- [Task Context](#task-context)
+- [Configuration File](#configuration-file)
+  - [Top-level Keys](#top-level-keys)
+  - [The `tasks` tag](#the-tasks-tag)
 - [Application](#application)
 - [ToDo](#todo)
 - [License](#license)
@@ -66,24 +67,6 @@ Sanity test system| web<br>app<br>db | A single host handles all roles.  It runs
 
 The approach allows hosts to be configured in exactly the same way except for the roles file.  In addition, because the role file is continuously monitor for changes, a role file update will cause an automatic migration from one configuration to another, starting an stopping tasks as needed to meet the new scope.
 
-### Configuration File ###
-`taskforce` configuration is traditionally done using YAML flow style which is effectlively JSON with comments and better error messages for format errors.  It is loaded using `yaml.safe_load()` so there should be no reason you can't use block style if you prefer.
-
-Like the roles file, the configuration file is continuously monitored and configuration changes will be reflect immediately by stopping, starting, or restarting tasks to match the new state.
-
-The configuration consists of several top-level name/value pairs, where the values are lists or further name/value pairs.  The rest of this section describes the configurations tags in detail.
-
-#### Top-level Tags ####
-Tag | Decription
-:---|:----------
-`defines`| The name/value pairs are added to the base context used when building commands and other parameter substitions.
-`role_defines` | A list of roles each with a set of name/value pairs.  These pairs are added to the context if this role if in scope.
-`tasks` | Normally this is largest top-level tag as its value is a list of tasks names and their definitions (see below).
-
-#### The `tasks` tag ####
-
-Each element in the `tasks` list describes a single task.  A tasks is one or more processes which have exactly the same configuration.
-
 ### Included Modules ###
 **task.py** holds the primary class `legion` which is the entry point into task management.  An effectively internal class `task` manages each task after it is defined by the configurtion.  There are also some classes and methods present for event handling and process execution.
 
@@ -92,6 +75,49 @@ Each element in the `tasks` list describes a single task.  A tasks is one or mor
 **watch_modules.py** handles triggering events to the event select loop when any of the modules of a python application change.  It uses *taskforce.watch_files* to detect the changes and *modulefinder* to identify the important modules used by an application.
 
 **utils.py** holds support methods and classes
+
+### Task Context ###
+Each task is started based on a context.  The context is a key/value map that is intitalized to the Unix environment present when the `legion.manage()` method is called.  The context is updated based on configuration file `defines` keys (see below) and specific internally generated values.  These are:
+
+Key | Decription
+:---|:----------
+`Task_name`| The task name based on the configuration `tasks` key.
+`Task_pid`| The process ID of the task process
+`Task_ppid`| The process ID of the application running the legion.
+`Task_pidfile`| The pidfile if specified in the configuration.
+`Task_cwd`| The task current working directory if specified in the configuration.
+`Task_instance`| The instance number of the task process.  The value goes from 0 up to (but excluding) the number of processes configured for the task.  It will be 0 in the most common case where only one process is configured.  It is effectively a process slot number, so if a process exits, it will be restarted with the same instance number.
+`Task_user`| The task user if specified in the configuration
+`Task_uid`| The numeric user id of the process.
+`Task_group`| The task group if specified in the configuration
+`Task_gid`| The numeric group id of the process.
+`Task_host`| The name of the host running the taskforce application.
+`Task_fqdn`| The fully qualified domain name of the host running the taskforce application.
+
+When `taskforce` starts a process, the entire context is exported as the process environment.  In addition, the context is used to perform tagged substitutions in configuration file values.  Substitution tags are surrounded by braces. For example, a specification like:
+
+    "path": "{PGDATA}/postgresql.conf"
+
+would cause the value of PGDATA from the context to be substituted for the "{PGDATA}" string.  The value would have been loaded
+into the context from the Unix environment or from a "defines" map.
+
+### Configuration File ###
+`taskforce` configuration is traditionally done using YAML flow style which is effectlively JSON with comments and better error messages for format errors.  It is loaded using `yaml.safe_load()` so there should be no reason you can't use YAML block style if you prefer.
+
+Like the roles file, the configuration file is continuously monitored and configuration changes will be reflect immediately by stopping, starting, or restarting tasks to match the new state.
+
+The configuration consists of key/value map at the top-level, where the values are further maps.  The term "map" here means the same thing as associative array or dictionary.  The rest of this section describes the configuration keys in detail.
+
+#### Top-level Keys ####
+Key | Decription
+:---|:----------
+`defines`| The associated map is added to the base context used when building commands and other parameter substitions.
+`role_defines` | Maps individual roles a key/value map.  The map is added to the context if this role if in scope.
+`tasks` | Normally this is largest top-level key as its value is a map of all task names with their definitions (see below).
+
+#### The `tasks` tag ####
+
+Each key in the `tasks` map describes a single task.  A task is made up of one or more processes which have exactly the same configuration.
 
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
