@@ -5,16 +5,16 @@ taskforce
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](http://doctoc.herokuapp.com/)*
 
-- [taskforce](#taskforce)
-    - [Introduction](#introduction)
-    - [Configuration File](#configuration-file)
-    - [Included Modules](#included-modules)
-    - [Application](#application)
-    - [ToDo](#todo)
-  - [](#)
-    - [License](#license)
-  - [](#-1)
-    - [Acknowledgement](#acknowledgement)
+- [Introduction](#introduction)
+- [Roles](#roles)
+- [Configuration File](#configuration-file)
+  - [Top-level Tags](#top-level-tags)
+  - [The `tasks` tag](#the-tasks-tag)
+- [Included Modules](#included-modules)
+- [Application](#application)
+- [ToDo](#todo)
+- [License](#license)
+- [Acknowledgement](#acknowledgement)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -135,7 +135,6 @@ optional arguments:
 * Support logging or other capture of task output
 * Add external events (snmp traps, nagios via NSCA)
 
----
 ### License ###
 <center>
 Copyright &copy; 2014 Andrew Fullford
@@ -147,6 +146,5 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the License for the specific language governing permissions and limitations under the License.
 
----
 ### Acknowledgement ###
 This package is based on work done by Andrew Fullford at Netsocket, Inc.  On October 16, 2014, Netsocket allowed this code to be publicly released under the Apache License.
