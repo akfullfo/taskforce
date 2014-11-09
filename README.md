@@ -71,6 +71,19 @@ The approach allows hosts to be configured in exactly the same way except for th
 
 Like the roles file, the configuration file is continuously monitored and configuration changes will be reflect immediately by stopping, starting, or restarting tasks to match the new state.
 
+The configuration consists of several top-level name/value pairs, where the values are lists or further name/value pairs.  The rest of this section describes the configurations tags in detail.
+
+#### Top-level Tags ####
+Tag | Decription
+:---|:----------
+`defines`| The name/value pairs are added to the base context used when building commands and other parameter substitions.
+`role_defines` | A list of roles each with a set of name/value pairs.  These pairs are added to the context if this role if in scope.
+`tasks` | Normally this is largest top-level tag as its value is a list of tasks names and their definitions (see below).
+
+#### The `tasks` tag ####
+
+Each element in the `tasks` list describes a single task.  A tasks is one or more processes which have exactly the same configuration.
+
 ### Included Modules ###
 **task.py** holds the primary class `legion` which is the entry point into task management.  An effectively internal class `task` manages each task after it is defined by the configurtion.  There are also some classes and methods present for event handling and process execution.
 
