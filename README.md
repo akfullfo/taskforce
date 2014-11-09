@@ -50,10 +50,26 @@ In this example, `taskforce` starts `sshd` and then starts `ntpd`.  `taskforce` 
 
 `ntpd` is run with a couple of extra features.  First, it defines a tag for the configuration file name.  This is convenient for when the element is used in multiple places.  It also adds two events.  The first fires if the executable file changes, and the second fires if the configuration file changes.  The event type _self_ is shorthand for the equivalent _file_change_ event.  In both cases, the event will cause the task to be stopped.  As both tasks have the _wait_ `control`, they will then be restarted.
 
-### Configuration File ###
+### Roles ###
 
+Roles are stored in a file, one name per line, on a `taskforce` host.  Each task in the configuration can be labelled with a list of roles.  The task will then only be started if one of the roles matches a role from the role file.
+
+Roles provide a way of managing task allocation across different hosts while using a single distributed `taskforce` configuration file.  For example, a production service might consist of multple hosts with some running web front-ends, some running application services, and some running database backends.  These individual deployments could be labelled "web", "app", and "db".  Those names are then the *roles* and a role file on each host is used to indicate the roles that host is configured to handle.
+
+The approach allows for flexible configuration:
+
+Within | Roles | Deployment
+-------|-------|------------
+Large production system| web | Several hosts dedicated to the web role with other hosts handling other roles
+Small production system| web<br>app | Two hosts handle web and app roles with other hosts handing the db roles
+Sanity test system| web<br>app<br>db | A single host handles all roles.  It runs all regular sanity tests in an environment while exactly following standard production upgrade procedures.
+
+The approach allows hosts to be configured in exactly the same way except for the roles file.  In addition, because the role file is continuously monitor for changes, a role file update will cause an automatic migration from one configuration to another, starting an stopping tasks as needed to meet the new scope.
+
+### Configuration File ###
 `taskforce` configuration is traditionally done using YAML flow style which is effectlively JSON with comments and better error messages for format errors.  It is loaded using `yaml.safe_load()` so there should be no reason you can't use block style if you prefer.
 
+Like the roles file, the configuration file is continuously monitored and configuration changes will be reflect immediately by stopping, starting, or restarting tasks to match the new state.
 
 ### Included Modules ###
 **task.py** holds the primary class `legion` which is the entry point into task management.  An effectively internal class `task` manages each task after it is defined by the configurtion.  There are also some classes and methods present for event handling and process execution.
