@@ -6,6 +6,7 @@ taskforce
 **Table of Contents**  *generated with [DocToc](http://doctoc.herokuapp.com/)*
 
 - [Introduction](#introduction)
+- [Installation](#installation)
 - [Roles](#roles)
 - [Included Modules](#included-modules)
 - [Task Context](#task-context)
@@ -21,9 +22,7 @@ taskforce
 
 
 ### Introduction ###
-Taskforce starts and restarts daemon processes.  It will detect executable and/or module changes and automatically restart the affected processes.
-
-Initially this supports python 2.7 on Unix derivatives.  At the moment it has specific support for select.kqueue so operates efficiently on MacOS and *BSD.
+Taskforce starts and restarts daemon processes.  It will detect executable and/or module changes and automatically restart the affected processes.  Initially this supports python 2.7 on Unix derivatives.
 
 Commands to be run are defined in a configuration file in YAML format.  Let's go straight to a quick example:
 
@@ -50,6 +49,26 @@ Commands to be run are defined in a configuration file in YAML format.  Let's go
 In this example, `taskforce` starts `sshd` and then starts `ntpd`.  `taskforce` is set to wait on both programs and both programs are started so that they will not detach themselves.  If either program exits, it will be restarted.
 
 `ntpd` is run with a couple of extra features.  First, it defines a tag for the configuration file name.  This is convenient for when the element is used in multiple places.  It also adds two events.  The first fires if the executable file changes, and the second fires if the configuration file changes.  The event type _self_ is shorthand for the equivalent _file_change_ event.  In both cases, the event will cause the task to be stopped.  As both tasks have the _wait_ `control`, they will then be restarted.
+
+### Installation ###
+The easiest way to install taskforce is with "pip" as:
+
+    sudo pip install taskforce
+
+This will install `[taskforce](https://github.com/akfullfo/taskforce)` from [PyPI](https://pypi.python.org/) and if necessary, install `[PyYAML](http://pyyaml.org/)`.  On linux systems, it will also attempt to install `[inotifyx](https://launchpad.net/inotifyx/)`.
+ `inotifyx` is optional but makes use of *inotify(2)* to improve performance.  Installing `inotifyx` requires python-dev which can be installed (Debian-style) with:
+
+    sudo apt-get install python-dev
+
+or (Redhat Style) with:
+
+    sudo yum install python-devel
+
+If python-dev is not available, `inotifyx` will be skipped.  `taskforce` will still function but with higher overhead and latency.  If you install python-dev after installing `taskforce`, you can reinstall to get full *inotify(2)* functionality with:
+
+    sudo pip install --upgrade --force taskforce
+
+`inotifyx` is neither needed nor useful on \*BSD or Mac OSX which both use *select.kqueue()*.
 
 ### Roles ###
 
