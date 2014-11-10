@@ -55,7 +55,7 @@ The easiest way to install taskforce is with "pip" as:
 
     sudo pip install taskforce
 
-This will install [`taskforce`](https://github.com/akfullfo/taskforce) from [PyPI](https://pypi.python.org/) and if necessary, install [`PyYAML`](http://pyyaml.org/).  On linux systems, it will also attempt to install [`inotifyx`](https://launchpad.net/inotifyx/).  `inotifyx` is optional but if available, `taskforce` will use *inotify(2)* to improve performance.  Installing `inotifyx` requires python-dev which can be installed (Debian-style) with:
+This will install [taskforce](https://github.com/akfullfo/taskforce) from [PyPI](https://pypi.python.org/) and if necessary, install [PyYAML](http://pyyaml.org/).  On linux systems, it will also attempt to install [`inotifyx`](https://launchpad.net/inotifyx/).  `inotifyx` is optional but if available, taskforce will use *inotify(2)* to improve performance.  Installing `inotifyx` requires python-dev which can be installed (Debian-style) with:
 
     sudo apt-get install python-dev
 
@@ -63,7 +63,7 @@ or (Redhat Style) with:
 
     sudo yum install python-devel
 
-If python-dev is not available, `inotifyx` will be skipped.  `taskforce` will still function but with higher overhead and latency.  If you install python-dev after installing `taskforce`, you can reinstall to get full *inotify(2)* functionality with:
+If python-dev is not available, `inotifyx` will be skipped.  taskforce will still function but with higher overhead and latency.  If you install python-dev after installing taskforce, you can reinstall to get full *inotify(2)* functionality with:
 
     sudo pip install --upgrade --force taskforce
 
@@ -71,9 +71,9 @@ If python-dev is not available, `inotifyx` will be skipped.  `taskforce` will st
 
 ### Roles ###
 
-Roles are stored in a file, one name per line, on a `taskforce` host.  Each task in the configuration can be labelled with a list of roles.  The task will then only be started if one of the roles matches a role from the role file.
+Roles are stored in a file, one name per line, on a taskforce host.  Each task in the configuration can be labelled with a list of roles.  The task will then only be started if one of the roles matches a role from the role file.
 
-Roles provide a way of managing task allocation across different hosts while using a single distributed `taskforce` configuration file.  For example, a production service might consist of multple hosts with some running web front-ends, some running application services, and some running database backends.  These individual deployments could be labelled "web", "app", and "db".  Those names are then the *roles* and a role file on each host is used to indicate the roles that host is configured to handle.
+Roles provide a way of managing task allocation across different hosts while using a single distributed taskforce configuration file.  For example, a production service might consist of multple hosts with some running web front-ends, some running application services, and some running database backends.  These individual deployments could be labelled "web", "app", and "db".  Those names are then the *roles* and a role file on each host is used to indicate the roles that host is configured to handle.
 
 The approach allows for flexible configuration:
 
@@ -112,7 +112,7 @@ Key | Decription
 `Task_host`| The name of the host running the taskforce application.
 `Task_fqdn`| The fully qualified domain name of the host running the taskforce application.
 
-When `taskforce` starts a process, the entire context is exported as the process environment.  In addition, the context is used to perform tagged substitutions in configuration file values.  Substitution tags are surrounded by braces. For example, a specification like:
+When taskforce starts a process, the entire context is exported as the process environment.  In addition, the context is used to perform tagged substitutions in configuration file values.  Substitution tags are surrounded by braces. For example, a specification like:
 
     "path": "{PGDATA}/postgresql.conf"
 
@@ -120,7 +120,7 @@ would cause the value of PGDATA from the context to be substituted for the "{PGD
 into the context from the Unix environment or from a "defines" map.
 
 ### Configuration File ###
-`taskforce` configuration is traditionally done using YAML flow style which is effectlively JSON with comments and better error messages for format errors.  It is loaded using `yaml.safe_load()` so there should be no reason you can't use YAML block style if you prefer.
+taskforce configuration is traditionally done using YAML flow style which is effectlively JSON with comments and better error messages for format errors.  It is loaded using `yaml.safe_load()` so there should be no reason you can't use YAML block style if you prefer.
 
 Like the roles file, the configuration file is continuously monitored and configuration changes will be reflect immediately by stopping, starting, or restarting tasks to match the new state.
 
