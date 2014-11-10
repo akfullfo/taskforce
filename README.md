@@ -55,8 +55,7 @@ The easiest way to install taskforce is with "pip" as:
 
     sudo pip install taskforce
 
-This will install `[taskforce](https://github.com/akfullfo/taskforce)` from [PyPI](https://pypi.python.org/) and if necessary, install `[PyYAML](http://pyyaml.org/)`.  On linux systems, it will also attempt to install `[inotifyx](https://launchpad.net/inotifyx/)`.
- `inotifyx` is optional but makes use of *inotify(2)* to improve performance.  Installing `inotifyx` requires python-dev which can be installed (Debian-style) with:
+This will install [`taskforce`](https://github.com/akfullfo/taskforce) from [PyPI](https://pypi.python.org/) and if necessary, install [`PyYAML`](http://pyyaml.org/).  On linux systems, it will also attempt to install [`inotifyx`](https://launchpad.net/inotifyx/).  `inotifyx` is optional but if available, `taskforce` will use *inotify(2)* to improve performance.  Installing `inotifyx` requires python-dev which can be installed (Debian-style) with:
 
     sudo apt-get install python-dev
 
