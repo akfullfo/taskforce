@@ -137,6 +137,12 @@ Key | Decription
 
 Each key in the `tasks` map describes a single task.  A task is made up of one or more processes which have exactly the same configuration.
 
+Key | Decription
+:---|:----------
+`control`| Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed.<br>**wait** indicates task processes will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that do always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.
+`defines`| The associated map is added to the context for just this task used when building commands and other parameter substitions.
+`role_defines` | Maps individual roles a key/value map.  The map is added to the context for just this task if this role if in scope.
+
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
 
