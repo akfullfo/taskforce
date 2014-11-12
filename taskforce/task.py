@@ -125,7 +125,7 @@ def _fmt_context(arg_list, context):
 	return (ans[0] if just_one else ans)
 
 std_process_dest = '/dev/null'
-def _exec_process(cmd_list, context, instance=0, log=None):
+def _exec_process(cmd_list, base_context, instance=0, log=None):
 	"""
 	Process execution tool.
 
@@ -159,6 +159,11 @@ def _exec_process(cmd_list, context, instance=0, log=None):
 	if not log:
 		log = logging.getLogger(__name__)
 		log.addHandler(logging.NullHandler())
+
+	#  Get a copy of the context so changes here will not affect the
+	#  task's base context.
+	#
+	context = base_context.copy()
 
 	#  Make sure we have a normalized clone of the cmd_list
 	#
@@ -1542,7 +1547,13 @@ Params are:
 				return True
 		new_context = self._context_build(pending=True)
 		if self._context != new_context:
-			log.debug("%s Task '%s' change - context change", my(self), self._name)
+			if log.isEnabledFor(logging.DEBUG):
+				log.debug("%s Task '%s' change - context change", my(self), self._name)
+				for tag in list(set(self._context.keys())|set(new_context.keys())):
+					o = self._context.get(tag)
+					n = new_context.get(tag)
+					if o != n:
+						log.debug("    %s: %s -> %s", tag, str(o), str(n))
 			return True
 		log.debug("%s No changes in task '%s'", my(self), self._name)
 		return False
