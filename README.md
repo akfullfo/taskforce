@@ -13,6 +13,8 @@ taskforce
 - [Configuration File](#configuration-file)
   - [Top-level Keys](#top-level-keys)
   - [The `tasks` tag](#the-tasks-tag)
+  - [The `tasks.commands` tag](#the-taskscommands-tag)
+  - [The `tasks.events` tag](#the-tasksevents-tag)
 - [Application](#application)
 - [ToDo](#todo)
 - [License](#license)
@@ -139,12 +141,12 @@ Each key in the `tasks` map describes a single task.  A task is made up of one o
 
 Key | Decription
 :---|:----------
-`commands`| A map of commands used to start and manage a task.  See [`tasks.commands`](#the-tasks-commands-tag).
+`commands`| A map of commands used to start and manage a task.  See [`tasks.commands`](#the-taskscommands-tag).
 `control`| Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed.<br>**wait** indicates task processes will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that do always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
 `count`| An integer specifying the number of processes to be started for this task.  If not specified, one process will be started.  Each process will have exactly the same configuration except that the context items `Task_pid` and `Task_instance` will be specific to each process, and any context items derived from these values will be different.  This is particularly useful when defining the pidfile and procname values.
 `cwd`| Specifies the current directory for the process being run.
 `defines`| Similar to the top-level `defines` but applies only to this task.
-`events`| Maps event types to their disposition as commands or signals.  See [`tasks.events`](#the-tasks-events-tag).
+`events`| Maps event types to their disposition as commands or signals.  See [`tasks.events`](#the-tasksevents-tag).
 `group`| Specifies the group name or gid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the group.
 `pidfile`| Registers the file where the process will write its PID.  This does nothing to cause the process to write the file, but the context item `Task_pidfile` is available for use in the *start* command.  The value is used by taskforce to identify an orphaned task from a prior run so it can be restarted (**wait** and **nowait** controls) or adopted (**adopt** control).  In the case of **nowait** and **adopt** controls, it is also used to implement the default management commands *check* and *stop*.  Note that the **nowait** and **adopt** controls are not yet supported.
 `procname`| The value is used when the *start* command is run as the `argv[0]` program name.  A common use when the `count` value is greater than 1 is to specify `'procname': '{Task_name}-{Task_instance'` which makes each instance of the task distinct in *ps(1)* output.
@@ -153,6 +155,40 @@ Key | Decription
 `role_defines`| Similar to the top-level `role_defines` but applies only to this task.
 `start_delay`| A delay in seconds before other tasks that `requires` this task will be started.
 `user`| Specifies the user name or uid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the user.
+
+#### The `tasks.commands` tag ####
+`commands` is a map of commands use to manage a task.
+It is the only required `tasks` tag, and the only required command is the `start` command.  The command name is mapped to a
+list of command arguments, the first list element being the program to execute.  All list elements are formatted with the task
+context, so a command list can be very general, for example:
+```YAML
+{
+   .  .  .
+    "db_server": {
+        "pidfile": "/var/run/{Task_name}.pid",
+        "commands": {
+            "start": [ "{Task_name}", "-p", "{Task_pidfile}" ]
+        }
+    }
+}
+```
+which would execute the command:
+```
+db_server -p /var/run/db_server.pid
+```
+In addition to the `start` command, there are two other standard commands.
+
+The `stop` command can be defined to override the built-in command stop function.  The built-in function issues a SIGTERM to the known process ID for each of the tasks processes and escalates that to SIGKILL if the process does not exit within 5 seconds.  Explicitly defining a `stop` command overrides this behavior.  Care should be taken to ensure that a replacement `stop` command is rigorous in ensuring the process will have exited once the replacement command completes.
+
+The `check` command can be defined to override built-in process checking.  The built-in function uses a zero signal to test for
+the existence of the task's process IDs.  The replacement `check` command must exit 0 if the task's process is running normally
+and non-zero if it should be restarted.  The `check` command (built-in or not) is only used with **nowait** and **adopt**
+tasks (not currently supported).
+
+In addition to these commands, other arbitrary commands can be defined which are run as the result of events (see below).
+
+#### The `tasks.events` tag ####
+TBD
 
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
