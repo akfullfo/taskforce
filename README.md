@@ -157,13 +157,9 @@ Key | Decription
 `user`| Specifies the user name or uid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the user.
 
 #### The `tasks.commands` tag ####
-`commands` is a map of commands use to manage a task.
-It is the only required `tasks` tag, and the only required command is the `start` command.  The command name is mapped to a
-list of command arguments, the first list element being the program to execute.  All list elements are formatted with the task
-context, so a command list can be very general, for example:
+`commands` is a map of commands use to manage a task.  It is the only required `tasks` tag, and the only required command is the `start` command.  The command name is mapped to a list of command arguments, the first list element being the program to execute.  All list elements are formatted with the task context, so a command list can be very general, for example:
 ```YAML
-{
-   .  .  .
+"tasks": {
     "db_server": {
         "pidfile": "/var/run/{Task_name}.pid",
         "commands": {
@@ -188,7 +184,73 @@ tasks (not currently supported).
 In addition to these commands, other arbitrary commands can be defined which are run as the result of events (see below).
 
 #### The `tasks.events` tag ####
-TBD
+`events` is a list indicating the disposition of various event types.  For example, this configuration:
+```YAML
+"tasks": {
+    "db_server": {
+	"defines": { "conf": "/etc/db_server.conf" },
+        "pidfile": "/var/run/{Task_name}.pid",
+        "commands": {
+            "start": [ "{Task_name}", "-p", "{Task_pidfile}", "-f", "{conf}" ]
+            "reconfig": [ "{Task_name}_ctl", "-p", "{Task_pidfile}", "reload" ]
+        },
+	events: [
+	    { "type": "file_change", "path": [ "{conf}" ], "command": "reconfig" }
+	    { "type": "self", "command": "stop" },
+	]
+    }
+}
+```
+sets up two events.  The *file_change* event is triggered whenever a file in the *path* list changes.  The "self" event is triggered when the command executable file changes.  It is really just shorthand for the equivalent *file_change* event.
+
+In this case, when the configuration file is changed, the command defined as *reconfig* will be run.  That resolves to this command:
+```
+db_server_ctl -p /var/run/db_server.pid reload
+```
+Presumably this would cause the *db_server* process to reread its configuration.
+
+If the *self* event is triggered, the *stop* command will be run.  Because no *stop* command has been explicitly defined, the built-in command will run, causing *db_server* to stop.  Once stopped, normal *wait* control takes over to immediately restart the task.
+
+The following event types are supported:
+Type | Decription
+:---|:----------
+`file_change`| Performs the specified action if any of the files in the `path` list change.
+`python`| Performs the specified action if the python script run by this task changes, including any modules found via the PYTHONPATH enviroment variable.  Assigning this event to a task that does not use a python script will generate an error.
+`restart`| Performs the action if the task is being restarted (stopped with the expectation it will be immediately restarted).  The action must cause the task to stop, but the task may choose to take special action on the assumption that it will be immediately restarted.  If the task does not exit within 5 seconds, the action will escalate to SIGKILL as with the built-in `stop` command.
+`self`| Performs the specified action if the file holding the task executable changes.
+
+The following event actions are supported:
+Action | Decription
+:---|:----------
+`command`| Runs the command named which may be an explicit command from the `commands` tag or a built-in command.
+`signal`| Sends the signal named.  Signal names can be written 'HUP', 'SIGHUP', 1, '1', etc.
+
+### Application ###
+Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
+
+Here is the help message:
+```
+
+usage: taskforce [-h] [-v] [-q] [-e] [-b] [-p PIDFILE] [-f CONFIG_FILE]
+                 [-r ROLES_FILE] [-C] [-R] [-S]
+
+Manage tasks and process pools
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -v, --verbose         Verbose logging for debugging
+  -q, --quiet           Quiet logging, warnings and errors only
+  -e, --log-stderr      Log to stderr instead of syslog
+  -b, --background      Run in the background
+  -p PIDFILE, --pidfile PIDFILE
+                        Pidfile path, default /var/run/taskforce.pid, "-"
+                        means none
+  -f CONFIG_FILE, --config-file CONFIG_FILE
+                        Configuration. File will be watched for changes.
+                        Default /usr/local/etc/taskforce.conf
+  -r ROLES_FILE, --roles-file ROLES_FILE
+                        File to load roles from. File will be watched for
+                        changes. Default is selected from:
 
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
