@@ -191,17 +191,17 @@ In addition to these commands, other arbitrary commands can be defined which are
 	"defines": { "conf": "/etc/db_server.conf" },
         "pidfile": "/var/run/{Task_name}.pid",
         "commands": {
-            "start": [ "{Task_name}", "-p", "{Task_pidfile}", "-f", "{conf}" ]
+            "start": [ "{Task_name}", "-p", "{Task_pidfile}", "-f", "{conf}" ],
             "reconfig": [ "{Task_name}_ctl", "-p", "{Task_pidfile}", "reload" ]
         },
-	events: [
-	    { "type": "file_change", "path": [ "{conf}" ], "command": "reconfig" }
-	    { "type": "self", "command": "stop" },
+	"events": [
+	    { "type": "file_change", "path": [ "{conf}" ], "command": "reconfig" },
+	    { "type": "self", "command": "stop" }
 	]
     }
 }
 ```
-sets up two events.  The *file_change* event is triggered whenever a file in the *path* list changes.  The "self" event is triggered when the command executable file changes.  It is really just shorthand for the equivalent *file_change* event.
+sets up two events.  The *file_change* event is triggered whenever a file in the *path* list changes.  The *self* event is triggered when the command executable file changes.  It is really just shorthand for the equivalent *file_change* event.
 
 In this case, when the configuration file is changed, the command defined as *reconfig* will be run.  That resolves to this command:
 ```
@@ -212,6 +212,7 @@ Presumably this would cause the *db_server* process to reread its configuration.
 If the *self* event is triggered, the *stop* command will be run.  Because no *stop* command has been explicitly defined, the built-in command will run, causing *db_server* to stop.  Once stopped, normal *wait* control takes over to immediately restart the task.
 
 The following event types are supported:
+
 Type | Decription
 :---|:----------
 `file_change`| Performs the specified action if any of the files in the `path` list change.
