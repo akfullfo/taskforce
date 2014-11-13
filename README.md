@@ -221,37 +221,11 @@ Type | Decription
 `self`| Performs the specified action if the file holding the task executable changes.
 
 The following event actions are supported:
+
 Action | Decription
 :---|:----------
 `command`| Runs the command named which may be an explicit command from the `commands` tag or a built-in command.
 `signal`| Sends the signal named.  Signal names can be written 'HUP', 'SIGHUP', 1, '1', etc.
-
-### Application ###
-Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
-
-Here is the help message:
-```
-
-usage: taskforce [-h] [-v] [-q] [-e] [-b] [-p PIDFILE] [-f CONFIG_FILE]
-                 [-r ROLES_FILE] [-C] [-R] [-S]
-
-Manage tasks and process pools
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -v, --verbose         Verbose logging for debugging
-  -q, --quiet           Quiet logging, warnings and errors only
-  -e, --log-stderr      Log to stderr instead of syslog
-  -b, --background      Run in the background
-  -p PIDFILE, --pidfile PIDFILE
-                        Pidfile path, default /var/run/taskforce.pid, "-"
-                        means none
-  -f CONFIG_FILE, --config-file CONFIG_FILE
-                        Configuration. File will be watched for changes.
-                        Default /usr/local/etc/taskforce.conf
-  -r ROLES_FILE, --roles-file ROLES_FILE
-                        File to load roles from. File will be watched for
-                        changes. Default is selected from:
 
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
@@ -288,6 +262,7 @@ optional arguments:
   -S, --stop            Cause the background taskforce to exit. All
                         unadoptable tasks will be stopped.
 ```
+
 ### ToDo ###
 * Extend support for python 3
 * Add a control path
