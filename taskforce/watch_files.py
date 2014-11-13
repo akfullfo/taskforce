@@ -159,6 +159,11 @@ class watch(object):
 			#  file descriptor.
 			#
 			self._inx_fd = inotifyx.init()
+
+			#  This is the standard mask used for watches.  It is setup
+			#  to only trigger events when somethingn changes.
+			#
+			self._inx_mask = inotifyx.IN_ALL_EVENTS & ~(inotifyx.IN_ACCESS | inotifyx.IN_CLOSE | inotifyx.IN_OPEN)
 		elif self._mode == WF_POLLING:
 			self._self_pipe()
 
@@ -320,11 +325,10 @@ class watch(object):
 		care what filter actually fired the event, the outside world sees
 		this as a file change.
 
-		In WF_INOTIFYX mode, this triggers an event by opening the file
-		in read-only mode and closing it.  The file is not discovered
-		unless it can be opened so this is reliable, although it does
-		mean that IN_OPEN must always be included in the inotify event
-		mask, which adds some unnecessary traffic out to the caller.
+		In WF_INOTIFYX mode, this triggers an event by setting IN_OPEN on
+		the inotify watch, opening the file in read-only mode, closing it,
+		and removing the IN_OPEN setting.  The file is not discovered unless
+		it can be opened so this is reliable.
 
 		In WF_POLLING mode, this resets our knowledge of the stat
 		info, and then triggers file activity to wake up the caller.
@@ -342,9 +346,15 @@ class watch(object):
 			if fd in self.fds_open:
 				try:
 					path = self.fds_open[fd]
-					tfd = os.open(path, os.O_RDONLY);
+					nfd = inotifyx.add_watch(self._inx_fd, path, self._inx_mask|inotifyx.IN_OPEN)
+					if nfs != fd:
+						raise Exception("Assertion failed: IN_OPEN add_watch() set gave new wd")
+					tfd = os.open(path, os.O_RDONLY)
 					try: os.close(tfd)
 					except: pass
+					nfd = inotifyx.add_watch(self._inx_fd, path, self._inx_mask)
+					if nfs != fd:
+						raise Exception("Assertion failed: IN_OPEN add_watch() clear gave new wd")
 				except Exception as e:
 					log.error("%s Failed to trigger event via os.open() following pending file promotion -- %s",
 											my(self), str(e))
@@ -396,8 +406,7 @@ class watch(object):
 			try: os.close(fd)
 			except: pass
 			try:
-				fd = inotifyx.add_watch(self._inx_fd, path,
-						inotifyx.IN_ALL_EVENTS & ~(inotifyx.IN_ACCESS | inotifyx.IN_CLOSE))
+				fd = inotifyx.add_watch(self._inx_fd, path, self._inx_mask)
 				log.debug("%s path %s watched with wd %d", my(self), path, fd)
 			except Exception as e:
 				log.error("%s inotify failed on watched path '%s' -- %s", my(self), path, str(e))
