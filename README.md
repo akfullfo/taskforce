@@ -188,16 +188,16 @@ In addition to these commands, other arbitrary commands can be defined which are
 ```YAML
 "tasks": {
     "db_server": {
-	"defines": { "conf": "/etc/db_server.conf" },
+        "defines": { "conf": "/etc/db_server.conf" },
         "pidfile": "/var/run/{Task_name}.pid",
         "commands": {
             "start": [ "{Task_name}", "-p", "{Task_pidfile}", "-f", "{conf}" ],
             "reconfig": [ "{Task_name}_ctl", "-p", "{Task_pidfile}", "reload" ]
         },
-	"events": [
-	    { "type": "file_change", "path": [ "{conf}" ], "command": "reconfig" },
-	    { "type": "self", "command": "stop" }
-	]
+        "events": [
+            { "type": "file_change", "path": [ "{conf}" ], "command": "reconfig" },
+            { "type": "self", "command": "stop" }
+        ]
     }
 }
 ```
