@@ -161,7 +161,7 @@ Key | Decription
 <pre>
 "tasks": {
     "db_server": {
-        "pidfile": "/var/run/{[Task_name](#Task_name)}.pid",
+        "pidfile": "/var/run/{<a href="#Task_name">Task_name</a>}.pid",
         "commands": {
             "start": [ "{Task_name}", "-p", "{Task_pidfile}" ]
         }
