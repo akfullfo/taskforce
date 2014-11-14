@@ -158,7 +158,7 @@ Key | Decription
 
 #### The `tasks.commands` tag ####
 `commands` is a map of commands use to manage a task.  It is the only required `tasks` tag, and the only required command is the `start` command.  The command name is mapped to a list of command arguments, the first list element being the program to execute.  All list elements are formatted with the task context, so a command list can be very general, for example:
-```YAML
+<pre>
 "tasks": {
     "db_server": {
         "pidfile": "/var/run/{[Task_name](#Task_name)}.pid",
@@ -167,7 +167,7 @@ Key | Decription
         }
     }
 }
-```
+</pre>
 which would execute the command:
 ```
 db_server -p /var/run/db_server.pid
