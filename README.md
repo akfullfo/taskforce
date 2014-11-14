@@ -101,12 +101,12 @@ Each task is started based on a context.  The context is a key/value map that is
 
 Key | Decription
 :---|:----------
-`Task_name`| The task name based on the configuration `tasks` key.
+<a name="Task_name">`Task_name`</a>| The task name based on the configuration `tasks` key.
 `Task_pid`| The process ID of the task process
 `Task_ppid`| The process ID of the application running the legion.
 `Task_pidfile`| The pidfile if specified in the configuration.
 `Task_cwd`| The task current working directory if specified in the configuration.
-`Task_instance`| The instance number of the task process.  The value goes from 0 up to (but excluding) the number of processes configured for the task.  It will be 0 in the most common case where only one process is configured.  It is effectively a process slot number, so if a process exits, it will be restarted with the same instance number.
+<a name="Task_instance">`Task_instance`</a>| The instance number of the task process.  The value goes from 0 up to (but excluding) the number of processes configured for the task.  It will be 0 in the most common case where only one process is configured.  It is effectively a process slot number, so if a process exits, it will be restarted with the same instance number.
 `Task_user`| The task user if specified in the configuration
 `Task_uid`| The numeric user id of the process.
 `Task_group`| The task group if specified in the configuration
@@ -149,7 +149,7 @@ Key | Decription
 `events`| Maps event types to their disposition as commands or signals.  See [`tasks.events`](#the-tasksevents-tag).
 `group`| Specifies the group name or gid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the group.
 `pidfile`| Registers the file where the process will write its PID.  This does nothing to cause the process to write the file, but the context item `Task_pidfile` is available for use in the *start* command.  The value is used by taskforce to identify an orphaned task from a prior run so it can be restarted (**wait** and **nowait** controls) or adopted (**adopt** control).  In the case of **nowait** and **adopt** controls, it is also used to implement the default management commands *check* and *stop*.  Note that the **nowait** and **adopt** controls are not yet supported.
-`procname`| The value is used when the *start* command is run as the `argv[0]` program name.  A common use when the `count` value is greater than 1 is to specify `'procname': '{Task_name}-{Task_instance'` which makes each instance of the task distinct in *ps(1)* output.
+`procname`| The value is used when the *start* command is run as the `argv[0]` program name.  A common use when the `count` value is greater than 1 is to specify `'procname':` '[`{Task_name}`](#Task_name)-[`{Task_instance}`](#Task_instance)' which makes each instance of the task distinct in *ps(1)* output.
 `onexit`| Causes the specified operation to be performed after all processes in this task have exited following a *stop* command.  The only supported `onexit` operation is `'type': 'start'` which causes the named task to be started.  It normally would not make sense for a task to set itself to run again (that's handled by the *control* element).  This handles the case where a task needs a *once* task to be rerun whenever it exits.  For that reason, `'type': 'start' may only be issued against a *once* task.
 `requires`| A list of task names that must have run before this task will be started.  *once* tasks are considered to have run only after they have exited.  Other controls (*wait*, *nowait*, *adopt*) are considered run as soon as any `start_delay` period has completed after the task has started.
 `role_defines`| Similar to the top-level `role_defines` but applies only to this task.
