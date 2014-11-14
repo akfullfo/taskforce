@@ -101,12 +101,12 @@ Each task is started based on a context.  The context is a key/value map that is
 
 Key | Decription
 :---|:----------
-<a name="Task_name">`Task_name`</a>| The task name based on the configuration `tasks` key.
+<a name="Task_name"></a>`Task_name`| The task name based on the configuration `tasks` key.
 `Task_pid`| The process ID of the task process
 `Task_ppid`| The process ID of the application running the legion.
 `Task_pidfile`| The pidfile if specified in the configuration.
 `Task_cwd`| The task current working directory if specified in the configuration.
-<a name="Task_instance">`Task_instance`</a>| The instance number of the task process.  The value goes from 0 up to (but excluding) the number of processes configured for the task.  It will be 0 in the most common case where only one process is configured.  It is effectively a process slot number, so if a process exits, it will be restarted with the same instance number.
+<a name="Task_instance"></a>`Task_instance`| The instance number of the task process.  The value goes from 0 up to (but excluding) the number of processes configured for the task.  It will be 0 in the most common case where only one process is configured.  It is effectively a process slot number, so if a process exits, it will be restarted with the same instance number.
 `Task_user`| The task user if specified in the configuration
 `Task_uid`| The numeric user id of the process.
 `Task_group`| The task group if specified in the configuration
