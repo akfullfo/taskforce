@@ -1,5 +1,6 @@
 taskforce
 =========
+![status](https://pypip.in/version/taskforce/badge.svg)![status](https://pypip.in/status/taskforce/badge.svg)![Downloads](https://pypip.in/download/taskforce/badge.svg)
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
