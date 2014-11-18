@@ -1,0 +1,103 @@
+:
+# ________________________________________________________________________
+#
+#  Copyright (C) 2014 Andrew Fullford
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+# ________________________________________________________________________
+#
+
+P=$(basename $0 .sh)
+
+usage()
+{
+	cat >&2 <<EOT
+Usage: ./$P [-v] role [...]
+
+       Run the example configuration in the specified role.
+       This must be run from within the example directory, ie:
+
+       		cd ..../taskforce/examples
+		./$P
+
+       Log output will be to stderr.
+
+       Flags:
+	-help		This message.
+
+	-verbose	Enable verbose logging in the example run.
+EOT
+	exit "${1:-99}"
+}
+
+TFARGS=
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+	-v*)
+		TFARGS="$TFARGS --verbose"
+		;;
+	-h)
+		usage 0
+		;;
+	--)
+		shift
+		break
+		;;
+	-*)
+		echo "$P: Unknown flag '$1'" >&2
+		usage
+		;;
+	*)
+		break
+		;;
+	esac
+	shift
+done
+
+if [ "$#" -eq 0 ]; then
+	echo "$P: At least one role needed" >&2
+	usage
+fi
+
+TFBASE="$(cd .. && echo $PWD)"
+EXBIN="$TFBASE/examples/bin"
+EXCONF="$TFBASE/examples/example.conf"
+EXROLES="$TFBASE/examples/example.roles"
+if [ ! -x "$EXBIN/procsim" ]; then
+	echo "$P: Script must be run from the 'taskforce/examples' directory" >&2
+	exit 2
+fi
+if [ ! -r "$EXCONF" ]; then
+	echo "$P: Example config '$EXCONF' is missing" >&2
+	exit 2
+fi
+TFBIN="$TFBASE/bin"
+if [ ! -x "$TFBIN/taskforce" ]; then
+	echo "$P: 'taskforce' application not found in '$TFBIN'" >&2
+	exit 2
+fi
+TFPKG="$TFBASE/taskforce"
+if [ ! -f "$TFPKG/__init__.py" ]; then
+	echo "$P: 'taskforce' package not found in '$TFPKG'" >&2
+	exit 2
+fi
+PATH=$EXBIN:$PATH; export PATH
+PYTHONPATH=$TFBASE:$PYTHONPATH; export PYTHONPATH
+
+> $EXROLES || exit 3
+while [ "$#" -gt 0 ]; do
+	echo $1 >> $EXROLES
+	shift
+done
+
+exec $TFBIN/taskforce $TFARGS --log-stderr --config-file $EXCONF --roles-file $EXROLES

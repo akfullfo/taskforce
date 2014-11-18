@@ -1,0 +1,124 @@
+#!/usr/local/bin/python
+
+import re, sys, os, time, signal, random, argparse
+from taskforce import utils
+
+try:
+	import setproctitle
+	has_setproctitle = True
+except:
+	has_setproctitle = False
+
+def catch(sig, frame):
+	if sig == signal.SIGTERM:
+		sys.exit(0)
+	elif sig == signal.SIGHUP:
+		#  Represents a reconfiguation
+		return
+	elif sig == signal.SIGUSR1:
+		sys.exit(1)
+	elif sig == signal.SIGUSR2:
+		sys.exit(2)
+
+def daemonize(**params):
+	if os.fork() != 0:
+		os._exit(0)
+
+	try: os.setsid()
+	except: pass
+
+	if os.fork() != 0:
+		os._exit(0)
+
+	try: os.chdir('/')
+	except: pass
+	try: os.close(0)
+	except: pass
+	try: fd = os.open('/dev/null', os.O_RDONLY)
+	except: pass
+	try: os.close(1)
+	except: pass
+	try: fd = os.open('/dev/null', os.O_WRONLY)
+	except: pass
+	try: os.setpgrp()
+	except: pass
+	try: os.close(2)
+	except: pass
+	try: fd = os.dup(1)
+	except: pass
+	utils.closeall(exclude = [0,1,2])
+
+procname = utils.appname()
+
+if 'Task_name' in os.environ:
+	procname = os.environ['Task_name']
+if 'Task_instance' in os.environ:
+	procname += '-'+os.environ['Task_instance']
+procname = re.sub(r'[^-\w.+]+', '_', procname)
+if 'Task_pidfile' in os.environ:
+	def_pidfile = os.environ['Task_pidfile']
+else:
+	def_pidfile = '/var/run/' + procname + '.pid'
+
+p = argparse.ArgumentParser(description="""
+Simulate a daemon execution.  The command sleeps until a given exit timer
+expires, possibly forever.
+""",
+epilog="""
+Without --min-sleep, sleep will be between 0 and --sleep-range.
+Without --sleep-range, sleep will be exactly --min-sleep.
+With neither, process will sleep forever.
+""")
+p.add_argument('-m', '--min-sleep', action='store', dest='min_sleep', type=float, help='Sleep no less than this number of seconds')
+p.add_argument('-r', '--sleep-range', action='store', dest='sleep_range', type=float, help='Sleep randomly within this range')
+p.add_argument('-b', '--background', action='store_true', dest='daemonize', help='Run in the background')
+p.add_argument('-p', '--pidfile', action='store', dest='pidfile', help='Pidfile path, default '+def_pidfile+', "-" means none')
+
+args = p.parse_args()
+
+if args.pidfile is None and args.daemonize:
+	pidfile = def_pidfile
+else:
+	pidfile = args.pidfile
+if pidfile == '' or pidfile == '-':
+	pidfile = None
+
+if args.min_sleep is None and args.sleep_range is None:
+	sleep_period = None
+elif args.min_sleep is None:
+	sleep_period = random.uniform(0.0, args.sleep_range)
+elif args.sleep_range is None:
+	sleep_period = args.min_sleep
+else:
+	sleep_period = random.uniform(args.min_sleep, args.min_sleep+args.sleep_range)
+
+signal.signal(signal.SIGTERM, catch)
+signal.signal(signal.SIGHUP, catch)
+signal.signal(signal.SIGUSR1, catch)
+signal.signal(signal.SIGUSR2, catch)
+
+if args.daemonize:
+	daemonize()
+
+if pidfile is not None:
+	try:
+		utils.pidclaim(pidfile)
+	except Exception as e:
+		sys.stderr.write('Fatal error -- ' + str(e))
+		sys.exit(2)
+
+started = time.time()
+if sleep_period is None:
+	while True:
+		if has_setproctitle:
+			setproctitle("%s %.0f secs so far, sleeping forever" % (procname, sofar))
+		time.sleep(1)
+else:
+	toolong = started + sleep_period
+	while True:
+		now = time.time()
+		if now >= toolong:
+			sys.exit(0)
+		if has_setproctitle:
+			setproctitle("%s %.1f of %.1f secs" % (procname, now-started, sleep_period))
+		time.sleep(0.2)
