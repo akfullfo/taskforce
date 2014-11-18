@@ -86,7 +86,7 @@ Large production system| web | Several hosts dedicated to the web role with othe
 Small production system| web<br>app | Two hosts handle web and app roles with other hosts handing the db roles
 Sanity test system| web<br>app<br>db | A single host handles all roles.  It runs all regular sanity tests in an environment while exactly following standard production upgrade procedures.
 
-The approach allows hosts to be configured in exactly the same way except for the roles file.  In addition, because the role file is continuously monitor for changes, a role file update will cause an automatic migration from one configuration to another, starting an stopping tasks as needed to meet the new scope.
+The approach allows hosts to be configured in exactly the same way except for the roles file.  In addition, because the role file is continuously monitored for changes, a role file update will cause an automatic migration from one configuration to another, starting an stopping tasks as needed to meet the new scope.
 
 ### Included Modules ###
 **task.py** holds the primary class `legion` which is the entry point into task management.  An effectively internal class `task` manages each task after it is defined by the configurtion.  There are also some classes and methods present for event handling and process execution.
@@ -106,7 +106,7 @@ Key | Decription
 <a name="Task_pid"></a>`Task_pid`| The process ID of the task process
 <a name="Task_ppid"></a>`Task_ppid`| The process ID of the application running the legion.
 <a name="Task_pidfile"></a>`Task_pidfile`| The pidfile if specified in the configuration.
-<a name="Task_cwd"></a>`Task_cwd`| The task current working directory if specified in the configuration.
+<a name="Task_cwd"></a>`Task_cwd`| The task current-working-directory if specified in the configuration.
 <a name="Task_instance"></a>`Task_instance`| The instance number of the task process.  The value goes from 0 up to (but excluding) the number of processes configured for the task.  It will be 0 in the most common case where only one process is configured.  It is effectively a process slot number, so if a process exits, it will be restarted with the same instance number.
 <a name="Task_user"></a>`Task_user`| The task user if specified in the configuration
 <a name="Task_uid"></a>`Task_uid`| The numeric user id of the process.
@@ -115,7 +115,7 @@ Key | Decription
 <a name="Task_host"></a>`Task_host`| The name of the host running the taskforce application.
 <a name="Task_fqdn"></a>`Task_fqdn`| The fully qualified domain name of the host running the taskforce application.
 
-When taskforce starts a process, the entire context is exported as the process environment.  In addition, the context is used to perform tagged substitutions in configuration file values.  Substitution tags are surrounded by braces. For example, a specification like:
+When taskforce starts a process, the entire context is exported as the process's Unix environment.  In addition, the context is used to perform tagged substitutions in configuration file values.  Substitution tags are surrounded by braces. For example, a specification like:
 
     "path": "{PGDATA}/postgresql.conf"
 
@@ -127,23 +127,23 @@ taskforce configuration is traditionally done using YAML flow style which is eff
 
 Like the roles file, the configuration file is continuously monitored and configuration changes will be reflect immediately by stopping, starting, or restarting tasks to match the new state.
 
-The configuration consists of key/value map at the top-level, where the values are further maps.  The term "map" here means the same thing as associative array or dictionary.  The rest of this section describes the configuration keys in detail.
+The configuration consists of a key/value map at the top-level, where the values are further maps.  The term "map" here is the same as "associative array" or "dictionary".  The rest of this section describes the configuration keys in detail.
 
 #### Top-level Keys ####
 Key | Decription
 :---|:----------
 `defines`| The associated map is added to the base context used when building commands and other parameter substitions.
-`role_defines` | Maps individual roles a key/value map.  The map is added to the context if this role if in scope.
+`role_defines` | Maps individual roles to a key/value map.  The map is added to the context only if this role if in scope.
 `tasks` | Normally this is largest top-level key as its value is a map of all task names with their definitions (see below).
 
 #### The `tasks` tag ####
 
-Each key in the `tasks` map describes a single task.  A task is made up of one or more processes which have exactly the same configuration.
+Each key in the `tasks` map describes a single task.  A task is made up of one or more processes which run concurrently with exactly the same configuration.
 
 Key | Decription
 :---|:----------
 `commands`| A map of commands used to start and manage a task.  See [`tasks.commands`](#the-taskscommands-tag).
-`control`| Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed.<br>**wait** indicates task processes will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that do always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
+`control`| Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed but the task will not be restarted.<br>**wait** indicates task processes once started  will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that will always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
 `count`| An integer specifying the number of processes to be started for this task.  If not specified, one process will be started.  Each process will have exactly the same configuration except that the context items [`Task_pid`](#Task_pid) and [`Task_instance`](#Task_instance) will be specific to each process, and any context items derived from these values will be different.  This is particularly useful when defining the pidfile and procname values.
 `cwd`| Specifies the current directory for the process being run.
 `defines`| Similar to the top-level `defines` but applies only to this task.
@@ -175,7 +175,7 @@ db_server -p /var/run/db_server.pid
 ```
 In addition to the `start` command, there are two other standard commands.
 
-The `stop` command can be defined to override the built-in command stop function.  The built-in function issues a SIGTERM to the known process ID for each of the tasks processes and escalates that to SIGKILL if the process does not exit within 5 seconds.  Explicitly defining a `stop` command overrides this behavior.  Care should be taken to ensure that a replacement `stop` command is rigorous in ensuring the process will have exited once the replacement command completes.
+The `stop` command can be defined to override the built-in command stop function.  The built-in function issues a SIGTERM to the known process ID for each of the task's processes and escalates that to SIGKILL if the process does not exit within 5 seconds.  Explicitly defining a `stop` command overrides this behavior.  Care should be taken to ensure that a replacement `stop` command is rigorous in ensuring the process will have exited once the replacement command completes.
 
 The `check` command can be defined to override built-in process checking.  The built-in function uses a zero signal to test for
 the existence of the task's process IDs.  The replacement `check` command must exit 0 if the task's process is running normally
@@ -204,7 +204,7 @@ In addition to these commands, other arbitrary commands can be defined which are
 ```
 sets up two events.  The *file_change* event is triggered whenever a file in the *path* list changes.  The *self* event is triggered when the command executable file changes.  It is really just shorthand for the equivalent *file_change* event.
 
-In this case, when the configuration file is changed, the command defined as *reconfig* will be run.  That resolves to this command:
+In this case, the *file_change* event will trigger when the configuration file is changed.  That will cause the *reconfig* command from the `commands` list to run.  That resolves to this command:
 ```
 db_server_ctl -p /var/run/db_server.pid reload
 ```
