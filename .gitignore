@@ -41,6 +41,9 @@ htmlcov/
 nosetests.xml
 coverage.xml
 
+# Examples runtime
+examples/example.roles
+
 # Translations
 *.mo
 *.pot
