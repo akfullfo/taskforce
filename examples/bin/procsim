@@ -69,10 +69,15 @@ Without --min-sleep, sleep will be between 0 and --sleep-range.
 Without --sleep-range, sleep will be exactly --min-sleep.
 With neither, process will sleep forever.
 """)
-p.add_argument('-m', '--min-sleep', action='store', dest='min_sleep', type=float, help='Sleep no less than this number of seconds')
-p.add_argument('-r', '--sleep-range', action='store', dest='sleep_range', type=float, help='Sleep randomly within this range')
+p.add_argument('--min-sleep', action='store', dest='min_sleep', type=float, help='Sleep no less than this number of seconds')
+p.add_argument('--sleep-range', action='store', dest='sleep_range', type=float, help='Sleep randomly within this range')
 p.add_argument('-b', '--background', action='store_true', dest='daemonize', help='Run in the background')
 p.add_argument('-p', '--pidfile', action='store', dest='pidfile', help='Pidfile path, default '+def_pidfile+', "-" means none')
+p.add_argument('-q', '--quit', action='store_true', dest='quit', help='ntpd simulation, same as "--min-sleep 3"')
+p.add_argument('-g', '--dont-panic', action='store_true', dest='dont_panic', help='ntpd simulation, no simulated action')
+p.add_argument('-n', '--dont-fork', action='store_true', dest='dont_fork', help='ntpd simulation, no simulated action')
+p.add_argument('-f', '--file', action='store', dest='file', help='general simulation, no simulated action')
+p.add_argument('-c', '--config', action='store', dest='config', help='general simulation, no simulated action')
 
 args = p.parse_args()
 
@@ -83,6 +88,8 @@ else:
 if pidfile == '' or pidfile == '-':
 	pidfile = None
 
+if args.quit is not None:
+	args.min_sleep = 3
 if args.min_sleep is None and args.sleep_range is None:
 	sleep_period = None
 elif args.min_sleep is None:
