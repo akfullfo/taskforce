@@ -70,9 +70,10 @@ if [ "$#" -eq 0 ]; then
 fi
 
 TFBASE="$(cd .. && echo $PWD)"
-EXBIN="$TFBASE/examples/bin"
-EXCONF="$TFBASE/examples/example.conf"
-EXROLES="$TFBASE/examples/example.roles"
+EXAMPLES_BASE="$TFBASE/examples"; export EXAMPLES_BASE
+EXBIN="$EXAMPLES_BASE/bin"
+EXCONF="$EXAMPLES_BASE/example.conf"
+EXROLES="$EXAMPLES_BASE/example.roles"
 if [ ! -x "$EXBIN/procsim" ]; then
 	echo "$P: Script must be run from the 'taskforce/examples' directory" >&2
 	exit 2
@@ -90,6 +91,9 @@ TFPKG="$TFBASE/taskforce"
 if [ ! -f "$TFPKG/__init__.py" ]; then
 	echo "$P: 'taskforce' package not found in '$TFPKG'" >&2
 	exit 2
+fi
+if [ ! -d "$EXAMPLES_BASE/var/run" ]; then
+	mkdir -p "$EXAMPLES_BASE/var/run" || exit 3
 fi
 PATH=$EXBIN:$PATH; export PATH
 PYTHONPATH=$TFBASE:$PYTHONPATH; export PYTHONPATH
