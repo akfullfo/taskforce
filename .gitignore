@@ -43,6 +43,7 @@ coverage.xml
 
 # Examples runtime
 examples/example.roles
+examples/var/
 
 # Translations
 *.mo
