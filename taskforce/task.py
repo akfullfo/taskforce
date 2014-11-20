@@ -281,7 +281,7 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 		for a in cmd_list:
 			cmd.append(_fmt_context(a, context))
 
-		log.debug("%s child, Execing: %s <%s>", my(), prog, utils.format_cmd(cmd))
+		log.info("%s child, Execing: %s <%s>", my(), prog, utils.format_cmd(cmd))
 	except Exception as e:
 		#  Log any exceptions here while we still can.  After the closeall,
 		#  bets are off.
@@ -1296,6 +1296,12 @@ Params are:
 		return self._name
 
 	def _context_defines(self, context, conf):
+		"""
+		Apply any defines and role_defines from the current config.
+		The config might be at the task level or the global (top) level.
+		The order is such that a role_defines value will override
+		a normal defines value.
+	"""
 		if conf and 'defines' in conf and type(conf['defines']) is dict:
 			context.update(conf['defines'])
 		roles = self._legion.get_roles()
@@ -1303,6 +1309,25 @@ Params are:
 			for role in conf['role_defines']:
 				if role in roles:
 					context.update(conf['role_defines'][role])
+
+	def _context_defaults(self, context, conf):
+		"""
+		Apply any defaults and role_defaults from the current config.
+		The config might be at the task level or the global (top) level.
+		The order is such that a role_defaults value will be applied before
+		a normal defaults value so if present, the role_defaults is preferred.
+	"""
+		roles = self._legion.get_roles()
+		if conf and roles and 'role_defaults' in conf and type(conf['role_defaults']) is dict:
+			for role in conf['role_defaults']:
+				if role in roles:
+					for tag, val in conf['role_defaults'][role].items():
+						if tag not in context:
+							context[tag] = val
+		if conf and 'defaults' in conf and type(conf['defaults']) is dict:
+			for tag, val in conf['defaults'].items():
+				if tag not in context:
+					context[tag] = val
 
 	def _context_build(self, pending=False):
 		"""
@@ -1344,8 +1369,15 @@ Params are:
 		if self._legion._config_running:
 			self._context_defines(context, self._legion._config_running)
 		else:
-			log.warning("%s No legion config available", my(self)) 
+			log.warning("%s No legion config available for defines", my(self)) 
 		self._context_defines(context, conf)
+
+		self._context_defaults(context, conf)
+		if self._legion._config_running:
+			self._context_defaults(context, self._legion._config_running)
+		else:
+			log.warning("%s No legion config available for defaults", my(self)) 
+
 		return context
 
 	def get_path(self):
@@ -1800,7 +1832,7 @@ Params are:
 				self._proc_start[instance] = now
 				started += 1
 
-			log.info("%s Task %s: %d process%s started", my(self), self._name, started, ses(started, 'es'))
+			log.info("%s Task %s: %d process%s scheduled to start", my(self), self._name, started, ses(started, 'es'))
 		except Exception as e:
 			log.error("%s Failed to start task '%s' -- %s",
 							my(self), self._name, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
