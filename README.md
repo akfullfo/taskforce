@@ -183,7 +183,7 @@ The interpretation order for *defaults* is:
 
 This is the opposite order to *defines* but results in the same precedence because the first match *defaults* entry prevents further entries from being applied.
 
-If more then one `role_defines` map is in scope because there are multiple active roles and the maps contain the same key, it is indeterminate which value will be used.  It is best to avoid using the same key in cases where multiple roles may be in scope.
+If more then one `role_defaults` or `role_defines` map is in scope because there are multiple active roles, and the maps contain the same key, it is indeterminate which value will be used.  It is best to avoid using the same key in cases where multiple roles may be in scope.
 
 #### The `tasks.commands` tag ####
 `commands` is a map of commands use to manage a task.  It is the only required `tasks` tag, and the only required command is the `start` command.  The command name is mapped to a list of command arguments, the first list element being the program to execute.  All list elements are formatted with the task context, so a command list can be very general, for example:
