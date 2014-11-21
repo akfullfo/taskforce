@@ -166,17 +166,21 @@ Key | Decription
 The top-level and task-level maps `defaults` and `defines` as well as `role_defaults` and `role_defines` are use to manipulate the [task context](#task-context) and so the Unix environment of the commands that are run.  The order in which these maps are interpretted governs which entry will be used when building the context.
 
 The interpretation order for *defines* is:
+
 1. The top-level `defines`.
 1. The top-level `role_defines` for any role that is in scope.
 1. The task `defines`.
 1. The task `role_defines` for any role that is in scope.
+
 This gives the task *defines* precedence over the top-level *defines*.
 
 The interpretation order for *defaults* is:
+
 1. The task `role_defaults` for any role that is in scope.
 1. The task `defaults`.
 1. The top-level `role_defaults` for any role that is in scope.
 1. The top-level `defaults`.
+
 This is the opposite order to *defines* but results in the same precedence because the first match *defaults* entry prevents further entries from being applied.
 
 If more then one `role_defines` map is in scope because there are multiple active roles and the maps contain the same key, it is indeterminate which value will be used.  It is best to avoid using the same key in cases where multiple roles may be in scope.
