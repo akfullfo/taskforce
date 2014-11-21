@@ -81,7 +81,7 @@ It will detect executable and/or module changes and automatically restart the af
 	'download_url': "https://github.com/akfullfo/taskforce/tarball/" + version,
 	'license': "Apache License, Version 2.0",
 	'include_package_data': True,
-	'platforms': ['linux', 'bsd'],
+	'platforms': ['Linux', 'BSD', 'Mac OS X'],
 	'classifiers': [
 		'Development Status :: 3 - Alpha',
 		'Environment :: No Input/Output (Daemon)',
