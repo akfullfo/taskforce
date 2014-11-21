@@ -14,6 +14,7 @@ taskforce
 - [Configuration File](#configuration-file)
   - [Top-level Keys](#top-level-keys)
   - [The `tasks` tag](#the-tasks-tag)
+  - [`defaults` and `defines`](#defaults-and-defines)
   - [The `tasks.commands` tag](#the-taskscommands-tag)
   - [The `tasks.events` tag](#the-tasksevents-tag)
 - [Application](#application)
@@ -134,6 +135,8 @@ Key | Decription
 :---|:----------
 `defines`| The associated map is added to the base context used when building commands and other parameter substitions.
 `role_defines` | Maps individual roles to a key/value map.  The map is added to the context only if this role if in scope.
+`defaults`| Similar to `defines`, but entries are only added when no matching entry is present in the context.
+`role_defaults` | Similar to `role_defines`, but entries are only added when no matching entry is present in the context.
 `tasks` | Normally this is largest top-level key as its value is a map of all task names with their definitions (see below).
 
 #### The `tasks` tag ####
@@ -146,6 +149,7 @@ Key | Decription
 `control`| Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed but the task will not be restarted.<br>**wait** indicates task processes once started  will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that will always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
 `count`| An integer specifying the number of processes to be started for this task.  If not specified, one process will be started.  Each process will have exactly the same configuration except that the context items [`Task_pid`](#Task_pid) and [`Task_instance`](#Task_instance) will be specific to each process, and any context items derived from these values will be different.  This is particularly useful when defining the pidfile and procname values.
 `cwd`| Specifies the current directory for the process being run.
+`defaults`| Similar to the top-level `defaults` but applies only to this task.
 `defines`| Similar to the top-level `defines` but applies only to this task.
 `events`| Maps event types to their disposition as commands or signals.  See [`tasks.events`](#the-tasksevents-tag).
 `group`| Specifies the group name or gid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the group.
@@ -153,9 +157,29 @@ Key | Decription
 `procname`| The value is used when the *start* command is run as the `argv[0]` program name.  A common use when the `count` value is greater than 1 is to specify `'procname':` '{[`Task_name`](#Task_name)}-{[`Task_instance`](#Task_instance)}' which makes each instance of the task distinct in *ps(1)* output.
 `onexit`| Causes the specified operation to be performed after all processes in this task have exited following a *stop* command.  The only supported `onexit` operation is `'type': 'start'` which causes the named task to be started.  It normally would not make sense for a task to set itself to run again (that's handled by the *control* element).  This handles the case where a task needs a *once* task to be rerun whenever it exits.  For that reason, `'type': 'start' may only be issued against a *once* task.
 `requires`| A list of task names that must have run before this task will be started.  *once* tasks are considered to have run only after they have exited.  Other controls (*wait*, *nowait*, *adopt*) are considered run as soon as any `start_delay` period has completed after the task has started.
+`role_defaults`| Similar to the top-level `role_defaults` but applies only to this task.
 `role_defines`| Similar to the top-level `role_defines` but applies only to this task.
 `start_delay`| A delay in seconds before other tasks that `requires` this task will be started.
 `user`| Specifies the user name or uid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the user.
+
+#### `defaults` and `defines` ####
+The top-level and task-level maps `defaults` and `defines` as well as `role_defaults` and `role_defines` are use to manipulate the [task context](#task-context) and so the Unix environment of the commands that are run.  The order in which these maps are interpretted governs which entry will be used when building the context.
+
+The interpretation order for *defines* is:
+1. The top-level `defines`.
+1. The top-level `role_defines` for any role that is in scope.
+1. The task `defines`.
+1. The task `role_defines` for any role that is in scope.
+This gives the task *defines* precedence over the top-level *defines*.
+
+The interpretation order for *defaults* is:
+1. The task `role_defaults` for any role that is in scope.
+1. The task `defaults`.
+1. The top-level `role_defaults` for any role that is in scope.
+1. The top-level `defaults`.
+This is the opposite order to *defines* but results in the same precedence because the first match *defaults* entry prevents further entries from being applied.
+
+If more then one `role_defines` map is in scope because there are multiple active roles and the maps contain the same key, it is indeterminate which value will be used.  It is best to avoid using the same key in cases where multiple roles may be in scope.
 
 #### The `tasks.commands` tag ####
 `commands` is a map of commands use to manage a task.  It is the only required `tasks` tag, and the only required command is the `start` command.  The command name is mapped to a list of command arguments, the first list element being the program to execute.  All list elements are formatted with the task context, so a command list can be very general, for example:
