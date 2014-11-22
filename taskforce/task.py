@@ -1384,10 +1384,6 @@ Params are:
 		if self._path is not None:
 			return self._path
 		log = self._params.get('log', self._discard)
-		if 'procpath' in self._config_running:
-			self._path = _fmt_context(self._config_running['procpath'], self._context)
-			log.debug("%s Task '%s' path '%s' (from 'procpath')", my(self), self._name, self._path)
-			return self._path
 		if 'commands' in self._config_running and 'start' in self._config_running['commands']:
 			name = _fmt_context(self._config_running['commands']['start'], self._context)
 			if type(name) is list:
