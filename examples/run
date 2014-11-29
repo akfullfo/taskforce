@@ -33,9 +33,14 @@ Usage: ./$P [-v] role [...]
        Log output will be to stderr.
 
        Flags:
-	-help		This message.
+	-h	This message.
 
-	-verbose	Enable verbose logging in the example run.
+	-v	Enable verbose logging in the example run.
+
+	-C	Check the config and exit
+
+	-x	Cause simulated ntpd to exit randomly to
+		demonstrate the 'timeset' restart.
 EOT
 	exit "${1:-99}"
 }
@@ -48,6 +53,9 @@ while [ "$#" -gt 0 ]; do
 		;;
 	-C*)
 		TFARGS="$TFARGS --check-config"
+		;;
+	-x*)	MINSLEEP=20; export MINSLEEP
+		SLEEPRANGE=20; export SLEEPRANGE
 		;;
 	-h)
 		usage 0
