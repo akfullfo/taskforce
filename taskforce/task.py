@@ -104,6 +104,8 @@ def _fmt_context(arg_list, context):
 	For convenience, if passed a list, each element will be formatted and
 	the resulting list will be returned
 """
+	if arg_list is None:
+		return arg_list
 	just_one = False
 	if type(arg_list) is not list:
 		arg_list = [arg_list]
@@ -171,10 +173,10 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 	name = context.get(context_prefix+'name', cmd_list[0])
 	log.debug("%s Starting %s instance %d", my(), name, instance)
 
-	procname = context.get('procname')
-	user = context.get('user')
-	group = context.get('group')
-	cwd = context.get('cwd')
+	procname = _fmt_context(context.get(context_prefix+'procname'), context)
+	user = _fmt_context(context.get(context_prefix+'user'), context)
+	group = _fmt_context(context.get(context_prefix+'group'), context)
+	cwd = _fmt_context(context.get(context_prefix+'cwd'), context)
 
 	#  Do the user setup early so we can throw an Exception on failure.
 	#  Identity errors are considered fatal as we do not want to run
@@ -530,7 +532,7 @@ as well as stop and start tasks as needed.
 
 Params are:
 	log		- a logging object.  If not specified, log messages
-			  will be discrded
+			  will be discarded
 
 	module_path     - a os.pathsep-separated string or a list of paths
 			  to watch for module changes.  The default is to use
@@ -913,8 +915,8 @@ Params are:
 			if not changed:
 				log.error("%s %s Cycle %d failed after %s", my(self),
 						my(self), cycle, str([t._name for t in set(tasks).difference(done)]))
-				raise TaskError(None, "At cycle %d, startup order conflict, remaining: %s" %
-						(cycle, str([t._name for t in set(tasks).difference(done)])))
+				raise TaskError(None, "At cycle %d, startup order conflict, processed %s, remaining %s" %
+						(cycle, str(done), str([t._name for t in set(tasks).difference(done)])))
 		log.debug("%s Cycle %d gave %s", my(self), cycle, str([t._name for t in start_order]))
 		return start_order
 
@@ -1295,6 +1297,71 @@ Params are:
 	def get_name(self):
 		return self._name
 
+	def _get_list(self, value, context=None):
+		"""
+		Get a confiuration value.  The rsult is None if "value" is None,
+		otherwise the result is a list.
+
+		"value" may be a list, dict, or str value.
+
+		If a list, each element of the list may be a list, dict, or
+		str value, and the value extraction proceeds recursively.
+
+		During processing, if a dict is encountered, each element of
+		the dict is checked for existence in the context.  If it
+		exists the associated value will be processed recursively as
+		before.
+
+		The final result will be the flattened list resulting from the
+		recursion.  Even if the initial "value" is a str, the result
+		will be a list, with one element.
+	"""
+		log = self._params.get('log', self._discard)
+		res = []
+		if value is None:
+			return res
+		if context is None:
+			context = self._context
+		if type(value) is list:
+			log.debug("%s Processing list %s", my(self), value)
+			for v in value:
+				res.extend(self._get_list(v, context=context))
+		elif type(value) is dict:
+			log.debug("%s Processing dict %s", my(self), value)
+			for k in value:
+				if k in context:
+					res.extend(self._get_list(value[k], context=context))
+		else:
+			log.debug("%s Processing value '%s'", my(self), value)
+			res.append(value)
+		return res
+
+	def _get(self, value, context=None, default=None):
+		"""
+		Similar to _get_list() except that the return value is required
+		to be a str.  This calls _get_list() to retrieve the value,
+		but raises an exception unless the return is None of a
+		single-valued list when that value will be returned.
+
+		If a default value is provided, it will be returned if the
+		value passed is None.  It is not applied during recursion,
+		but will be applied if the result of the recursion is None.
+	"""
+		if value is None:
+			return default
+		ret = self._get_list(value, context=context)
+		if ret is None:
+			return default
+		if type(ret) is list:
+			if len(ret) == 0:
+				raise TaskError(self._name, "Value '%s' resolved to an empty list" % (value,))
+			elif len(ret) == 1:
+				return ret[0]
+			else:
+				raise TaskError(self._name, "Value '%s' resolved to a multi-valued list %s" % (value, str(ret)))
+		else:
+				raise TaskError(self._name, "Value '%s' resolved to unexpect type %s" % (value, str(type(ret))))
+
 	def _context_defines(self, context, conf):
 		"""
 		Apply any defines and role_defines from the current config.
@@ -1354,10 +1421,6 @@ Params are:
 			context_prefix+'pid': None,
 			context_prefix+'name': self._name,
 			context_prefix+'ppid': os.getpid(),
-			context_prefix+'user': conf.get('user'),
-			context_prefix+'group': conf.get('group'),
-			context_prefix+'pidfile': conf.get('pidfile'),
-			context_prefix+'cwd': conf.get('cwd'),
 			context_prefix+'host': self._legion.host,
 			context_prefix+'fqdn': self._legion.fqdn
 		}
@@ -1365,6 +1428,11 @@ Params are:
 		#  Add the environment to the context
 		#
 		context.update(os.environ)
+
+		#  Add certain config values to the context
+		for tag in ['user', 'group', 'pidfile', 'cwd']:
+			if tag in conf:
+				context[context_prefix+tag] = self._get(conf[tag], context=context)
 
 		if self._legion._config_running:
 			self._context_defines(context, self._legion._config_running)
@@ -1428,13 +1496,12 @@ Params are:
 
 	def get_requires(self, pending=False):
 		log = self._params.get('log', self._discard)
+		context = self._context_build(pending=pending)
 		conf = self.get_config(pending=pending)
-		req = conf.get('requires', [])
-		if type(req) is not list:
-			req = [req]
+		req = self._get_list(conf.get('requires'), context=context)
 		requires = []
 		for item in req:
-			r = _fmt_context(item, self._context_build(pending=pending))
+			r = _fmt_context(item, context)
 			if r is None:
 				raise TaskError(self._name, 'Task "requires" element "%s" is invalid' % (item,))
 			if r in self._legion._tasknames:
@@ -1458,7 +1525,8 @@ Params are:
 		False otherwise.
 	"""
 		log = self._params.get('log', self._discard)
-		conf = self._params.get('config', self._config_pending)
+		context = self._context_build(pending=True)
+		conf = self._config_pending
 
 		if conf.get('control') == 'off':
 			log.debug("%s Excluding task '%s' -- control is off", my(self), self._name)
@@ -1475,12 +1543,12 @@ Params are:
 		#  If roles are present, at least one has to match the role-set.
 		#  If none are present, the task is always included.
 		#
-		roles = conf.get('roles')
+		roles = self._get_list(conf.get('roles'), context=context)
 
 		#  If a task has no roles listed, then it particpates
 		#  in all roles:
 		#
-		if roles is None:
+		if not roles:
 			log.debug("%s Including task '%s' -- no explicit roles", my(self), self._name)
 			return True
 
@@ -1496,7 +1564,7 @@ Params are:
 		handler = None
 		arg = None
 		for h in ['command', 'signal']:
-			val = event.get(h)
+			val = self._get(event.get(h))
 			if val:
 				handler = h
 				arg = val
@@ -1516,26 +1584,26 @@ Params are:
 			log.debug("%s No events present for task '%s'", my(self), self._name)
 			return
 		for event in self._config_running['events']:
-			type = event.get('type')
-			if not type:
+			ev_type = self._get(event.get('type'))
+			if not ev_type:
 				log.error("%s Ignoring event in task '%s' with no type", my(self), self._name)
 				continue
 			ev = self._make_event_target(event)
-			log.debug("%s Adding event type '%s' for task '%s'", my(self), type, self._name)
-			if type == 'self':
+			log.debug("%s Adding event type '%s' for task '%s'", my(self), ev_type, self._name)
+			if ev_type == 'self':
 				self._legion.file_add(ev, self.get_path())
-			elif type == 'python':
+			elif ev_type == 'python':
 				self._legion.module_add(ev, path=self.get_path())
-			elif type == 'file_change':
-				path = event.get('path')
+			elif ev_type == 'file_change':
+				path = self._get_list(event.get('path'))
 				if path:
 					self._legion.file_add(ev, _fmt_context(path, self._context))
 				else:
-					log.error("%s Ignoring %s event in task '%s' with no path", my(self), type, self._name)
-			elif type in ['stop', 'restart']:
-				log.debug("%s No task '%s' registration action for '%s' event", my(self), self._name, type)
+					log.error("%s Ignoring %s event in task '%s' with no path", my(self), ev_type, self._name)
+			elif ev_type in ['stop', 'restart']:
+				log.debug("%s No task '%s' registration action for '%s' event", my(self), self._name, ev_type)
 			else:
-				log.error("%s Ignoring unknown event type '%s' in task '%s'", my(self), type, self._name)
+				log.error("%s Ignoring unknown event type '%s' in task '%s'", my(self), ev_type, self._name)
 			
 	def _event_deregister(self):
 		"""
@@ -1548,11 +1616,12 @@ Params are:
 			log.debug("%s No events present for task '%s'", my(self), self._name)
 			return
 		for event in self._config_running['events']:
-			if event.get('type') == 'python':
+			ev_type = self._get(event.get('type'))
+			if ev_type == 'python':
 				self._legion.module_del(self._name)
-			elif event.get('type') == 'self':
+			elif ev_type == 'self':
 				self._legion.file_del(self._name)
-			elif event.get('type') == 'file_change':
+			elif ev_type == 'file_change':
 				self._legion.file_del(self._name)
 
 	def _command_change(self):
@@ -1569,7 +1638,12 @@ Params are:
 		if self._config_running is None:
 			log.debug("%s Task '%s' change - no previous config", my(self), self._name)
 			return True
-		for elem in ['defines', 'role_defines', 'commands', 'events']:
+		for elem in list(set(self._config_running.keys() + self._config_pending.keys())):
+			#  Ignore these elements as they don't affect the operation of a process
+			#  that is already running
+			#
+			if elem in ['control', 'pidfile', 'onexit', 'requires', 'start_delay']:
+				continue
 			if self._config_running.get(elem) != self._config_pending.get(elem):
 				log.debug("%s Task '%s' change - '%s' text change", my(self), self._name, elem)
 				return True
@@ -1577,7 +1651,7 @@ Params are:
 		if self._context != new_context:
 			if log.isEnabledFor(logging.DEBUG):
 				log.debug("%s Task '%s' change - context change", my(self), self._name)
-				for tag in list(set(self._context.keys())|set(new_context.keys())):
+				for tag in list(set(self._context.keys() + new_context.keys())):
 					o = self._context.get(tag)
 					n = new_context.get(tag)
 					if o != n:
@@ -1640,16 +1714,16 @@ Params are:
 			if 'type' not in op:
 				log.error("%s Task %s 'onexit' item %d has no 'type'", my(self), self._name, item)
 				continue
-			type = op['type']
-			if type == 'start':
+			op_type = self._get(op.get('type'))
+			if op_type == 'start':
 				if 'task' not in op:
 					log.error("%s Task %s 'onexit' item %d type '%s' has no 'task'",
-											my(self), self._name, item, type)
+										my(self), self._name, item, op_type)
 					continue
-				taskname = op['task']
+				taskname = self._get(op.get('task'))
 				if taskname not in self._legion._tasknames:
 					log.error("%s Task %s 'onexit' item %d type '%s' task '%s' does not exist",
-											my(self), self._name, item, type, taskname)
+										my(self), self._name, item, op_type, taskname)
 					continue
 				task = None
 				for t in self._legion.task_list(pending=False):
@@ -1657,16 +1731,16 @@ Params are:
 						task = t
 				if not task:
 					log.error("%s Task %s 'onexit' item %d type '%s' task '%s' exists but is out of scope",
-											my(self), self._name, item, type, taskname)
+										my(self), self._name, item, op_type, taskname)
 					continue
 				if task._config_running.get('control') != 'once':
 					log.error("%s Task %s 'onexit' item %d type '%s' task '%s' may only start 'once' tasks",
-											my(self), self._name, item, type, taskname)
+										my(self), self._name, item, op_type, taskname)
 					continue
 				log.info("%s Task '%s' marked to restart by task '%s'", my(self), taskname, self._name)
 				task._reset_state()
 			else:
-				log.error("%s Unknown type '%s' for task %s 'onexit' item %d", my(self), type, self._name, item)
+				log.error("%s Unknown type '%s' for task %s 'onexit' item %d", my(self), op_type, self._name, item)
 				continue
 
 	def _start(self):
@@ -1703,7 +1777,7 @@ Params are:
 			return True
 		now = time.time()
 		conf = self._config_running
-		once = (conf.get('control') == 'once')
+		once = (self._get(conf.get('control')) == 'once')
 		if self._stopped:
 			if self._dnr:
 				log.info("%s Task %s stopped and will now be deleted", my(self), self._name)
@@ -1718,7 +1792,7 @@ Params are:
 							my(self), self._name, deltafmt(time.time() - self._stopped))
 				self._reset_state()
 
-		start_delay = conf.get('start_delay')
+		start_delay = self._get(conf.get('start_delay'))
 		if start_delay:
 			try:
 				start_delay = int(start_delay)
@@ -1769,13 +1843,13 @@ Params are:
 		try:
 			start_command = None
 			if 'commands' in conf:
-				start_command = conf['commands'].get('start')
+				start_command = self._get_list(conf['commands'].get('start'))
 			if not start_command:
 				raise TaskError(self._name, "No 'start' command in task configuration")
 			if type(start_command) is not list:
 				start_command = list(start_command)
 
-			needed = conf.get('count', 1)
+			needed = self._get(conf.get('count'), default=1)
 			running = len(self.get_pids())
 			if needed < running:
 				log.warning("%s called with %d process%s running but only %d needed",
@@ -1885,10 +1959,10 @@ Params are:
 			resetting = self._legion.is_resetting() or task_is_resetting
 			if self._config_running:
 				for event in self._config_running.get('events', []):
-					type = event.get('type')
-					if resetting and type == 'restart':
+					ev_type = self._get(event.get('type'))
+					if resetting and ev_type == 'restart':
 						restart_target = self._make_event_target(event)
-					elif type == 'stop':
+					elif ev_type == 'stop':
 						stop_target = self._make_event_target(event)
 			if restart_target:
 				log.debug("%s Restart event on %d '%s' process%s",
