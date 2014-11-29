@@ -76,6 +76,7 @@ p.add_argument('-p', '--pidfile', action='store', dest='pidfile', help='Pidfile 
 p.add_argument('-q', '--quit', action='store_true', dest='quit', help='ntpd simulation, same as "--sleep-range 3"')
 p.add_argument('-g', '--dont-panic', action='store_true', dest='dont_panic', help='ntpd simulation, no simulated action')
 p.add_argument('-n', '--dont-fork', action='store_true', dest='dont_fork', help='ntpd simulation, no simulated action')
+p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='general simulation, no simulated action')
 p.add_argument('-f', '--file', action='store', dest='file', help='general simulation, no simulated action')
 p.add_argument('-c', '--config', action='store', dest='config', help='general simulation, no simulated action')
 p.add_argument('-l', '--listen-url', action='store', dest='listen_url', help='general simulation, no simulated action')
