@@ -66,12 +66,10 @@ class watch(object):
 
 	def _build(self, name, **params):
 		"""
-		Rebuild kevent operations by removing open modules
-		that no longer need to be watched, and adding new
-		modules if they are not currently being watched.
+		Rebuild operations by removing open modules that no longer need to be
+		watched, and adding new modules if they are not currently being watched.
 
-		This is done by comparing self.modules to
-		watch_files.paths_open
+		This is done by comparing self.modules to watch_files.paths_open
 	"""
 		log = self._getparam('log', self._discard, **params)
 
