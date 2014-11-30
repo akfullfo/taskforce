@@ -34,7 +34,7 @@ configuration file name.  This is convenient for when the element is used in
 multiple places.  It also adds two events.  The first fires if the executable
 file changes, and the second fires if the configuration file changes.  The event
 type ``self`` is shorthand for the equivalent ``file_change`` event.  In both cases,
-the event will cause the task to be stopped.  As both tasks have the ``wait``
-control, they will then be restarted.
+the event will cause the task to be stopped.  As the task has the ``wait``
+control, it will be immediately restarted.
 
 Visit `<https://github.com/akfullfo/taskforce/>`_ for more information.
