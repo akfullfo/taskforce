@@ -572,6 +572,8 @@ class watch(object):
 							evagg[path].mask |= ev.mask
 						else:
 							evagg[path] = ev
+					elif ev.mask & inotifyx.IN_IGNORED:
+						log.debug("%s skipping IN_IGNORED event on unknown wd %d", my(self), ev.wd)
 					else:
 						log.warning("%s attempt to handle unknown inotify event wd %d", my(self), ev.wd)
 				if limit and len(evagg) >= limit:
