@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/local/env python
 
 import re, sys, os, time, signal, random, argparse
 from taskforce import utils
