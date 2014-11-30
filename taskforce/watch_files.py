@@ -232,7 +232,7 @@ class watch(object):
 		of mode.
 	"""
 		if self._mode == WF_INOTIFYX:
-			try: inotifyx.rm_watch(fd)
+			try: inotifyx.rm_watch(self._inx_fd, fd)
 			except: pass
 		else:
 			try: os.close(fd)
@@ -347,13 +347,13 @@ class watch(object):
 				try:
 					path = self.fds_open[fd]
 					nfd = inotifyx.add_watch(self._inx_fd, path, self._inx_mask|inotifyx.IN_OPEN)
-					if nfs != fd:
+					if nfd != fd:
 						raise Exception("Assertion failed: IN_OPEN add_watch() set gave new wd")
 					tfd = os.open(path, os.O_RDONLY)
 					try: os.close(tfd)
 					except: pass
 					nfd = inotifyx.add_watch(self._inx_fd, path, self._inx_mask)
-					if nfs != fd:
+					if nfd != fd:
 						raise Exception("Assertion failed: IN_OPEN add_watch() clear gave new wd")
 				except Exception as e:
 					log.error("%s Failed to trigger event via os.open() following pending file promotion -- %s",
@@ -446,7 +446,7 @@ class watch(object):
 						log.warning("%s close failed on watched file '%s' -- %s", my(self), path, str(e))
 				elif self._mode == WF_INOTIFYX:
 					try:
-						inotifyx.rm_watch(fd)
+						inotifyx.rm_watch(self._inx_fd, fd)
 					except Exception as e:
 						log.warning("%s remove failed on watched file '%s' -- %s", my(self), path, str(e))
 				elif self._mode == WF_POLLING:
