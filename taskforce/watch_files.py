@@ -556,7 +556,7 @@ class watch(object):
 			while True:
 				try:
 					evlist = inotifyx.get_events(self._inx_fd, timeout)
-				except OSError as e:
+				except IOError as e:
 					if e.errno == errno.EINTR:
 						break
 					raise e
