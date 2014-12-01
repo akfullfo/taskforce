@@ -52,7 +52,7 @@ Commands to be run are defined in a configuration file in YAML format.  Let's go
 ```
 In this example, `taskforce` starts `sshd` and then starts `ntpd`.  `taskforce` is set to wait on both programs and both programs are started so that they will not detach themselves.  If either program exits, it will be restarted.
 
-`ntpd` is run with a couple of extra features.  First, it defines a tag for the configuration file name.  This is convenient for when the element is used in multiple places.  It also adds two events.  The first fires if the executable file changes, and the second fires if the configuration file changes.  The event type _self_ is shorthand for the equivalent _file_change_ event.  In both cases, the event will cause the task to be stopped.  As both tasks have the _wait_ `control`, they will then be restarted.
+The `ntpd` task configuration uses a couple of extra features.  First, it defines a tag for the configuration file name.  This is convenient for when the element is used in multiple places.  It also adds two events.  The first fires if the executable file changes, and the second fires if the configuration file changes.  The event type _self_ is shorthand for the equivalent _file_change_ event.  In both cases, the event will cause the task to be stopped.  As both tasks have the _wait_ `control`, they will then be restarted.
 
 ### Installation ###
 The easiest way to install taskforce is with "pip" as:
@@ -71,7 +71,7 @@ If python-dev is not available, `inotifyx` will be skipped.  taskforce will stil
 
     sudo pip install --upgrade --force taskforce
 
-`inotifyx` is neither needed nor useful on \*BSD or Mac OSX which both use *select.kqueue()*.
+The `inotifyx` modules is neither needed nor useful on \*BSD or Mac OSX which both use *select.kqueue()*.
 
 ### Roles ###
 
@@ -133,39 +133,16 @@ The configuration consists of a key/value map at the top-level, where the values
 #### Top-level Keys ####
 Key | Decription
 :---|:----------
-`defines`| The associated map is added to the base context used when building commands and other parameter substitions.
-`role_defines` | Maps individual roles to a key/value map.  The map is added to the context only if this role if in scope.
-`defaults`| Similar to `defines`, but entries are only added when no matching entry is present in the context.
-`role_defaults` | Similar to `role_defines`, but entries are only added when no matching entry is present in the context.
+<a name="defines"></a>`defines`| The associated map is added to the base context used when building commands and other parameter substitions.
+<a name="role_defines"></a>`role_defines` | Maps individual roles to a key/value map.  The map is added to the context only if this role if in scope.
+<a name="defaults"></a>`defaults`| Similar to `defines`, but entries are only added when no matching entry is present in the context.
+<a name="role_defaults"></a>`role_defaults` | Similar to `role_defines`, but entries are only added when no matching entry is present in the context.
 `tasks` | Normally this is largest top-level key as its value is a map of all task names with their definitions (see below).
 
-#### The `tasks` tag ####
-
-Each key in the `tasks` map describes a single task.  A task is made up of one or more processes which run concurrently with exactly the same configuration.
-
-Key | Decription
-:---|:----------
-`commands`| A map of commands used to start and manage a task.  See [`tasks.commands`](#the-taskscommands-tag).
-`control`| Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed but the task will not be restarted.<br>**wait** indicates task processes once started  will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that will always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
-`count`| An integer specifying the number of processes to be started for this task.  If not specified, one process will be started.  Each process will have exactly the same configuration except that the context items [`Task_pid`](#Task_pid) and [`Task_instance`](#Task_instance) will be specific to each process, and any context items derived from these values will be different.  This is particularly useful when defining the pidfile and procname values.
-`cwd`| Specifies the current directory for the process being run.
-`defaults`| Similar to the top-level `defaults` but applies only to this task.
-`defines`| Similar to the top-level `defines` but applies only to this task.
-`events`| Maps event types to their disposition as commands or signals.  See [`tasks.events`](#the-tasksevents-tag).
-`group`| Specifies the group name or gid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the group.
-`pidfile`| Registers the file where the process will write its PID.  This does nothing to cause the process to write the file, but the context item [`Task_pidfile`](#Task_pidfile) is available for use in the *start* command.  The value is used by taskforce to identify an orphaned task from a prior run so it can be restarted (**wait** and **nowait** controls) or adopted (**adopt** control).  In the case of **nowait** and **adopt** controls, it is also used to implement the default management commands *check* and *stop*.  Note that the **nowait** and **adopt** controls are not yet supported.
-`procname`| The value is used when the *start* command is run as the `argv[0]` program name.  A common use when the `count` value is greater than 1 is to specify `'procname':` '{[`Task_name`](#Task_name)}-{[`Task_instance`](#Task_instance)}' which makes each instance of the task distinct in *ps(1)* output.
-`onexit`| Causes the specified operation to be performed after all processes in this task have exited following a *stop* command.  The only supported `onexit` operation is `'type': 'start'` which causes the named task to be started.  It normally would not make sense for a task to set itself to run again (that's handled by the *control* element).  This handles the case where a task needs a *once* task to be rerun whenever it exits.  For that reason, `'type': 'start' may only be issued against a *once* task.
-`requires`| A list of task names that must have run before this task will be started.  *once* tasks are considered to have run only after they have exited.  Other controls (*wait*, *nowait*, *adopt*) are considered run as soon as any `start_delay` period has completed after the task has started.
-`role_defaults`| Similar to the top-level `role_defaults` but applies only to this task.
-`role_defines`| Similar to the top-level `role_defines` but applies only to this task.
-`start_delay`| A delay in seconds before other tasks that `requires` this task will be started.
-`user`| Specifies the user name or uid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the user.
-
 #### `defaults` and `defines` ####
-The top-level and task-level maps `defaults` and `defines` as well as `role_defaults` and `role_defines` are use to manipulate the [task context](#task-context) and so the Unix environment of the commands that are run.  The order in which these maps are interpretted governs which entry will be used when building the context.
+The top-level and task-level maps `defaults` and `defines` as well as `role_defaults` and `role_defines` are used to manipulate the [task context](#task-context).  The context becomes the Unix environment of the processes taskforce starts, so these maps also manipulate the process environment.
 
-The interpretation order for *defines* is:
+The order in which these maps are interpretted governs which entry will be used when building the context.  The interpretation order for *defines* is:
 
 1. The top-level `defines`.
 1. The top-level `role_defines` for any role that is in scope.
@@ -181,12 +158,35 @@ The interpretation order for *defaults* is:
 1. The top-level `role_defaults` for any role that is in scope.
 1. The top-level `defaults`.
 
-This is the opposite order to *defines* but results in the same precedence because the first match *defaults* entry prevents further entries from being applied.
+This is the opposite order to *defines* but results in the same precedence because the first matching *defaults* entry prevents further entries from being applied.
 
 If more then one `role_defaults` or `role_defines` map is in scope because there are multiple active roles, and the maps contain the same key, it is indeterminate which value will be used.  It is best to avoid using the same key in cases where multiple roles may be in scope.
 
+#### The `tasks` tag ####
+
+Each key in the <a name="tasks"></a>`tasks` map describes a single task.  A task is made up of one or more processes which run concurrently with exactly the same configuration.
+
+Key | Decription
+:---|:----------
+<a name="commands"></a>`commands`| A map of commands used to start and manage a task.  See [`tasks.commands`](#the-taskscommands-tag).
+<a name="control"></a>`control`| Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed but the task will not be restarted.<br>**wait** indicates task processes once started  will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that will always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
+<a name="count"></a>`count`| An integer specifying the number of processes to be started for this task.  If not specified, one process will be started.  Each process will have exactly the same configuration except that the context items [`Task_pid`](#Task_pid) and [`Task_instance`](#Task_instance) will be specific to each process, and any context items derived from these values will be different.  This is particularly useful when defining the pidfile and procname values.
+<a name="cwd"></a>`cwd`| Specifies the current directory for the process being run.
+<a name="defaults"></a>`defaults`| Similar to the top-level `defaults` but applies only to this task.
+<a name="defines"></a>`defines`| Similar to the top-level `defines` but applies only to this task.
+<a name="events"></a>`events`| Maps event types to their disposition as commands or signals.  See [`tasks.events`](#the-tasksevents-tag).
+<a name="group"></a>`group`| Specifies the group name or gid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the group.
+<a name="pidfile"></a>`pidfile`| Registers the file where the process will write its PID.  This does nothing to cause the process to write the file, but the context item [`Task_pidfile`](#Task_pidfile) is available for use in the *start* command.  The value is used by taskforce to identify an orphaned task from a prior run so it can be restarted (**wait** and **nowait** controls) or adopted (**adopt** control).  In the case of **nowait** and **adopt** controls, it is also used to implement the default management commands *check* and *stop*.  Note that the **nowait** and **adopt** controls are not yet supported.
+<a name="procname"></a>`procname`| The value is used when the *start* command is run as the `argv[0]` program name.  A common use when the `count` value is greater than 1 is to specify `'procname':` '{[`Task_name`](#Task_name)}-{[`Task_instance`](#Task_instance)}' which makes each instance of the task distinct in *ps(1)* output.
+<a name="onexit"></a>`onexit`| Causes the specified operation to be performed after all processes in this task have exited following a *stop* command.  The only supported `onexit` operation is `'type': 'start'` which causes the named task to be started.  It normally would not make sense for a task to set itself to run again (that's handled by the *control* element).  This handles the case where a task needs a *once* task to be rerun whenever it exits.  For that reason, `'type': 'start' may only be issued against a *once* task.
+<a name="requires"></a>`requires`| A list of task names that must have run before this task will be started.  *once* tasks are considered to have run only after they have exited.  Other controls (*wait*, *nowait*, *adopt*) are considered run as soon as any `start_delay` period has completed after the task has started.
+<a name="role_defaults"></a>`role_defaults`| Similar to the top-level `role_defaults` but applies only to this task.
+<a name="role_defines"></a>`role_defines`| Similar to the top-level `role_defines` but applies only to this task.
+<a name="start_delay"></a>`start_delay`| A delay in seconds before other tasks that `requires` this task will be started.
+<a name="user"></a>`user`| Specifies the user name or uid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the user.
+
 #### The `tasks.commands` tag ####
-`commands` is a map of commands use to manage a task.  It is the only required `tasks` tag, and the only required command is the `start` command.  The command name is mapped to a list of command arguments, the first list element being the program to execute.  All list elements are formatted with the task context, so a command list can be very general, for example:
+<a name="commands"></a>`commands` is a map of commands use to manage a task.  It is the only required `tasks` tag, and the only required command is the `start` command.  The command name is mapped to a list of command arguments, the first list element being the program to execute.  All list elements are formatted with the task context, so a command list can be very general, for example:
 <pre>
 "tasks": {
     "db_server": {
@@ -213,7 +213,7 @@ tasks (not currently supported).
 In addition to these commands, other arbitrary commands can be defined which are run as the result of events (see below).
 
 #### The `tasks.events` tag ####
-`events` is a list indicating the disposition of various event types.  For example, this configuration:
+<a name="events"></a>`events` is a list indicating the disposition of various event types.  For example, this configuration:
 ```YAML
 "tasks": {
     "db_server": {
@@ -244,17 +244,17 @@ The following event types are supported:
 
 Type | Decription
 :---|:----------
-`file_change`| Performs the specified action if any of the files in the `path` list change.
-`python`| Performs the specified action if the python script run by this task changes, including any modules found via the PYTHONPATH enviroment variable.  Assigning this event to a task that does not use a python script will generate an error.
-`restart`| Performs the action if the task is being restarted (stopped with the expectation it will be immediately restarted).  The action must cause the task to stop, but the task may choose to take special action on the assumption that it will be immediately restarted.  If the task does not exit within 5 seconds, the action will escalate to SIGKILL as with the built-in `stop` command.
-`self`| Performs the specified action if the file holding the task executable changes.
+<a name="file_change"></a>`file_change`| Performs the specified action if any of the files in the `path` list change.
+<a name="python"></a>`python`| Performs the specified action if the python script run by this task changes, including any modules found via the PYTHONPATH enviroment variable.  Assigning this event to a task that does not use a python script will generate an error.
+<a name="restart"></a>`restart`| Performs the action if the task is being restarted (stopped with the expectation it will be immediately restarted).  The action must cause the task to stop, but the task may choose to take special action on the assumption that it will be immediately restarted.  If the task does not exit within 5 seconds, the action will escalate to SIGKILL as with the built-in `stop` command.
+<a name="self"></a>`self`| Performs the specified action if the file holding the task executable changes.
 
 The following event actions are supported:
 
 Action | Decription
 :---|:----------
-`command`| Runs the command named which may be an explicit command from the `commands` tag or a built-in command.
-`signal`| Sends the signal named.  Signal names can be written 'HUP', 'SIGHUP', 1, '1', etc.
+<a name="command"></a>`command`| Runs the command named which may be an explicit command from the `commands` tag or a built-in command.
+<a name="signal"></a>`signal`| Sends the signal named.  Signal names can be written 'HUP', 'SIGHUP', 1, '1', etc.
 
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
