@@ -259,37 +259,83 @@ Action | Decription
 <a name="signal"></a>`signal`| Sends the signal named.  Signal names can be written 'HUP', 'SIGHUP', 1, '1', etc.
 
 ### Example ###
+Below is a more complete configuration example.  This is included in the Github source distribution as a working example that runs simulatations of the various tasks to avoid interfering with normal system processes.  The simulated programs mostly just sleep.
+
+The example itself is documented with comments so that it can be read separately in the source distribution.  Contol elements in the example are linked to the relevant discussion in this document.
+
 <!-- CONFIG "example.conf" START linked by anchor_conf.  Keep comment to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN anchor_conf TO UPDATE -->
 <pre>
 {
-    '<a href="#defaults">defaults</a>': {
+    "<a href="#defaults">defaults</a>": {
+        #  These defaults are applied globally to the context used when running all tasks.
+        #  The values will only be used if they are not present in the environment or
+        #  in the task-specified configurations.
+        #
+        #  The PATH value here will be used if no PATH was set in the environment when
+        #  "taskforce" was started.  If security or other concerns justify mandate a
+        #  specific PATH, the value can be set in the "<a href="#defines">defines</a>" section.  It can also
+        #  be overriden for each task.
+        #
         "PATH": "/usr/bin:/usr/sbin:/bin:/usr/local/bin:/usr/local/sbin",
+
+        #  The EXAMPLES_BASE is a hook to allow the example script "run" to specify
+        #  the base directory to be used.  In this example, if EXAMPLES_BASE is not
+        #  set in the environment, "taskforce" will run from the root directory.
+        #
         "EXAMPLES_BASE": "",
     },
-    '<a href="#defines">defines</a>': {
+    "<a href="#defines">defines</a>": {
+        #  These defines are also global.  They will override environment values
+        #  if present but will be overridden by task-specific defines.
+        #
         "piddir": "{EXAMPLES_BASE}/var/run",
         "ntpd_conf": "/etc/ntp.conf",
         "confdir": "/usr/local/etc",
         "wsurl": "wss://localhost:9000/"
     },
-    '<a href="#tasks">tasks</a>': {
+    "<a href="#tasks">tasks</a>": {
         "timeset": {
-            '<a href="#control">control</a>': "once",
-            '<a href="#commands">commands</a>': { "start": ["ntpd", "-c", "{ntpd_conf}", "-n", "-g", "-q"] },
+            #  This task is run once when "taskforce" first starts.  It simulates
+            #  running the base time setting operation of "ntpd" which is similar
+            #  to using "ntpdate" but does not require a separate time service
+            #  configuration.
+            #
+            "<a href="#control">control</a>": "once",
+
+            #  The "commands" section defines one or more lists which are used
+            #  to run commands.  Each task must have at least one command, the
+            #  "start" command.  Refere to the "commands" description for other
+            #  possible commands.
+            #
+            "<a href="#commands">commands</a>": { "start": ["ntpd", "-c", "{ntpd_conf}", "-n", "-g", "-q"] },
         },
         "ntpd": {
-            '<a href="#control">control</a>': "wait",
-            '<a href="#requires">requires</a>': [ "timeset" ],
-            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            '<a href="#defines">defines</a>': {
+            #  The "ntpd" task is started when the "timeset" command has completed,
+            #  indicated by the "requires" list.  The "wait" control indicates the
+            #  command will be restarted if it exists.
+            #
+            "<a href="#control">control</a>": "wait",
+            "<a href="#requires">requires</a>": [ "timeset" ],
+
+            #  "pidfile" will be used internally by "taskforce" in the future (see
+            #  description).  It also sets the "Task_pidfile" context value so the
+            #  value will remain consistent between "taskforce" and the task.
+            #
+            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            "<a href="#defines">defines</a>": {
                 "keys": "/etc/ntp/ntp.keys",
                 "drift": "/var/db/ntpd.drift"
             },
-            '<a href="#commands">commands</a>': {
+
+            #  The "start" command includes a more complex list expression, allowing
+            #  the "run" script to cause the task to exit after a random interval
+            #  (via the "-x" flag).  Using this option means the example will demonstrate
+            #  task startup interaction (see the "onexit" element below).
+            #
+            "<a href="#commands">commands</a>": {
                 "start": [
                     "{<a href="#Task_name">Task_name</a>}",
-                        {"VERBOSE": "-v"},
                         "-c", "{ntpd_conf}",
                         "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}",
                         "-f", "{drift}",
@@ -297,71 +343,80 @@ Action | Decription
                         {"MINSLEEP": ["--min-sleep", "{MINSLEEP}", {"SLEEPRANGE": ["--sleep-range", "{SLEEPRANGE}"]}]}
                 ]
             },
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 { "type": "file_change", "path": [ "{ntpd_conf}", "{keys}" ], "command": "stop" }
             ],
-            '<a href="#onexit">onexit</a>': [
+
+            #  The "onexit" setting causes the "timeset" task to be rerun if ever the "ntpd"
+            #  task exits.  "ntpd" will then re-wait for the "timeset" task to complete.
+            #
+            #  This interaction is actually a real-world case for ntpd.  If the system
+            #  time gets wildly off, ntpd will panic and exit.  If ntpd is then just blindly
+            #  restarted, it will continue to exit.  By triggering "timeset" after each
+            #  exit, the time can be resynchronized before "ntpd" is restarted.
+            #
+            "<a href="#onexit">onexit</a>": [
                 { "type": "start", "task": "timeset" }
             ]
         },
         "haproxy": {
-            '<a href="#control">control</a>': "wait",
-            '<a href="#roles">roles</a>': [ "frontend" ],
-            '<a href="#requires">requires</a>': [ "ntpd" ],
-            '<a href="#start_delay">start_delay</a>': 1,
-            '<a href="#defines">defines</a>': { "conf": "{confdir}/haproxy.conf" },
-            '<a href="#commands">commands</a>': {
+            "<a href="#control">control</a>": "wait",
+            "<a href="#roles">roles</a>": [ "frontend" ],
+            "<a href="#requires">requires</a>": [ "ntpd" ],
+            "<a href="#start_delay">start_delay</a>": 1,
+            "<a href="#defines">defines</a>": { "conf": "{confdir}/haproxy.conf" },
+            "<a href="#commands">commands</a>": {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-f", "{conf}" ]
             },
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 { "type": "self", "command": "stop" },
                 { "type": "file_change", "path": [ "{conf}" ], "command": "stop" }
             ]
         },
         "httpd": {
-            '<a href="#control">control</a>': "wait",
-            '<a href="#roles">roles</a>': [ "frontend", "backend" ],
-            '<a href="#requires">requires</a>': [ "ntpd" ],
-            '<a href="#start_delay">start_delay</a>': 1,
-            '<a href="#defines">defines</a>': {
+            "<a href="#control">control</a>": "wait",
+            "<a href="#roles">roles</a>": [ "frontend", "backend" ],
+            "<a href="#requires">requires</a>": [ "ntpd" ],
+            "<a href="#start_delay">start_delay</a>": 1,
+            "<a href="#defines">defines</a>": {
                 "conf": "/usr/local/etc/httpd.conf"
             },
-            '<a href="#role_defines">role_defines</a>': {
+            "<a href="#role_defines">role_defines</a>": {
                 "frontend": { "conf": "{confdir}/httpd-outside.conf" },
                 "backend": { "conf": "{confdir}/httpd-inside.conf" }
             },
-            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            '<a href="#commands">commands</a>': {
+            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            "<a href="#commands">commands</a>": {
                 "start": [ "httpd", "-f", "{conf}" ]
             },
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 { "type": "self", "command": "stop" },
                 { "type": "file_change", "path": [ "{conf}", "{confdir}/httpd-ssl.conf", "/var/apache/conf/server.crt" ],
                     "command": "stop" }
             ]
         },
         "ws_server": {
-            '<a href="#control">control</a>': "wait",
-            '<a href="#roles">roles</a>': [ "frontend" ],
-            '<a href="#requires">requires</a>': [ "httpd" ],
-            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            '<a href="#commands">commands</a>': {
+            "<a href="#control">control</a>": "wait",
+            "<a href="#roles">roles</a>": [ "frontend" ],
+            "<a href="#requires">requires</a>": [ "httpd" ],
+            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            "<a href="#commands">commands</a>": {
                 "start": [ "ws_server", "-l", "{wsurl}", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
             },
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 { "type": "python", "command": "stop" }
             ]
         },
         "db_server": {
-            '<a href="#control">control</a>': "wait",
-            '<a href="#roles">roles</a>': [ "backend" ],
-            '<a href="#requires">requires</a>': [ "httpd" ],
-            '<a href="#defines">defines</a>': { "conf": "{confdir}/db.conf" },
-            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            '<a href="#commands">commands</a>': {
+            "<a href="#control">control</a>": "wait",
+            "<a href="#roles">roles</a>": [ "backend" ],
+            "<a href="#requires">requires</a>": [ "httpd" ],
+            "<a href="#defines">defines</a>": { "conf": "{confdir}/db.conf" },
+            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            "<a href="#commands">commands</a>": {
                 "start": [ "db_server", "-c", "{conf}", "-n", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
             },
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 { "type": "self", "command": "stop" }
             ]
         },
