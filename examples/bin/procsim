@@ -19,6 +19,8 @@ def catch(sig, frame):
 		sys.exit(1)
 	elif sig == signal.SIGUSR2:
 		sys.exit(2)
+	else:
+		sys.exit(86)
 
 def daemonize(**params):
 	if os.fork() != 0:
@@ -101,13 +103,13 @@ elif args.sleep_range is None:
 else:
 	sleep_period = random.uniform(args.min_sleep, args.min_sleep+args.sleep_range)
 
-signal.signal(signal.SIGTERM, catch)
+if args.daemonize:
+	daemonize()
+
+signal.signal(signal.SIGINT, signal.SIG_IGN)
 signal.signal(signal.SIGHUP, catch)
 signal.signal(signal.SIGUSR1, catch)
 signal.signal(signal.SIGUSR2, catch)
-
-if args.daemonize:
-	daemonize()
 
 if pidfile is not None:
 	try:
