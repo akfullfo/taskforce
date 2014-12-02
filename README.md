@@ -13,10 +13,11 @@ taskforce
 - [Task Context](#task-context)
 - [Configuration File](#configuration-file)
   - [Top-level Keys](#top-level-keys)
-  - [The `tasks` tag](#the-tasks-tag)
   - [`defaults` and `defines`](#defaults-and-defines)
+  - [The `tasks` tag](#the-tasks-tag)
   - [The `tasks.commands` tag](#the-taskscommands-tag)
   - [The `tasks.events` tag](#the-tasksevents-tag)
+- [Example](#example)
 - [Application](#application)
 - [ToDo](#todo)
 - [License](#license)
@@ -168,13 +169,13 @@ Each key in the <a name="tasks"></a>`tasks` map describes a single task.  A task
 
 Key | Decription
 :---|:----------
-<a name="commands"></a>`commands`| A map of commands used to start and manage a task.  See [`tasks.commands`](#the-taskscommands-tag).
+`commands`| A map of commands used to start and manage a task.  See [`tasks.commands`](#the-taskscommands-tag).
 <a name="control"></a>`control`| Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed but the task will not be restarted.<br>**wait** indicates task processes once started  will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that will always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
 <a name="count"></a>`count`| An integer specifying the number of processes to be started for this task.  If not specified, one process will be started.  Each process will have exactly the same configuration except that the context items [`Task_pid`](#Task_pid) and [`Task_instance`](#Task_instance) will be specific to each process, and any context items derived from these values will be different.  This is particularly useful when defining the pidfile and procname values.
 <a name="cwd"></a>`cwd`| Specifies the current directory for the process being run.
 `defaults`| Similar to the top-level [`defaults`](#defaults) but applies only to this task.
 `defines`| Similar to the top-level [`defines`](#defines) but applies only to this task.
-<a name="events"></a>`events`| Maps event types to their disposition as commands or signals.  See [`tasks.events`](#the-tasksevents-tag).
+`events`| Maps event types to their disposition as commands or signals.  See [`tasks.events`](#the-tasksevents-tag).
 <a name="group"></a>`group`| Specifies the group name or gid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the group.
 <a name="pidfile"></a>`pidfile`| Registers the file where the process will write its PID.  This does nothing to cause the process to write the file, but the context item [`Task_pidfile`](#Task_pidfile) is available for use in the *start* command.  The value is used by taskforce to identify an orphaned task from a prior run so it can be restarted (**wait** and **nowait** controls) or adopted (**adopt** control).  In the case of **nowait** and **adopt** controls, it is also used to implement the default management commands *check* and *stop*.  Note that the **nowait** and **adopt** controls are not yet supported.
 <a name="procname"></a>`procname`| The value is used when the *start* command is run as the `argv[0]` program name.  A common use when the `count` value is greater than 1 is to specify `'procname':` '{[`Task_name`](#Task_name)}-{[`Task_instance`](#Task_instance)}' which makes each instance of the task distinct in *ps(1)* output.
@@ -182,6 +183,7 @@ Key | Decription
 <a name="requires"></a>`requires`| A list of task names that must have run before this task will be started.  *once* tasks are considered to have run only after they have exited.  Other controls (*wait*, *nowait*, *adopt*) are considered run as soon as any `start_delay` period has completed after the task has started.
 `role_defaults`| Similar to the top-level [`role_defaults`](#role_defaults) but applies only to this task.
 `role_defines`| Similar to the top-level [`role_defines`](#role_defines) but applies only to this task.
+<a name="roles"></a>`roles`| A list of roles in which this task participates.  If none of the roles listed is active for this taskforce instance, the task will not be considered in scope and so will not be started.  If the `roles` item is not present, the task will always be in scope.
 <a name="start_delay"></a>`start_delay`| A delay in seconds before other tasks that `requires` this task will be started.
 <a name="user"></a>`user`| Specifies the user name or uid for the task.  An error occurs if the value is invalid or if taskforce does not have enough privilege to change the user.
 
@@ -255,6 +257,118 @@ Action | Decription
 :---|:----------
 <a name="command"></a>`command`| Runs the command named which may be an explicit command from the `commands` tag or a built-in command.
 <a name="signal"></a>`signal`| Sends the signal named.  Signal names can be written 'HUP', 'SIGHUP', 1, '1', etc.
+
+### Example ###
+<!-- CONFIG "example.conf" START linked by anchor_conf.  Keep comment to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN anchor_conf TO UPDATE -->
+<pre>
+{
+    '<a href="#defaults">defaults</a>': {
+        "PATH": "/usr/bin:/usr/sbin:/bin:/usr/local/bin:/usr/local/sbin",
+        "EXAMPLES_BASE": "",
+    },
+    '<a href="#defines">defines</a>': {
+        "piddir": "{EXAMPLES_BASE}/var/run",
+        "ntpd_conf": "/etc/ntp.conf",
+        "confdir": "/usr/local/etc",
+        "wsurl": "wss://localhost:9000/"
+    },
+    '<a href="#tasks">tasks</a>': {
+        "timeset": {
+            '<a href="#control">control</a>': "once",
+            '<a href="#commands">commands</a>': { "start": ["ntpd", "-c", "{ntpd_conf}", "-n", "-g", "-q"] },
+        },
+        "ntpd": {
+            '<a href="#control">control</a>': "wait",
+            '<a href="#requires">requires</a>': [ "timeset" ],
+            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            '<a href="#defines">defines</a>': {
+                "keys": "/etc/ntp/ntp.keys",
+                "drift": "/var/db/ntpd.drift"
+            },
+            '<a href="#commands">commands</a>': {
+                "start": [
+                    "{<a href="#Task_name">Task_name</a>}",
+                        {"VERBOSE": "-v"},
+                        "-c", "{ntpd_conf}",
+                        "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}",
+                        "-f", "{drift}",
+                        "-n",
+                        {"MINSLEEP": ["--min-sleep", "{MINSLEEP}", {"SLEEPRANGE": ["--sleep-range", "{SLEEPRANGE}"]}]}
+                ]
+            },
+            '<a href="#events">events</a>': [
+                { "type": "file_change", "path": [ "{ntpd_conf}", "{keys}" ], "command": "stop" }
+            ],
+            '<a href="#onexit">onexit</a>': [
+                { "type": "start", "task": "timeset" }
+            ]
+        },
+        "haproxy": {
+            '<a href="#control">control</a>': "wait",
+            '<a href="#roles">roles</a>': [ "frontend" ],
+            '<a href="#requires">requires</a>': [ "ntpd" ],
+            '<a href="#start_delay">start_delay</a>': 1,
+            '<a href="#defines">defines</a>': { "conf": "{confdir}/haproxy.conf" },
+            '<a href="#commands">commands</a>': {
+                "start": [ "{<a href="#Task_name">Task_name</a>}", "-f", "{conf}" ]
+            },
+            '<a href="#events">events</a>': [
+                { "type": "self", "command": "stop" },
+                { "type": "file_change", "path": [ "{conf}" ], "command": "stop" }
+            ]
+        },
+        "httpd": {
+            '<a href="#control">control</a>': "wait",
+            '<a href="#roles">roles</a>': [ "frontend", "backend" ],
+            '<a href="#requires">requires</a>': [ "ntpd" ],
+            '<a href="#start_delay">start_delay</a>': 1,
+            '<a href="#defines">defines</a>': {
+                "conf": "/usr/local/etc/httpd.conf"
+            },
+            '<a href="#role_defines">role_defines</a>': {
+                "frontend": { "conf": "{confdir}/httpd-outside.conf" },
+                "backend": { "conf": "{confdir}/httpd-inside.conf" }
+            },
+            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            '<a href="#commands">commands</a>': {
+                "start": [ "httpd", "-f", "{conf}" ]
+            },
+            '<a href="#events">events</a>': [
+                { "type": "self", "command": "stop" },
+                { "type": "file_change", "path": [ "{conf}", "{confdir}/httpd-ssl.conf", "/var/apache/conf/server.crt" ],
+                    "command": "stop" }
+            ]
+        },
+        "ws_server": {
+            '<a href="#control">control</a>': "wait",
+            '<a href="#roles">roles</a>': [ "frontend" ],
+            '<a href="#requires">requires</a>': [ "httpd" ],
+            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            '<a href="#commands">commands</a>': {
+                "start": [ "ws_server", "-l", "{wsurl}", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
+            },
+            '<a href="#events">events</a>': [
+                { "type": "python", "command": "stop" }
+            ]
+        },
+        "db_server": {
+            '<a href="#control">control</a>': "wait",
+            '<a href="#roles">roles</a>': [ "backend" ],
+            '<a href="#requires">requires</a>': [ "httpd" ],
+            '<a href="#defines">defines</a>': { "conf": "{confdir}/db.conf" },
+            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            '<a href="#commands">commands</a>': {
+                "start": [ "db_server", "-c", "{conf}", "-n", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
+            },
+            '<a href="#events">events</a>': [
+                { "type": "self", "command": "stop" }
+            ]
+        },
+    }
+}
+</pre>
+<!-- CONFIG "example.conf" END linked by anchor_conf.  Keep comment to allow auto update -->
 
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
