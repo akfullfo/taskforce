@@ -390,10 +390,11 @@ The example itself is documented with comments so that it can be read separately
                 "drift": "/var/db/ntpd.drift"
             },
 
-            #  The "start" command includes a more complex list expression (see "<a href="#values-and-lists">Values and Lists</a>"),
-	    #  allowing the "run" script to cause the task to exit after a random interval
-            #  (via the "-x" flag).  Using this option means the example will demonstrate
-            #  task startup interaction (see the "onexit" element below).
+            #  The "start" command includes a more complex list expression (see
+            #  "<a href="#values-and-lists">Values and Lists</a>"), allowing the "run" script to cause the task to
+            #  exit after a random interval (via the "-x" flag).  Using this option
+            #  means the example will demonstrate task startup interaction (see the
+            #  "onexit" element below).
             #
             "<a href="#commands">commands</a>": {
                 "start": [
@@ -402,11 +403,16 @@ The example itself is documented with comments so that it can be read separately
                         "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}",
                         "-f", "{drift}",
                         "-n",
-                        {"MINSLEEP": ["--min-sleep", "{MINSLEEP}", {"SLEEPRANGE": ["--sleep-range", "{SLEEPRANGE}"]}]}
+                        {"MINSLEEP": [
+                            "--min-sleep", "{MINSLEEP}", {
+                                "SLEEPRANGE": ["--sleep-range", "{SLEEPRANGE}"]
+                            }
+                        ]}
                 ]
             },
             "<a href="#events">events</a>": [
-                { "type": "file_change", "path": [ "{ntpd_conf}", "{keys}" ], "command": "stop" }
+                { "type": "file_change", "path": [ "{ntpd_conf}", "{keys}" ],
+                  "command": "stop" }
             ],
 
             #  The "onexit" setting causes the "timeset" task to be rerun if ever the "ntpd"
@@ -453,7 +459,12 @@ The example itself is documented with comments so that it can be read separately
             },
             "<a href="#events">events</a>": [
                 { "type": "self", "command": "stop" },
-                { "type": "file_change", "path": [ "{conf}", "{confdir}/httpd-ssl.conf", "/var/apache/conf/server.crt" ],
+                { "type": "file_change",
+                    "path": [
+                        "{conf}",
+                        "{confdir}/httpd-ssl.conf",
+                        "/var/apache/conf/server.crt"
+                    ],
                     "command": "stop" }
             ]
         },
