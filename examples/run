@@ -22,7 +22,7 @@ P=$(basename $0 .sh)
 usage()
 {
 	cat >&2 <<EOT
-Usage: ./$P [-v] role [...]
+Usage: ./$P [-v] [-C] [-x] role [...]
 
        Run the example configuration in the specified role.
        This must be run from within the example directory, ie:

@@ -321,7 +321,13 @@ Action | Decription
 <a name="signal"></a>`signal`| Sends the signal named.  Signal names can be written 'HUP', 'SIGHUP', 1, '1', etc.
 
 ### Example ###
-Below is a more complete configuration example.  This is included in the Github source distribution as a working example that runs simulatations of the various tasks to avoid interfering with normal system processes.  The simulated programs mostly just sleep.
+Below is a more complete configuration example.  This is included in the Github source distribution as a working example that runs simulatations of the various tasks to avoid interfering with normal system processes.  The simulated programs mostly just sleep.  To run the example, download and unpack the code from githib then run:
+
+```
+cd .../taskforce/examples
+./run frontend
+```
+This runs the example using the "frontend" role.  You can change the role to "backend" or use both roles to observe role behavior.  Use `./run -h` for more options.
 
 The example itself is documented with comments so that it can be read separately in the source distribution.  Contol elements in the example are linked to the relevant discussion in this document.
 
@@ -390,7 +396,7 @@ The example itself is documented with comments so that it can be read separately
                 "drift": "/var/db/ntpd.drift"
             },
 
-            #  The "start" command includes a more complex list expression (see
+            #  This "start" command includes a more complex list expression (see
             #  "<a href="#values-and-lists">Values and Lists</a>"), allowing the "run" script to cause the task to
             #  exit after a random interval (via the "-x" flag).  Using this option
             #  means the example will demonstrate task startup interaction (see the
@@ -410,6 +416,12 @@ The example itself is documented with comments so that it can be read separately
                         ]}
                 ]
             },
+            #  This event causes "ntpd" to restart if either the configuration
+            #  file or the ntpd keys files change.  A "self" event has not been
+            #  included so "ntpd" would not restart if the executable was updated,
+            #  probably because such updates tend to coincide with a broad O/S
+            #  upgrade that requires a server-reboot.
+            #
             "<a href="#events">events</a>": [
                 { "type": "file_change", "path": [ "{ntpd_conf}", "{keys}" ],
                   "command": "stop" }
@@ -428,34 +440,76 @@ The example itself is documented with comments so that it can be read separately
             ]
         },
         "haproxy": {
+            #  This task has "<a href="#roles">roles</a>" specified.  That means the task will only
+            #  be started if the "frontend" role is present in the roles file.
+            #
+            #  Roles allow a single configuration file to be used for multiple
+            #  deployment styles, given a global view of an entire system.
+            #  That ensures that changes to configurations for tasks that are
+            #  common to multiple roles are consisent across the deployment.
+            #  However, it is perfectly reasonable to use a separate configuration
+            #  for each host type if the global view is not needed or becomes
+            #  cumbersome.
+            #
             "<a href="#control">control</a>": "wait",
             "<a href="#roles">roles</a>": [ "frontend" ],
             "<a href="#requires">requires</a>": [ "ntpd" ],
+
+            #  The "<a href="#start_delay">start_delay</a>" here means that other tasks that require this
+            #  task will not be started for at least 1 second after this task
+            #  starts.
+            #
             "<a href="#start_delay">start_delay</a>": 1,
             "<a href="#defines">defines</a>": { "conf": "{confdir}/haproxy.conf" },
             "<a href="#commands">commands</a>": {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-f", "{conf}" ]
             },
             "<a href="#events">events</a>": [
+                #  Here, a "self" event is used so the task will be restarted if
+                #  the "haproxy" executable is updated.  That choice might be made
+                #  if there is an expectation that "haproxy" will be updated frequently
+                #  possibly because it includes locally supported modifications.
+                #
                 { "type": "self", "command": "stop" },
                 { "type": "file_change", "path": [ "{conf}" ], "command": "stop" }
             ]
         },
         "httpd": {
+            #  The "httpd" task is set to run if either or both "frontend"
+            #  and "backend" roles are active.  With only these two roles
+            #  in use, this is the equivalent of specifying no "<a href="#roles">roles</a>".
+            #  The advantage of enumerating them is that if an additional
+            #  role is added, the task would not automatically be started
+            #  for that role.  In the case of the "ntpd" task there is
+            #  an expectation that this would be run on a server regardless
+            #  of that server's role.
+            #
             "<a href="#control">control</a>": "wait",
             "<a href="#roles">roles</a>": [ "frontend", "backend" ],
             "<a href="#requires">requires</a>": [ "ntpd" ],
             "<a href="#start_delay">start_delay</a>": 1,
             "<a href="#defines">defines</a>": {
-                "conf": "/usr/local/etc/httpd.conf"
+                "conf": "{confdir}/httpd-inside.conf"
             },
+
+            #  The "<a href="#role_defines">role_defines</a>" value here sets the configuration
+            #  according to what role is active.  The default is
+            #  to use the "inside" configuration which would possibly
+            #  cover web-based administrative operations.
+            #
+            #  If the "frontend" role is active, this value will
+            #  be overridden and the outside-facing web application
+            #  would be used.
+            #
+            #  If both roles are active, the "frontend" role will
+            #  trump the "backend" role.
+            #
             "<a href="#role_defines">role_defines</a>": {
                 "frontend": { "conf": "{confdir}/httpd-outside.conf" },
-                "backend": { "conf": "{confdir}/httpd-inside.conf" }
             },
             "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
             "<a href="#commands">commands</a>": {
-                "start": [ "httpd", "-f", "{conf}" ]
+                "start": [ "{<a href="#Task_name">Task_name</a>}", "-f", "{conf}" ]
             },
             "<a href="#events">events</a>": [
                 { "type": "self", "command": "stop" },
@@ -469,28 +523,49 @@ The example itself is documented with comments so that it can be read separately
             ]
         },
         "ws_server": {
+            #  The "ws_server" task is set to only start once the "httpd"
+            #  task has started.
+            #
             "<a href="#control">control</a>": "wait",
             "<a href="#roles">roles</a>": [ "frontend" ],
             "<a href="#requires">requires</a>": [ "httpd" ],
             "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
             "<a href="#commands">commands</a>": {
-                "start": [ "ws_server", "-l", "{wsurl}", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
+                "start": [ "{<a href="#Task_name">Task_name</a>}", "-l", "{wsurl}", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
             },
             "<a href="#events">events</a>": [
+                #  The "python" event type requires that the task be written in
+                #  Python.  The task is then examined and will be restarted in
+                #  any of the non-system modules change.  This is useful because
+                #  python applications tend to be implemented as a wrapper script
+                #  that implements most of its functions via classes and modules.
+                #  The python event type ensures that long-running python applications
+                #  are always running the latest modules.
+                #
                 { "type": "python", "command": "stop" }
             ]
         },
         "db_server": {
+            #  The "db_server" task is set to only run if the
+            #  "backend" role is active.
+            #
             "<a href="#control">control</a>": "wait",
             "<a href="#roles">roles</a>": [ "backend" ],
             "<a href="#requires">requires</a>": [ "httpd" ],
             "<a href="#defines">defines</a>": { "conf": "{confdir}/db.conf" },
             "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
             "<a href="#commands">commands</a>": {
-                "start": [ "db_server", "-c", "{conf}", "-n", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
+                "start": [ "{<a href="#Task_name">Task_name</a>}", "-c", "{conf}", "-n", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
             },
             "<a href="#events">events</a>": [
-                { "type": "self", "command": "stop" }
+                { "type": "self", "command": "stop" },
+
+                #  The "file_change" event will fire if the db_server configuration
+                #  file changes.  In this case, the action is to signal the db_server
+                #  process with SIGHUP, which presumably will cause it to reread
+                #  its configuration.
+                #
+                { "type": "file_change", "path": [ "{conf}" ], "signal": "HUP" }
             ]
         },
     }
