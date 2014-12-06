@@ -22,6 +22,7 @@ import sys, os, select
 PL_SELECT = 0
 PL_POLL = 1
 PL_KQUEUE = 2	# Possible future implementation
+PL_EPOLL = 2	# Possible future implementation
 
 POLLIN = 1
 POLLPRI = 2
@@ -37,9 +38,13 @@ class poll(object):
 """
 	def __init__(self):
 		self._mode_map = dict((val, nam) for nam, val in globals().items() if nam.startswith('PL_'))
+		self._poll_map = dict((val, nam) for nam, val in globals().items() if nam.startswith('POLL'))
+		self._poll_keys = self._poll_map.keys()
+		self._poll_keys.sort()
 
 		if 'poll' in dir(select) and callable(select.poll):
 			self._mode = PL_POLL
+			self._poll = select.poll()
 		elif 'select' in dir(select) and callable(select.select):
 			self._mode = PL_SELECT
 		else:
@@ -56,17 +61,38 @@ class poll(object):
 		else:
 			return "Mode" + str(mode)
 
+	def get_event(self, evmask):
+		s = ''
+		for bit in self._poll_keys:
+			if evmask & bit:
+				if s:
+					s += ','
+				s += self._poll_map[bit]
+		return s
+
 	def register(self, fd, eventmask=POLLIN|POLLPRI|POLLOUT):
-		pass
+		if self._mode == PL_POLL:
+			return self._poll.register(fd, eventmask)
+		else:
+			pass
 
 	def modify(self, fd, eventmask):
-		pass
+		if self._mode == PL_POLL:
+			return self._poll.modify(fd, eventmask)
+		else:
+			pass
 
 	def unregister(self, fd):
-		pass
+		if self._mode == PL_POLL:
+			return self._poll.unregister(fd)
+		else:
+			pass
 
 	def poll(self, timeout=None):
-		pass
+		if self._mode == PL_POLL:
+			return self._poll.poll(timeout)
+		else:
+			pass
 
 if __name__ == '__main__':
 	import argparse, random
@@ -81,6 +107,29 @@ if __name__ == '__main__':
 
 	args = p.parse_args()
 
+	data = '*'
 	pset = poll()
-	print pset.get_mode_name()
+	print "Using poll mode", pset.get_mode_name()
+
+	#  Run basic test using a self pipe
+	rd, wd = os.pipe()
+	pset.register(rd)		#  Check register with default event mask
+	pset.register(rd, POLLOUT)	#  Check re-register
+	pset.modify(rd, POLLIN)		#  Check modify
+	os.write(wd, data)
+	evlist = pset.poll(50)
+	if not evlist:
+		raise Exception("poll() gave empty event list when it should have had one entry")
+	for ev in evlist:
+		efd, emask = ev
+		if efd != rd:
+			raise Exception("poll() returned event on fd %d, %d expected" % (efd, rd))
+		print "Event on fd %d is %s" % (efd, pset.get_event(emask))
+	ret = os.read(rd, 10240)
+	if ret != '*':
+		raise Exception("Read returned '%s', '%s' expected" % (ret, data))
+	evlist = pset.poll(500)
+	if evlist:
+		raise Exception("poll() returned events when timeout expected")
+	print "Tests completed ok"
 	sys.exit(0)
