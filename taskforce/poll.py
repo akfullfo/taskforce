@@ -47,6 +47,9 @@ class poll(object):
 			self._poll = select.poll()
 		elif 'select' in dir(select) and callable(select.select):
 			self._mode = PL_SELECT
+			self._rfds = set()
+			self._wfds = set()
+			self._xfds = set()
 		else:
 			raise Exception("System supports neither select.poll() nor select.select()")
 
@@ -73,24 +76,50 @@ class poll(object):
 	def register(self, fd, eventmask=POLLIN|POLLPRI|POLLOUT):
 		if self._mode == PL_POLL:
 			return self._poll.register(fd, eventmask)
+		elif self._mode == PL_SELECT:
+			self.unregister(fd)
+			if eventmask & POLLIN:
+				self._rfds.add(fd)
+			if eventmask & POLLOUT:
+				self._wfds.add(fd)
+			if eventmask & POLLPRI:
+				self._xfds.add(fd)
 		else:
 			pass
 
 	def modify(self, fd, eventmask):
 		if self._mode == PL_POLL:
 			return self._poll.modify(fd, eventmask)
+		elif self._mode == PL_SELECT:
+			self.register(fd, eventmask)
 		else:
 			pass
 
 	def unregister(self, fd):
 		if self._mode == PL_POLL:
 			return self._poll.unregister(fd)
+		elif self._mode == PL_SELECT:
+			self._rfds.discard(fd)
+			self._wfds.discard(fd)
+			self._xfds.discard(fd)
 		else:
 			pass
 
 	def poll(self, timeout=None):
 		if self._mode == PL_POLL:
 			return self._poll.poll(timeout)
+		elif self._mode == PL_SELECT:
+			if timeout is not None:
+				timeout /= 1000
+			rfds, wfds, xfds = select.select(self._rfds, self._wfds, self._xfds, timeout)
+			evlist = []
+			for fd in xfds:
+				evlist.append((fd, POLLPRI))
+			for fd in rfds:
+				evlist.append((fd, POLLIN))
+			for fd in wfds:
+				evlist.append((fd, POLLOUT))
+			return evlist
 		else:
 			pass
 
