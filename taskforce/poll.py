@@ -42,10 +42,26 @@ class poll(object):
 	be used before the first register() call.  get_available_modes() returns
 	the modes possible on this O/S.
 
-	The events that are available across all modes are POLLIN and POLLOUT.
-	POLLPRI is not available with PL_KQUEUE so if you actually need this,
-	you will probably have to force PL_SELECT mode.  PL_SELECT mode should
-	be available on all systems.
+	There are a few differences to the select.poll() interface:
+
+	1.  No attempt is made to raise the same exceptions.  Exceptions
+	    are raise by this module and by the underlying select.*() objects.
+
+	2.  The events that are available across all modes are POLLIN and POLLOUT.
+	    POLLPRI is not available with PL_KQUEUE so if you actually need this,
+	    you will probably have to force PL_SELECT mode.  PL_SELECT mode should
+	    be available on all systems.
+
+	3.  select.poll() accepts integer file descriptors and object with a fileno()
+	    method that returns an integer file descriptor.  However, the event that
+	    fires when an object is used for registration holds the file descriptor
+	    returned by the fileno() method rather than the object itself.  On the
+	    other hand, select.select() returns the object if that is what was used
+	    in the input lists.
+
+	    This module adopts the select behavior regardless of the underlying
+	    mode, as it is generally more useful.  I'm sure somebody will
+	    explain to me someday why that's not acktually true.
 """
 	def __init__(self):
 		self._mode_map = dict((val, nam) for nam, val in globals().items() if nam.startswith('PL_'))
@@ -250,9 +266,11 @@ if __name__ == '__main__':
 			raise Exception("poll() returned event on fd %d, %d expected" % (efd, rd))
 		print "Event on fd %d is %s" % (efd, pset.get_event(emask))
 	ret = os.read(rd, 10240)
-	if ret != '*':
+	if ret != data:
 		raise Exception("Read returned '%s', '%s' expected" % (ret, data))
 	start = time.time()
+
+	#  Check timeout (no data expected)
 	evlist = pset.poll(timeout_delay)
 	duration = int(round((time.time() - start) * 1000))
 	if evlist:
@@ -305,6 +323,30 @@ if __name__ == '__main__':
 			print "Short read of %d after %d bytes" % (cnt, total)
 	if total != expected_total:
 		raise Exception("Pipe read total %d, %d expected" % (total, expected_total))
+
+	pset.unregister(wd)
+	pset.unregister(rd)
+
+	#  Check registering with a file object instead of a descriptor
+	f = os.fdopen(rd, 'r')
+	pset.register(f, POLLIN)
+
+	os.write(wd, data)
+	evlist = pset.poll(50)
+	if not evlist:
+		raise Exception("file object poll() gave empty event list when it should have had one entry")
+	for ev in evlist:
+		efd, emask = ev
+		if isinstance(efd, (int, long)):
+			raise Exception("File object poll() returned event on fd %d instead of %s" % (efd, str(f)))
+		if efd != f:
+			raise Exception("file object poll() returned event with %s, %s expected" % (str(efd), str(f)))
+		print "Event on %s is %s" % (str(efd), pset.get_event(emask))
+
+	#  You can't actually call f.read() as this will loop for more data
+	ret = os.read(f.fileno(), 1024)
+	if ret != data:
+		raise Exception("File object read returned '%s', '%s' expected" % (ret, data))
 
 	print "Tests completed ok"
 	sys.exit(0)
