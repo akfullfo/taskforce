@@ -55,7 +55,7 @@ class poll(object):
 
 	1.  poll.Error exceptions are raised by this module to distinguish them from
 	    the underlying select.* object exceptions.  As a special case, the
-	    select.error exception for EINTR is reraised as IOError(errno=EINTR)
+	    select.error exception for EINTR is reraised as OSError(errno=EINTR)
 	    so callers do not have to catch the multple inconsistent forms.  Other
 	    than this case, no special attempt is made to make exceptions consistent
 	    across the underlying services.
@@ -222,13 +222,7 @@ class poll(object):
 			if timeout is not None:
 				timeout /= 1000.0
 			evlist = []
-			try:
-				kelist = self._kq.control(None, 1024, timeout)
-			except OSError as e:
-				if e.errno == errno.EINTR:
-					raise IOError(e.errno, e.strerror)
-				else:
-					raise e
+			kelist = self._kq.control(None, 1024, timeout)
 			if not kelist:
 				return evlist
 			for ke in kelist:
@@ -258,7 +252,7 @@ class poll(object):
 				rfos, wfos, xfos = select.select(self._rfos, self._wfos, self._xfos, timeout)
 			except select.error as e:
 				if e[0] == errno.EINTR:
-					raise IOError(e[0], e[1])
+					raise OSError(e[0], e[1])
 				else:
 					raise e
 

@@ -1096,7 +1096,7 @@ Params are:
 					last_timeout = timeout
 				try:
 					evlist = pset.poll(timeout*1000)
-				except IOError as e:
+				except OSError as e:
 					if e.errno != errno.EINTR:
 						raise e
 					else:
