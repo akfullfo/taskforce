@@ -17,7 +17,7 @@
 # ________________________________________________________________________
 #
 
-import sys, os, select
+import sys, os, select, errno
 
 PL_SELECT = 0
 PL_POLL = 1
@@ -53,9 +53,12 @@ class poll(object):
 
 	There are a few differences to the select.poll() interface:
 
-	1.  No attempt is made to raise the same exceptions.  poll.Error exceptions
-	    are raised by this module to distinguish them from the underlying
-	    select.* object exceptions.
+	1.  poll.Error exceptions are raised by this module to distinguish them from
+	    the underlying select.* object exceptions.  As a special case, the
+	    select.error exception for EINTR is reraised as IOError(errno=EINTR)
+	    so callers do not have to catch the multple inconsistent forms.  Other
+	    than this case, no special attempt is made to make exceptions consistent
+	    across the underlying services.
 
 	2.  The events that are available across all modes are POLLIN and POLLOUT.
 	    POLLPRI is not available with PL_KQUEUE so if you actually need this,
@@ -245,7 +248,13 @@ class poll(object):
 		elif self._mode == PL_SELECT:
 			if timeout is not None:
 				timeout /= 1000.0
-			rfos, wfos, xfos = select.select(self._rfos, self._wfos, self._xfos, timeout)
+			try:
+				rfos, wfos, xfos = select.select(self._rfos, self._wfos, self._xfos, timeout)
+			except select.error as e:
+				if e[0] == errno.EINTR:
+					raise IOError(e[0], e[1])
+				else:
+					raise e
 
 			#  select.select() already returns the registered object so no need
 			#  to map through _fd_map.
