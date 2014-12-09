@@ -31,6 +31,15 @@ POLLERR = 8
 POLLHUP = 16
 POLLNVAL = 32
 
+class Error(Exception):
+	"""
+	This exception is raise for any internally detected problems.
+	Using an Exception subclass allows the caller to detect internal
+	exceptions as distinct from those raised by the underlying
+	services.
+"""
+	pass
+
 class poll(object):
 	"""
 	Presents an interface consitent with select.poll() but uses
@@ -44,8 +53,9 @@ class poll(object):
 
 	There are a few differences to the select.poll() interface:
 
-	1.  No attempt is made to raise the same exceptions.  Exceptions
-	    are raise by this module and by the underlying select.*() objects.
+	1.  No attempt is made to raise the same exceptions.  poll.Error exceptions
+	    are raised by this module to distinguish them from the underlying
+	    select.* object exceptions.
 
 	2.  The events that are available across all modes are POLLIN and POLLOUT.
 	    POLLPRI is not available with PL_KQUEUE so if you actually need this,
@@ -61,7 +71,7 @@ class poll(object):
 
 	    This module adopts the select behavior regardless of the underlying
 	    mode, as it is generally more useful.  I'm sure somebody will
-	    explain to me someday why that's not acktually true.
+	    explain to me soon why that's not actually true.
 """
 	def __init__(self):
 		self._mode_map = dict((val, nam) for nam, val in globals().items() if nam.startswith('PL_'))
@@ -70,6 +80,7 @@ class poll(object):
 		self._poll_keys.sort()
 		self._available_modes = set()
 		self._has_registered = False
+		self._fd_map = {}
 
 		self._mode = None
 		if 'kqueue' in dir(select) and callable(select.kqueue):
@@ -85,20 +96,20 @@ class poll(object):
 				self._mode = PL_SELECT
 			self._available_modes.add(PL_SELECT)
 		else:
-			raise Exception("System supports neither select.poll() nor select.select()")
+			raise Error("System supports neither select.poll() nor select.select()")
 
 	def get_mode(self):
 		return self._mode
 
 	def set_mode(self, mode):
 		if self._has_registered:
-			raise Exception("Mode can't be set once register() has been called")
+			raise Error("Mode can't be set once register() has been called")
 		if mode in self._available_modes:
 			old_mode = self._mode
 			self._mode = mode
 			return old_mode
 		else:
-			raise Exception("Mode '%s' is not available" % (self.get_mode_name(mode),))
+			raise Error("Mode '%s' is not available" % (self.get_mode_name(mode),))
 
 	def get_mode_name(self, mode=None):
 		if mode is None:
@@ -129,60 +140,79 @@ class poll(object):
 				s += self._poll_map[bit]
 		return s
 
-	def register(self, fd, eventmask=POLLIN|POLLOUT):
+	def register(self, fo, eventmask=POLLIN|POLLOUT):
+		if isinstance(fo, (int, long)):
+			fd = fo
+		elif hasattr(fo, 'fileno') and callable(fo.fileno):
+			fd = fo.fileno()
+		else:
+			raise Error("File object '%s' is neither 'int' nor object with fileno() method" % (str(fo),))
+		if not isinstance(fd, (int, long)):
+			raise Error("File object '%s' fileno() method did not return an 'int'" % (str(fo),))
 		if not self._has_registered:
 			if self._mode == PL_KQUEUE:
 				self._kq = select.kqueue()
 			elif self._mode == PL_POLL:
 				self._poll = select.poll()
 			elif self._mode == PL_SELECT:
-				self._rfds = set()
-				self._wfds = set()
-				self._xfds = set()
+				self._rfos = set()
+				self._wfos = set()
+				self._xfos = set()
 			self._has_registered = True
 		if self._mode == PL_KQUEUE:
 			if eventmask & POLLPRI:
-				raise Exception("POLLPRI is not supported in %s mode", self.get_mode_name(self._mode))
-			self.unregister(fd)
+				raise Error("POLLPRI is not supported in %s mode", self.get_mode_name(self._mode))
+			self.unregister(fo)
 			kl = []
 			if eventmask & POLLIN:
-				kl.append(select.kevent(fd, filter=select.KQ_FILTER_READ, flags=select.KQ_EV_ADD))
+				kl.append(select.kevent(fo, filter=select.KQ_FILTER_READ, flags=select.KQ_EV_ADD))
 			if eventmask & POLLOUT:
-				kl.append(select.kevent(fd, filter=select.KQ_FILTER_WRITE, flags=select.KQ_EV_ADD))
+				kl.append(select.kevent(fo, filter=select.KQ_FILTER_WRITE, flags=select.KQ_EV_ADD))
+			self._fd_map[fd] = fo
 			self._kq.control(kl, 0, 0)
 		elif self._mode == PL_POLL:
-			return self._poll.register(fd, eventmask)
+			self._fd_map[fd] = fo
+			return self._poll.register(fo, eventmask)
 		elif self._mode == PL_SELECT:
-			self.unregister(fd)
+			self.unregister(fo)
+			self._fd_map[fd] = fo
 			if eventmask & POLLIN:
-				self._rfds.add(fd)
+				self._rfos.add(fo)
 			if eventmask & POLLOUT:
-				self._wfds.add(fd)
+				self._wfos.add(fo)
 			if eventmask & POLLPRI:
-				self._xfds.add(fd)
+				self._xfos.add(fo)
 
-	def modify(self, fd, eventmask):
+	def modify(self, fo, eventmask):
 		if self._mode == PL_KQUEUE:
-			self.register(fd, eventmask)
+			self.register(fo, eventmask)
 		elif self._mode == PL_POLL:
-			return self._poll.modify(fd, eventmask)
+			return self._poll.modify(fo, eventmask)
 		elif self._mode == PL_SELECT:
-			self.register(fd, eventmask)
+			self.register(fo, eventmask)
 
-	def unregister(self, fd):
+	def unregister(self, fo):
+		if isinstance(fo, (int, long)):
+			fd = fo
+		elif hasattr(fo, 'fileno') and callable(fo.fileno):
+			fd = fo.fileno()
+		else:
+			raise Error("File object '%s' is neither 'int' nor object with fileno() method" % (str(fo),))
+		if fd in self._fd_map:
+			del self._fd_map[fd]
 		if self._mode == PL_KQUEUE:
-			ev = select.kevent(fd, filter=select.KQ_FILTER_READ, flags=select.KQ_EV_DELETE)
+			ev = select.kevent(fo, filter=select.KQ_FILTER_READ, flags=select.KQ_EV_DELETE)
 			try: self._kq.control([ev], 0, 0)
 			except: pass
-			ev = select.kevent(fd, filter=select.KQ_FILTER_WRITE, flags=select.KQ_EV_DELETE)
+			ev = select.kevent(fo, filter=select.KQ_FILTER_WRITE, flags=select.KQ_EV_DELETE)
 			try: self._kq.control([ev], 0, 0)
 			except: pass
 		elif self._mode == PL_POLL:
-			return self._poll.unregister(fd)
+			return self._poll.unregister(fo)
 		elif self._mode == PL_SELECT:
-			self._rfds.discard(fd)
-			self._wfds.discard(fd)
-			self._xfds.discard(fd)
+			self._rfos.discard(fo)
+			self._wfos.discard(fo)
+			self._xfos.discard(fo)
 
 	def poll(self, timeout=None):
 		if self._mode == PL_KQUEUE:
@@ -193,26 +223,40 @@ class poll(object):
 			if not kelist:
 				return evlist
 			for ke in kelist:
+				fd = ke.ident
+				if fd not in self._fd_map:
+					raise Error("Unknown fd '%s' in kevent" % (str(fd),))
 				if ke.filter == select.KQ_FILTER_READ:
-					evlist.append((ke.ident, POLLIN))
+					evlist.append((self._fd_map[fd], POLLIN))
 				elif ke.filter == select.KQ_FILTER_WRITE:
-					evlist.append((ke.ident, POLLOUT))
+					evlist.append((self._fd_map[fd], POLLOUT))
 				else:
-					raise Exception("Unexpected filter 0x%x from kevent for fd %d" % (ke.filter, ke.ident))
+					raise Error("Unexpected filter 0x%x from kevent for fd %d" % (ke.filter, fd))
 			return evlist
 		elif self._mode == PL_POLL:
-			return self._poll.poll(timeout)
+			evlist = []
+			pllist = self._poll.poll(timeout)
+			for pl in pllist:
+				(fd, mask) = pl
+				if fd not in self._fd_map:
+					raise Error("Unknown fd '%s' in select.poll()" % (str(fd),))
+				evlist.append((self._fd_map[fd], mask))
+			return evlist
 		elif self._mode == PL_SELECT:
 			if timeout is not None:
 				timeout /= 1000.0
-			rfds, wfds, xfds = select.select(self._rfds, self._wfds, self._xfds, timeout)
+			rfos, wfos, xfos = select.select(self._rfos, self._wfos, self._xfos, timeout)
+
+			#  select.select() already returns the registered object so no need
+			#  to map through _fd_map.
+			#
 			evlist = []
-			for fd in xfds:
-				evlist.append((fd, POLLPRI))
-			for fd in rfds:
-				evlist.append((fd, POLLIN))
-			for fd in wfds:
-				evlist.append((fd, POLLOUT))
+			for fo in xfos:
+				evlist.append((fo, POLLPRI))
+			for fo in rfos:
+				evlist.append((fo, POLLIN))
+			for fo in wfos:
+				evlist.append((fo, POLLOUT))
 			return evlist
 
 if __name__ == '__main__':
@@ -276,7 +320,7 @@ if __name__ == '__main__':
 	if evlist:
 		raise Exception("poll() returned events when timeout expected")
 	delta = abs(timeout_delay - duration)
-	if delta > 20:
+	if delta > 30:
 		raise Exception("poll() timeout deviation of %d msecs detected" % (delta,))
 	print "poll() timeout delta was %d msecs" % (delta,)
 
