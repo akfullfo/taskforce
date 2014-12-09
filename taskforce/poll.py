@@ -222,7 +222,13 @@ class poll(object):
 			if timeout is not None:
 				timeout /= 1000.0
 			evlist = []
-			kelist = self._kq.control(None, 1024, timeout)
+			try:
+				kelist = self._kq.control(None, 1024, timeout)
+			except OSError as e:
+				if e.errno == errno.EINTR:
+					raise IOError(e.errno, e.strerror)
+				else:
+					raise e
 			if not kelist:
 				return evlist
 			for ke in kelist:
