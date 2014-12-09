@@ -21,6 +21,7 @@ import sys, os, fcntl, pwd, grp, signal, errno, time, socket, select, yaml, re
 import utils
 from utils import ses, deltafmt, statusfmt
 from utils import get_caller as my
+import poll
 import watch_files
 import watch_modules
 import logging
@@ -1064,6 +1065,12 @@ Params are:
 		last_idle_run = time.time()
 		timeout = 0.0
 		exit_report = 0
+		pset = poll.poll()
+		log.info("%s File event polling via %s, %s are available",
+						my(self), pset.get_mode_name(), pset.get_available_mode_names())
+		pset.register(self._watch_child, poll.POLLIN)
+		pset.register(self._watch_modules, poll.POLLIN)
+		pset.register(self._watch_files, poll.POLLIN)
 		try:
 			while True:
 				now = time.time()
@@ -1084,15 +1091,16 @@ Params are:
 					if timeout > timeout_short_cycle:
 						timeout = timeout_short_cycle
 
-				watching = [self._watch_child, self._watch_modules, self._watch_files]
 				if last_timeout != timeout:
 					log.debug("%s select() timeout is now %s", my(self), deltafmt(timeout))
 					last_timeout = timeout
 				try:
-					ready = select.select(watching, [], [], timeout)
-				except select.error as e:
-					if e[0] != errno.EINTR:
+					evlist = pset.poll(timeout*1000)
+				except IOError as e:
+					if e.errno != errno.EINTR:
 						raise e
+					else:
+						log.info("%s Ignoring '%s' during poll", my(self), str(e))
 
 				timeout = timeout_long_cycle
 
@@ -1100,7 +1108,7 @@ Params are:
 				if idle_starving:
 					log.warning("%s Idle starvation detected, last run was %s ago",
 										my(self), deltafmt(now - last_idle_run))
-				if idle_starving or ready == ([],[],[]):
+				if idle_starving or not evlist:
 					log.debug("%s idle", my(self))
 					last_idle_run = now
 
@@ -1129,12 +1137,15 @@ Params are:
 					self._watch_files.scan()
 					self._watch_modules.scan()
 
-				elif self._watch_child in ready[0]:
-					if self._reap() and timeout > timeout_short_cycle:
-						timeout = timeout_short_cycle
 				else:
-					log.debug("%s Activity: %s", my(self), str(ready[0]))
-					for item in ready[0]:
+					for item, mask in evlist:
+						if item == self._watch_child:
+							if self._reap() and timeout > timeout_short_cycle:
+								timeout = timeout_short_cycle
+							continue
+
+						log.debug("%s Activity: %s", my(self), str(item))
+
 						#  This may need work.  For now, all selectable events
 						#  give back objects that have a 'get' method, and it
 						#  is possible to choose an action based on the shape
