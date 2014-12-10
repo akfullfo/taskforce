@@ -1100,7 +1100,7 @@ Params are:
 					if e.errno != errno.EINTR:
 						raise e
 					else:
-						log.info("%s Ignoring %s%s during poll", my(self), e.__class__.__name__, str(e))
+						log.debug("%s Ignoring %s(%s) during poll", my(self), e.__class__.__name__, str(e))
 
 				timeout = timeout_long_cycle
 
