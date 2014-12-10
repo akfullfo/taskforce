@@ -1,6 +1,6 @@
 taskforce
 =========
-[![Version](https://pypip.in/version/taskforce/badge.svg)![Status](https://pypip.in/status/taskforce/badge.svg)![Downloads](https://pypip.in/download/taskforce/badge.svg)](https://pypi.python.org/pypi/taskforce/)
+[![Version](https://pypip.in/version/taskforce/badge.svg)![Status](https://pypip.in/status/taskforce/badge.svg)![Downloads](https://pypip.in/download/taskforce/badge.svg)](https://pypi.python.org/pypi/taskforce/)[![Build](https://travis-ci.org/akfullfo/taskforce.svg?branch=master)](https://travis-ci.org/akfullfo/taskforce)
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
