@@ -1066,7 +1066,7 @@ Params are:
 		timeout = 0.0
 		exit_report = 0
 		pset = poll.poll()
-		log.info("%s File event polling via %s, %s are available",
+		log.info("%s File event polling via %s from %s available",
 						my(self), pset.get_mode_name(), pset.get_available_mode_names())
 		pset.register(self._watch_child, poll.POLLIN)
 		pset.register(self._watch_modules, poll.POLLIN)
@@ -1100,7 +1100,7 @@ Params are:
 					if e.errno != errno.EINTR:
 						raise e
 					else:
-						log.info("%s Ignoring '%s' during poll", my(self), str(e))
+						log.info("%s Ignoring %s%s during poll", my(self), e.__class__.__name__, str(e))
 
 				timeout = timeout_long_cycle
 

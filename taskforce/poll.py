@@ -222,7 +222,13 @@ class poll(object):
 			if timeout is not None:
 				timeout /= 1000.0
 			evlist = []
-			kelist = self._kq.control(None, 1024, timeout)
+			try:
+				kelist = self._kq.control(None, 1024, timeout)
+			except (select.error, OSError, IOError) as e:
+				if e[0] == errno.EINTR:
+					raise OSError(e[0], e[1])
+				else:
+					raise e
 			if not kelist:
 				return evlist
 			for ke in kelist:
@@ -238,7 +244,13 @@ class poll(object):
 			return evlist
 		elif self._mode == PL_POLL:
 			evlist = []
-			pllist = self._poll.poll(timeout)
+			try:
+				pllist = self._poll.poll(timeout)
+			except (select.error, OSError, IOError) as e:
+				if e[0] == errno.EINTR:
+					raise OSError(e[0], e[1])
+				else:
+					raise e
 			for pl in pllist:
 				(fd, mask) = pl
 				if fd not in self._fd_map:
@@ -250,7 +262,7 @@ class poll(object):
 				timeout /= 1000.0
 			try:
 				rfos, wfos, xfos = select.select(self._rfos, self._wfos, self._xfos, timeout)
-			except select.error as e:
+			except (select.error, OSError, IOError) as e:
 				if e[0] == errno.EINTR:
 					raise OSError(e[0], e[1])
 				else:
