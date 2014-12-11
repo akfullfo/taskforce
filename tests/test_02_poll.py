@@ -33,11 +33,9 @@ class Test(object):
 
 		#  Run basic test using a self pipe
 		self.rd, self.wd = os.pipe()
-		print "setUp exit"
 
 	@classmethod
 	def tearDownAll(self):
-		print "In tearDown"
 		try: os.close(self.rd)
 		except: pass
 		try: os.close(self.wd)
