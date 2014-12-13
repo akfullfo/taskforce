@@ -4,6 +4,9 @@ python:
 os:
   - linux
   - osx
+env:
+  # 30 corresponds to logging.WARNING
+  - TRAVIS_LOG_LEVEL=30
 # command to install dependencies
 install:
   - python setup.py install
