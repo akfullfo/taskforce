@@ -175,6 +175,7 @@ class watch(object):
 			self._poll_pending = {}
 
 	def __del__(self):
+		close_fds = True
 		if self._mode == WF_KQUEUE and self._kq:
 			#  The is actually auto-closed, so this bit is not
 			#  strictly needed.
@@ -183,6 +184,11 @@ class watch(object):
 			except: pass
 			self._kq = None
 		elif self._mode == WF_INOTIFYX:
+			#  As we are storing inotify watch-descriptors rather
+			#  than file descriptors in fds_open, skip closing them.
+			#  They are automatically cleared when _inx_fd is closed
+			#
+			close_fds = False
 			try: os.close(self._inx_fd)
 			except: pass
 			self._inx_fd = None
@@ -194,10 +200,11 @@ class watch(object):
 		#  However, these are not automatically closed, so we
 		#  definitely need the destructor here.
 		#
-		for fd in self.fds_open.keys():
-			try: os.close(fd)
-			except: pass
-			del self.fds_open[fd]
+		if close_fds:
+			for fd in self.fds_open.keys():
+				try: os.close(fd)
+				except: pass
+				del self.fds_open[fd]
 
 	def fileno(self):
 		if self._mode == WF_KQUEUE:
