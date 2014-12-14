@@ -21,6 +21,7 @@ import os, sys, logging, errno, time
 import taskforce.poll as poll
 import taskforce.utils as utils
 import taskforce.watch_files as watch_files
+import support
 
 working_dir = "tests/work"
 
@@ -41,21 +42,7 @@ class Test(object):
 
 	@classmethod
 	def setUpAll(self, mode=None):
-		handler = logging.StreamHandler()
-		handler.setFormatter(logging.Formatter(fmt="%(asctime)s %(levelname)s %(message)s"))
-		self.log = logging.getLogger(self.__class__.__name__)
-		self.log.addHandler(handler)
-		self.log_level = logging.INFO
-
-		#  This cuts the logging noise in the travis output.
-		#  Set TRAVIS_LOG_LEVEL in .travis.yml
-		#
-		try:
-			if 'TRAVIS_LOG_LEVEL' in os.environ:
-				self.log_level = int(os.environ['TRAVIS_LOG_LEVEL'])
-		except:
-			pass
-		self.log.setLevel(self.log_level)
+		self.log = support.logger()
 
 		self.start_fds = len(find_open_fds())
 
@@ -68,8 +55,6 @@ class Test(object):
 			with open(path, 'w') as f:
 				f.write(path + '\n')
 				self.file_list.append(path)
-		self.log.info("%s = %d", 'INFO', logging.INFO)
-		self.log.info("%s = %d", 'WARNING', logging.WARNING)
 
 	@classmethod
 	def tearDownAll(self):
@@ -107,15 +92,16 @@ class Test(object):
 
 	def Test_D_missing(self):
 		snoop = watch_files.watch(log=self.log, timeout=0.1, limit=3)
+		log_level = self.log.getEffectiveLevel()
 		try:
 			#  Mask the log message as we expect a failure
 			self.log.setLevel(logging.CRITICAL)
 			snoop.add('/tmp/file/is/missing/really', missing=False)
-			self.log.setLevel(self.log_level)
+			self.log.setLevel(log_level)
 			self.log.error("Add of missing file was successful when it should fail")
 			added = True
 		except Exception as e:
-			self.log.setLevel(self.log_level)
+			self.log.setLevel(log_level)
 			self.log.info("Received missing exception ok -- %s", str(e))
 			added = False
 		assert not added
