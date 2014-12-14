@@ -17,7 +17,8 @@
 # ________________________________________________________________________
 #
 
-import os, sys, logging, errno, select, time, gc
+import os, sys, logging, errno, time
+import taskforce.poll as poll
 import taskforce.utils as utils
 import taskforce.watch_files as watch_files
 
@@ -124,17 +125,17 @@ class Test(object):
 		snoop.add(self.file_list)
 		self.log.info("%d files open watching %d paths with watch started", len(find_open_fds()), len(snoop.paths_open))
 		touched = False
+		pset = poll.poll()
+		pset.register(snoop, poll.POLLIN)
 		while True:
 			try:
-				ready = select.select([snoop], [], [], 1)
-				self.log.info("select ready: %s", str(ready))
-			except Exception as e:
-				self.log.info("select exception -- %s", str(e))
-				if e[0] != errno.EINTR:
+				evlist = pset.poll(1000)
+			except OSError as e:
+				self.log.info("poll() exception -- %s", str(e))
+				if e.errno != errno.EINTR:
 					raise e
-				break
-			if ready == ([],[],[]):
-				self.log.info("select timeout, will touch")
+			if not evlist:
+				self.log.info("poll() timeout, will touch")
 				snoop.scan()
 				with open(self.file_list[0], 'w') as f:
 					f.write(self.file_list[0] + '\n')
