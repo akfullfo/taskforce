@@ -20,10 +20,12 @@
 import os, logging
 
 def logger():
+	if logger.log:
+		return logger.log
 	handler = logging.StreamHandler()
 	handler.setFormatter(logging.Formatter(fmt="%(asctime)s %(levelname)s %(message)s"))
-	log = logging.getLogger(__name__)
-	log.addHandler(handler)
+	logger.log = logging.getLogger(__name__)
+	logger.log.addHandler(handler)
 	log_level = logging.INFO
 
 	#  This cuts the logging noise in the travis output.
@@ -34,5 +36,17 @@ def logger():
 			log_level = int(os.environ['TRAVIS_LOG_LEVEL'])
 	except:
 		pass
-	log.setLevel(log_level)
-	return log
+	logger.log.setLevel(log_level)
+	return logger.log
+logger.log = None
+
+def find_open_fds():
+	cnt = 0
+	fds = []
+	for fd in range(1024):
+		try:
+			os.fstat(fd)
+			fds.append(fd)
+		except:
+			pass
+	return fds

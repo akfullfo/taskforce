@@ -27,31 +27,21 @@ working_dir = "tests/work"
 
 base_file_list = ["test_a", "test_b", "test_c"]
 
-def find_open_fds():
-	cnt = 0
-	fds = []
-	for fd in range(1024):
-		try:
-			os.fstat(fd)
-			fds.append(fd)
-		except:
-			pass
-	return fds
-
 class Test(object):
 
 	@classmethod
 	def setUpAll(self, mode=None):
 		self.log = support.logger()
+		self.log.info("%s started", self.__module__)
 
-		self.start_fds = len(find_open_fds())
+		self.start_fds = len(support.find_open_fds())
 
 		self.log.info("%d files open before watch started", self.start_fds)
 		if not os.path.isdir(working_dir):
 			os.mkdir(working_dir, 0777)
 		self.file_list = []
-		for f in base_file_list:
-			path = os.path.join(working_dir, f)
+		for fname in base_file_list:
+			path = os.path.join(working_dir, fname)
 			with open(path, 'w') as f:
 				f.write(path + '\n')
 				self.file_list.append(path)
@@ -63,26 +53,28 @@ class Test(object):
 			except: pass
 		if os.path.isdir(working_dir):
 			os.rmdir(working_dir)
+		self.log.info("%s ended", self.__module__)
 
 	def Test_A_add(self):
 		snoop = watch_files.watch(log=self.log, timeout=0.1, limit=3)
 		self.log.info("Watching in %s mode", snoop.get_mode_name())
 		snoop.add(self.file_list)
 
-		self.log.info("%d files open watching %d paths with watch started", len(find_open_fds()), len(snoop.paths_open))
+		self.log.info("%d files open watching %d paths with watch started",
+							len(support.find_open_fds()), len(snoop.paths_open))
 
 	def Test_B_autodel(self):
-		del_fds = len(find_open_fds())
+		del_fds = len(support.find_open_fds())
 		self.log.info("%d files open after auto object delete", del_fds)
 		assert del_fds == self.start_fds
 
 	def Test_C_remove(self):
 		snoop = watch_files.watch(log=self.log, timeout=0.1, limit=3)
 		snoop.add(self.file_list)
-		added_fds = len(find_open_fds())
+		added_fds = len(support.find_open_fds())
 		assert len(self.file_list) > 1
 		snoop.remove(self.file_list[1])
-		remove_fds = len(find_open_fds())
+		remove_fds = len(support.find_open_fds())
 		self.log.info("%d files open after remove", remove_fds)
 		if snoop.get_mode() == watch_files.WF_INOTIFYX:
 			#  inotify doesn't need open files for watches
@@ -109,7 +101,8 @@ class Test(object):
 	def Test_E_watch(self):
 		snoop = watch_files.watch(log=self.log, timeout=0.1, limit=3)
 		snoop.add(self.file_list)
-		self.log.info("%d files open watching %d paths with watch started", len(find_open_fds()), len(snoop.paths_open))
+		self.log.info("%d files open watching %d paths with watch started",
+							len(support.find_open_fds()), len(snoop.paths_open))
 		touched = False
 		pset = poll.poll()
 		pset.register(snoop, poll.POLLIN)
@@ -140,11 +133,11 @@ class Test(object):
 			break
 		fds_open = snoop.fds_open.copy()
 		fds_open[snoop.fileno()] = '*control*'
-		del_fds = find_open_fds()
+		del_fds = support.find_open_fds()
 		self.log.info("%d files open after watch: %s", len(del_fds), str(del_fds))
 		self.log.info("paths known to watcher: %s", str(fds_open))
 
 	def Test_F_cleanup_test(self):
-		del_fds = len(find_open_fds())
+		del_fds = len(support.find_open_fds())
 		self.log.info("%d files open after object delete", del_fds)
 		assert del_fds == self.start_fds
