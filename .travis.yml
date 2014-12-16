@@ -5,9 +5,7 @@ os:
   - linux
   - osx
 env:
-  # 30 corresponds to logging.WARNING
-  - TRAVIS_LOG_LEVEL=30
-# command to install dependencies
+  - NOSE_LOG_LEVEL=warning
 install:
   - python setup.py install
 script:

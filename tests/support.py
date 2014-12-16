@@ -26,16 +26,23 @@ def logger():
 	handler.setFormatter(logging.Formatter(fmt="%(asctime)s %(levelname)s %(message)s"))
 	logger.log = logging.getLogger(__name__)
 	logger.log.addHandler(handler)
-	log_level = logging.INFO
+	log_level = None
 
 	#  This cuts the logging noise in the travis output.
-	#  Set TRAVIS_LOG_LEVEL in .travis.yml
+	#  Set NOSE_LOG_LEVEL in .travis.yml
 	#
-	try:
-		if 'TRAVIS_LOG_LEVEL' in os.environ:
-			log_level = int(os.environ['TRAVIS_LOG_LEVEL'])
-	except:
-		pass
+	if 'NOSE_LOG_LEVEL' in os.environ:
+		try:
+			log_level = getattr(logging, os.environ['NOSE_LOG_LEVEL'].upper())
+		except:
+			pass
+		if log_level is None:
+			try:
+				log_level = int(os.environ['NOSE_LOG_LEVEL'])
+			except:
+				pass
+	if log_level is None:
+		log_level = logging.INFO
 	logger.log.setLevel(log_level)
 	return logger.log
 logger.log = None
