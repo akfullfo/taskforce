@@ -17,7 +17,7 @@
 # ________________________________________________________________________
 #
 
-import os, subprocess, fcntl, errno, logging
+import os, time, subprocess, fcntl, errno, logging
 
 class env(object):
 	"""
@@ -148,3 +148,28 @@ class taskforce(object):
 				return None
 			raise e
 		#if self.proc.poll() is not None: return ''
+
+	def search(self, regex, limit=30, iolimit=2):
+		"""
+		Search for the regular expression which must be
+		created with re.compile().  Returns True if found,
+		False if not found within the time limits, and None
+		if the process exits before the search is successful.
+	"""
+		start = time.time()
+		proc_limit = start + limit
+		line_limit = start + iolimit
+		while time.time() < proc_limit:
+			now = time.time()
+			l = self.follow()
+			if l is None:
+				if now > line_limit:
+					return False
+				time.sleep(0.01)
+				continue
+			if l == '':
+				return None
+			if regex.search(l):
+				return True
+			line_limit = now + iolimit
+		return False

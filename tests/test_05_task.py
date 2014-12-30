@@ -17,7 +17,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, logging, errno, time
+import os, sys, logging, errno, re
 import support
 import taskforce.poll as poll
 import taskforce.task as task
@@ -75,24 +75,8 @@ class Test(object):
 		l.set_config_file(env.config_file)
 
 	def Test_B_sanity(self):
-		self.log.info("Will run: %s", support.taskforce.command_line(env, '--sanity'))
-		start = time.time()
-		proc_limit = start + 30
-		line_limit = start + 2
+		self.log.info("Will run: %s", ' '.join(support.taskforce.command_line(env, '--sanity')))
 		tf = support.taskforce(env, '--sanity')
-		sanity_established = False
-		while time.time() < proc_limit:
-			now = time.time()
-			l = tf.follow()
-			if l is None and now < line_limit:
-				time.sleep(0.01)
-				continue
-			if l == '':
-				self.log.info("taskforce exited after %.1f seconds", now - start)
-				break
-			self.log.debug("taskforce log: %s", l)
-			if l.find('Sanity check completed ok') >= 0:
-				sanity_established = True
-			line_limit = now + 2
+		sanity_established = tf.search(re.compile(r'Sanity check completed ok'))
 		tf.close()
 		assert sanity_established
