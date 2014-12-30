@@ -22,14 +22,7 @@ import support
 import taskforce.poll as poll
 import taskforce.task as task
 
-start_dir = os.path.realpath('.')
-base_dir = "tests"
-test_dir = os.path.realpath(os.path.join(base_dir, 'tmp'))
-examples_dir = os.path.realpath("examples")
-examples_bin = os.path.join(examples_dir, "bin")
-config_file = 'example.conf'
-roles_file = os.path.join(test_dir, 'test.roles')
-test_roles = ['frontend', 'backend']
+env = support.env(base='.')
 
 class Test(object):
 
@@ -45,26 +38,22 @@ class Test(object):
 				self.startenv[tag] = os.environ[tag]
 
 		self.log.info("%d files open before task testing", self.start_fds)
-		if not os.path.isdir(test_dir):
-			os.mkdir(test_dir, 0777)
-		self.file_list = [roles_file]
+		self.file_list = [env.roles_file]
 
 	@classmethod
 	def tearDownAll(self):
 		for path in self.file_list:
 			try: os.unlink(path)
 			except: pass
-		if os.path.isdir(test_dir):
-			os.rmdir(test_dir)
 		self.log.info("%s ended", self.__module__)
 
 	def setUp(self):
-		self.log.info("setup: cd %s", examples_dir)
-		os.chdir(examples_dir)
+		self.log.info("setup: cd %s", env.examples_dir)
+		os.chdir(env.examples_dir)
 
 	def tearDown(self):
-		self.log.info("teardown: cd %s", start_dir)
-		os.chdir(start_dir)
+		self.log.info("teardown: cd %s", env.base_dir)
+		os.chdir(env.base_dir)
 
 	def set_path(self, tag, val):
 		if tag in self.startenv:
@@ -75,12 +64,35 @@ class Test(object):
 	def set_roles(self, roles):
 		if not type(roles) is list:
 			roles = [roles]
-		with open(roles_file, 'w') as f:
+		with open(env.roles_file, 'w') as f:
 			f.write('\n'.join(roles) + '\n')
 
 	def Test_A_check_config(self):
-		self.set_roles(test_roles[0])
-		self.set_path('PATH', examples_bin)
+		self.set_roles(env.test_roles[0])
+		self.set_path('PATH', env.examples_bin)
 		l = task.legion(log=self.log)
-		l.set_roles_file(roles_file)
-		l.set_config_file(config_file)
+		l.set_roles_file(env.roles_file)
+		l.set_config_file(env.config_file)
+
+	def Test_B_sanity(self):
+		self.log.info("Will run: %s", support.taskforce.command_line(env, '--sanity'))
+		start = time.time()
+		proc_limit = start + 30
+		line_limit = start + 2
+		tf = support.taskforce(env, '--sanity')
+		sanity_established = False
+		while time.time() < proc_limit:
+			now = time.time()
+			l = tf.follow()
+			if l is None and now < line_limit:
+				time.sleep(0.01)
+				continue
+			if l == '':
+				self.log.info("taskforce exited after %.1f seconds", now - start)
+				break
+			self.log.debug("taskforce log: %s", l)
+			if l.find('Sanity check completed ok') >= 0:
+				sanity_established = True
+			line_limit = now + 2
+		tf.close()
+		assert sanity_established
