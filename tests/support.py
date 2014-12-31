@@ -17,7 +17,7 @@
 # ________________________________________________________________________
 #
 
-import os, time, subprocess, fcntl, errno, logging
+import os, time, subprocess, fcntl, errno, logging, re
 
 class env(object):
 	"""
@@ -173,3 +173,196 @@ class taskforce(object):
 				return True
 			line_limit = now + iolimit
 		return False
+
+class proctree(object):
+	"""
+	Builds an object with the current process information based on
+	running ps(1).  The resulting attributes are:
+
+		processes	- dict of PIDs referencing process objects
+		names		- dict of process names referencing a list of
+				  process objects
+	
+	See the process class (below) for what is in a process object.
+"""
+	class process(object):
+		"""
+
+		Used to hold per-process details, which attributes taken from
+		the ps(1) output, passed in as a list of ps(1) data elements
+		and the header, passed in as a list of header elements.
+
+		The attributes present in the object are listed in
+		"direct_attributes" and "derived_attributes" with their
+		descriptions.  If an attribute is not available on a given
+		system, its value will be None.
+
+			pid		- process ID (int)
+			ppid		- parent process ID (int)
+			parent		- parent for this process (process object)
+			children	- list of children (process object list, possibly empty)
+			command		- command line which may be truncated by ps command (text)
+			name		- basename of the first word of the CMD field (text)
+			uid		- user ID of process (int)
+			flags		- system dependent process flags (int)
+			cpu		- cpu running the process (int)
+			priority	- process priority (int)
+			nice		- process "nice" value (int)
+			size		- process size (float bytes)
+			rss		- resident size (float bytes)
+			wchan		- system dependent wait channel (text)
+			state		- system dependent process state (text)
+			tty		- full path of controlling tty (text)
+			time		- total CPU time (float seconds)
+
+		Because the parent of a process doesn't necessarily exist
+		when the object is instantiated, it is a proctree() responsibility
+		to set up the parent and children.
+	"""
+		direct_attributes = {
+			'command': 'command line which may be truncated by ps command (text)',
+			'cpu': 'cpu running the process (int)',
+			'flags': 'system dependent process flags (int)',
+			'nice': 'process "nice" value (int)',
+			'pid': 'process ID (int)',
+			'ppid': 'parent process ID (int)',
+			'priority': 'process priority (int)',
+			'rss': 'resident size (int kilobytes)',
+			'size': 'process size (int kilobytes)',
+			'state': 'system dependent process state (text)',
+			'time': 'total CPU time (float seconds)',
+			'tty': 'full path of controlling tty (text)',
+			'uid': 'user ID of process (int)',
+			'wchan': 'system dependent wait channel (text)',
+		}
+		derived_attributes = {
+			'name': 'basename of the first word of the CMD field (text)',
+			'parent': 'parent for this process (process object)',
+			'children': 'list of children (process object list, possibly empty)',
+		}
+		int_attributes = frozenset(['cpu', 'flags', 'nice', 'pid', 'ppid', 'priority', 'rss', 'size', 'uid'])
+		header_map = {
+			'CMD': 'command',
+			'COMMAND': 'command',
+			'CPU': 'cpu',
+			'F': 'flags',
+			'NI': 'nice',
+			'PID': 'pid',
+			'PPID': 'ppid',
+			'PRI': 'priority',
+			'RSS': 'rss',
+			'S': 'state',
+			'STAT': 'state',
+			'SZ': 'size',
+			'TIME': 'time',
+			'TT': 'tty',
+			'TTY': 'tty',
+			'UID': 'uid',
+			'VSZ': 'size',
+			'MWCHAN': 'wchan',
+			'WCHAN': 'wchan'
+		}
+		def __init__(self, header, data):
+			for att in self.direct_attributes:
+				setattr(self, att, None)
+			for att in self.derived_attributes:
+				setattr(self, att, None)
+			for h in header:
+				if h not in self.header_map:
+					raise Exception("Header '%s' from ps(1) output has no mapping" % (h,))
+				elif len(data) == 0:
+					raise Exception("Ran out of data before all headers consumed")
+				elif self.header_map[h]:
+					att = self.header_map[h]
+					if att == 'command':
+						setattr(self, att, ' '.join(data))
+						if data[0].find('/') == 0:
+							self.name = os.path.basename(data[0])
+						else:
+							self.name = data[0]
+						break
+					elif att == 'time':
+						setattr(self, att, self.canon_time(data[0]))
+					elif att in self.int_attributes:
+						try:
+							setattr(self, att, int(data[0]))
+						except:
+							pass
+					else:
+						setattr(self, att, data[0])
+				data.pop(0)
+
+		def canon_time(self, data):
+			"""
+			This converts strings line mm:ss.sss or hh:mm:ss.sss
+			to float seconds.  It will blow up if ps(1) reports
+			days but none seem to.  Actually none seem to go
+			beyond minutes.
+		"""
+			scale = 1
+			seconds = 0
+			for elem in reversed(data.split(':')):
+				seconds += float(elem) * scale
+				scale *= 60
+			return seconds
+
+	def __init__(self):
+		bust = re.compile(r'\s+')
+		with open('/dev/null', 'r') as dev_null:
+			proc = subprocess.Popen(['ps', 'waxl'],
+					stdin=dev_null,
+					stdout=subprocess.PIPE,
+					stderr=subprocess.STDOUT,
+					close_fds=True,
+					universal_newlines=True)
+		header_line = proc.stdout.readline().strip()
+		header = bust.split(header_line)
+		self.processes = {}
+		self.names = {}
+		while True:
+			line = proc.stdout.readline().strip()
+			if not line:
+				break
+			p = self.process(header, bust.split(line))
+			self.processes[p.pid] = p
+			if p.name in self.names:
+				self.names[p.name].append(p)
+			else:
+				self.names[p.name] = [p]
+			p.children = []
+		for p in self.processes.values():
+			if p.ppid in self.processes:
+				p.parent = self.processes[p.ppid]
+				p.parent.children.append(p)
+			elif p.ppid != 0:
+				raise Exception("Process %d has non-existant parent %d" % (pid, p.ppid))
+
+if __name__ == "__main__":
+	procs = proctree()
+	seen = {}
+
+	def pump(p, level):
+		if p.pid in seen:
+			return
+		seen[p.pid] = True
+		print ''.rjust(level, ' '), p.pid, p.name, p.time
+		for c in sorted(p.children, key=lambda p: p.pid):
+			pump(c, level+1)
+		
+	# Print the process tree
+	#
+	for pid in sorted(procs.processes.keys()):
+		pump(procs.processes[pid], 0)
+
+	# Print the process with the most instances
+	#
+	max_kids = 0
+	for name in procs.names:
+		cnt = len(procs.names[name])
+		if cnt > max_kids:
+			long_name = name
+			max_kids = cnt
+	print 'Process with the most instances -', long_name+':',
+	for p in sorted(procs.names[long_name], key=lambda p: p.pid):
+		print p.pid,
+	print
