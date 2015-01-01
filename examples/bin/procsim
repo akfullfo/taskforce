@@ -108,6 +108,7 @@ if args.daemonize:
 
 signal.signal(signal.SIGINT, signal.SIG_IGN)
 signal.signal(signal.SIGHUP, catch)
+signal.signal(signal.SIGTERM, catch)
 signal.signal(signal.SIGUSR1, catch)
 signal.signal(signal.SIGUSR2, catch)
 
@@ -116,7 +117,7 @@ if pidfile is not None:
 		utils.pidclaim(pidfile)
 	except Exception as e:
 		sys.stderr.write('Fatal error -- ' + str(e))
-		sys.exit(2)
+		sys.exit(85)
 
 started = time.time()
 if sleep_period is None:
