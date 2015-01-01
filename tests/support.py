@@ -308,8 +308,9 @@ class proctree(object):
 
 	def __init__(self):
 		bust = re.compile(r'\s+')
+		cmd = ['ps', 'waxl']
 		with open('/dev/null', 'r') as dev_null:
-			proc = subprocess.Popen(['ps', 'waxl'],
+			proc = subprocess.Popen(cmd,
 					stdin=dev_null,
 					stdout=subprocess.PIPE,
 					stderr=subprocess.STDOUT,
@@ -330,6 +331,8 @@ class proctree(object):
 			else:
 				self.names[p.name] = [p]
 			p.children = []
+		if proc.poll() is None:
+			raise Exception("Command '%s' still running after output consumed", (' '.join(cmd),))
 		for p in self.processes.values():
 			if p.ppid in self.processes:
 				p.parent = self.processes[p.ppid]
@@ -362,7 +365,7 @@ if __name__ == "__main__":
 		if cnt > max_kids:
 			long_name = name
 			max_kids = cnt
-	print 'Process with the most instances -', long_name+':',
+	print 'Process name with the most instances -', long_name+':',
 	for p in sorted(procs.names[long_name], key=lambda p: p.pid):
 		print p.pid,
 	print
