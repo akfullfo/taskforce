@@ -118,22 +118,30 @@ class taskforce(object):
 					universal_newlines=True)
 		fl = fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_GETFL)
 		fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
+		self.log = params.get('log')
 
 	def __del__(self):
-		self.close()
+		self.close(warn=False)
 
-	def close(self):
+	def close(self, warn=True):
 		if self.proc is None:
+			if self.log and warn: self.log.warning("taskforce() has already been closed")
 			return
 		if self.proc.returncode is not None:
+			if self.log: self.log.info("taskforce() has already exited 0x%x", self.proc.returncode)
 			return
 		self.proc.terminate()
-		for i in range(20):
+		start = time.time()
+		for i in range(50):
 			if self.proc.poll() is not None:
+				if self.log: self.log.info("taskforce() successfully terminated after %.1fs", time.time()-start)
 				break
+			time.sleep(0.1)
 		if self.proc.returncode is None:
+			if self.log: self.log.info("taskforce() did not terminate, killing")
 			self.proc.kill()
 			self.proc.wait()
+			if self.log: self.log.info("taskforce() killed after %.1fs", time.time()-start)
 		ret = self.proc.returncode
 		self.proc = None
 		return ret
@@ -147,9 +155,9 @@ class taskforce(object):
 			if e[0] == errno.EAGAIN:
 				return None
 			raise e
-		#if self.proc.poll() is not None: return ''
+		if self.proc.poll() is not None: return ''
 
-	def search(self, regex, limit=30, iolimit=2):
+	def search(self, regex, limit=30, iolimit=10, log=None):
 		"""
 		Search for the regular expression which must be
 		created with re.compile().  Returns True if found,
@@ -164,14 +172,19 @@ class taskforce(object):
 			l = self.follow()
 			if l is None:
 				if now > line_limit:
+					if log: log.debug("support.search() I/O timeout")
 					return False
 				time.sleep(0.01)
 				continue
 			if l == '':
+				if log: log.debug("support.search() EOF")
 				return None
 			if regex.search(l):
+				if log: log.debug("support.search() found in: %s", l)
 				return True
+			if log: log.debug("support.search() no match: %s", l)
 			line_limit = now + iolimit
+		if log: log.debug("support.search() search timeout")
 		return False
 
 class proctree(object):
