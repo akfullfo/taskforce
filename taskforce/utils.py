@@ -167,9 +167,9 @@ def version_cmp(ver_a, ver_b):
 		if i >= len(a): return -1
 		if i >= len(b): return 1
 		try: aint = int(a[i])
-		except: aint = None
+		except: return -1
 		try: bint = int(b[i])
-		except: bint = None
+		except: return -1
 		if aint < bint: return -1
 		elif aint > bint: return 1
 	return 0
@@ -297,7 +297,7 @@ def module_description(module__name__, module__doc__, module__file__):
 			mod_desc += obj.__doc__.lstrip()
 	return mod_desc
 
-sigmap = dict((signo, signam) for signam, signo in signal.__dict__.iteritems()
+sigmap = dict((signo, signam) for signam, signo in signal.__dict__.items()
 						if signam.startswith('SIG') and not signam.startswith('SIG_'))
 def signame(sig):
 	"""
@@ -625,27 +625,27 @@ when a subprocess needs to claim a lock on behalf of its parent.
 
 if __name__ == "__main__":
 
-	print "%d thing%s found" % (0, ses(0))
-	print "%d item%s found" % (1, ses(1))
-	print "%d process%s found" % (2, ses(2, 'es'))
-	print "%d quantit%s found" % (3, ses(3, 'ies', 'y'))
-	print "%d famil%s found" % (4, ses(4, singular='y', plural='ies'))
+	print("%d thing%s found" % (0, ses(0)))
+	print("%d item%s found" % (1, ses(1)))
+	print("%d process%s found" % (2, ses(2, 'es')))
+	print("%d quantit%s found" % (3, ses(3, 'ies', 'y')))
+	print("%d famil%s found" % (4, ses(4, singular='y', plural='ies')))
 
 	new_title = appname() + ' testing mode'
 	old_title = setproctitle(new_title)
 
 	if old_title:
-		print "Title changed from '%s' to '%s'" % (old_title, new_title)
+		print("Title changed from '%s' to '%s'" % (old_title, new_title))
 	else:
-		print "Process title change not supported"
+		print("Process title change not supported")
 
 	versions = ['2', '1.2', '1.2.3.4', 'abc', '1.2.3.14', '1.2.3.3', '1.2.3.4.3', '1.2.3.4c']
 	versions.sort(key=version_sort_key)
 	for v in versions:
-		print v
+		print(v)
 	filenames = ['release-1.2.3.4.tar', 'release_1.2.3.4.tar', 'release-a1.2.3.4.tar']
 	for fname in filenames:
-		print 'Prefix test on file name', fname, 'gives key', version_sort_key(fname, digits=4)
+		print('Prefix test on file name "%s" gives key "%s"' % (fname, version_sort_key(fname, digits=4)))
 	versions = [('2', '1.2'), ('1.2', '1.2.3.4'), ('1.2.3', '1.2.3.0'), ('1.2.3.4.3', '1.2.3.4c'),
 		    (321, 123),
 		    (None, None),
@@ -655,7 +655,7 @@ if __name__ == "__main__":
 		    ('release-1.2.3.5.tar', 'release_1.2.3.4.tar'),		#  should be -1 because dash is less than uscore
 		    ('release-1.2.3.4.tgz', 'release-1.2.3.4.tar')]		#  should be 0 (trailing non-numbers ignored)
 	for pair in versions:
-		print pair[0], 'cmp', pair[1], '=', version_cmp(pair[0], pair[1])
+		print("'%s' cmp '%s' = '%s'" % (pair[0], pair[1], version_cmp(pair[0], pair[1])))
 
 	args = list(sys.argv)
 	args.pop(0)
@@ -665,11 +665,11 @@ if __name__ == "__main__":
 		pidclaim(pidfile)
 		claimed_ok = True
 	except Exception as e:
-		print "Claim of", pidfile, "failed --", e
+		print("Claim of '%s' failed -- %s" % (pidfile, e))
 	if claimed_ok:
 		with open(pidfile, 'r') as f:
 			claim_pid = int(f.readline().strip())
 		if claim_pid == os.getpid():
-			print "Pid claim ok, pid =", claim_pid
+			print("Pid claim ok, pid = %d" % (claim_pid,))
 		else:
-			print "Pid claimed", claim_pid, "but it should be", os.getpid()
+			print("Pid claimed %d, but it should be %d" % (claim_pid, os.getpid()))

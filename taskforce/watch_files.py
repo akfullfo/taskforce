@@ -18,9 +18,9 @@
 #
 
 import sys, os, time, errno, select, logging
-import utils
-from utils import ses
-from utils import get_caller as my
+from . import utils
+from .utils import ses
+from .utils import get_caller as my
 
 #  These values are used internally to select watch mode.
 #
@@ -780,21 +780,21 @@ if __name__ == '__main__':
 	signal.signal(signal.SIGHUP, catch)
 	signal.signal(signal.SIGTERM, catch)
 
-	print "%s files open before watch started" % (find_open_fds(),)
+	print("%s files open before watch started" % (find_open_fds(),))
 
 	snoop = watch(polling=args.polling, log=log, timeout=args.timeout, limit=args.limit)
 	log.info("Watching in %s mode", snoop.get_mode_name())
 	snoop.add(args.file, missing=True)
 
-	print "%s files open watching %d paths with watch started, before remove" % (find_open_fds(), len(snoop.paths_open))
+	print("%s files open watching %d paths with watch started, before remove" % (find_open_fds(), len(snoop.paths_open)))
 
 	#  test removal if that will leave at least one
 	if args.removal and len(args.file) > 1:
 		zapping = args.file[random.randrange(len(args.file))]
 		snoop.remove(zapping)
-		print "Removal test removed", zapping
+		print("Removal test removed %s" % (zapping,))
 
-	print "%s files open watching %d paths with watch started" % (find_open_fds(), len(snoop.paths_open))
+	print("%s files open watching %d paths with watch started" % (find_open_fds(), len(snoop.paths_open)))
 	stopping = False
 	while not stopping:
 		try:
@@ -806,9 +806,9 @@ if __name__ == '__main__':
 		if ready == ([],[],[]):
 			snoop.scan()
 			continue
-		print 'Changes detected ...'
+		print('Changes detected ...')
 		for path in snoop.get():
-			print '    ', path
+			print('    ' + path)
 	del snoop
-	print "%s files open with watch removed" % (find_open_fds(),)
+	print("%s files open with watch removed" % (find_open_fds(),))
 	raise SystemExit(0)
