@@ -19,9 +19,9 @@
 
 import sys, os, time, select, logging
 import modulefinder
-import watch_files
-import utils
-from utils import get_caller as my
+from . import watch_files
+from . import utils
+from .utils import get_caller as my
 
 class watch(object):
 	"""
@@ -282,65 +282,3 @@ class watch(object):
 		a rename, as, for example, is done by rsync.
 	"""
 		self._watch.scan()
-
-if __name__ == '__main__':
-	import argparse, random
-
-	p = argparse.ArgumentParser(
-		formatter_class=argparse.RawDescriptionHelpFormatter,
-		description="Test the %s module\n%s" %
-		(os.path.splitext(os.path.basename(__file__))[0], watch.__doc__))
-
-	p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
-	p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Warnings and errors only')
-	p.add_argument('-p', '--module-path', action='store', dest='module_path', help='Module path list (commonly $PYTHONPATH)')
-	p.add_argument('-s', '--show', action='store_true', dest='show',
-					help='Print the list of files that would be watched and exit')
-	p.add_argument('command', nargs='+', help='List of applications to watch')
-
-	p.set_defaults(verbose=False)
-	p.set_defaults(quiet=False)
-
-	args = p.parse_args()
-
-	log = logging.getLogger(__name__)
-	log.addHandler(logging.StreamHandler())
-	if args.verbose:
-		log.setLevel(logging.DEBUG)
-	if args.quiet:
-		log.setLevel(logging.WARNING)
-
-	snoop = watch(log=log, module_path=args.module_path)
-	for command in args.command:
-		snoop.add(command)
-
-	if args.show:
-		names = {}
-		for m in snoop.modules:
-			for name in snoop.modules[m]:
-				if name in names:
-					names[name].append(m)
-				else:
-					names[name] = [m]
-		for name in names:
-			print name+':'
-			for m in names[name]:
-				print "\t" + m
-		sys.exit(0)
-
-	#  test remove if we have a lot to choose from
-	if len(args.command) > 2:
-		rand_discard = args.command[random.randrange(len(args.command))]
-		print "Randomly discarding %s to test removal" % (rand_discard,)
-		snoop.remove(rand_discard)
-
-	print "Watching %d module%s for %d command%s" % (len(snoop.modules), '' if len(snoop.modules) == 1 else 's',
-							 len(snoop.names), '' if len(snoop.names) == 1 else 's')
-	while True:
-		if select.select([snoop], [], [], 60) == ([],[],[]):
-			log.debug("Select timed out")
-			continue
-		print 'Changes detected ...'
-		for name, path, module_list in snoop.get(timeout=0):
-			print '    ', name, module_list
-	raise SystemExit(0)
