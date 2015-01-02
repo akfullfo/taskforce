@@ -19,6 +19,14 @@
 
 P=$(basename $0 .sh)
 
+PYTHON=python
+
+PYTHON_VERSION="$($PYTHON --version 2>&1)"
+if [ "$?" -ne 0 ]; then
+	echo $PYTHON_VERSION >&2
+	exit 1
+fi
+
 usage()
 {
 	cat >&2 <<EOT
@@ -41,6 +49,10 @@ Usage: ./$P [-v] [-C] [-x] role [...]
 
 	-x	Cause simulated ntpd to exit randomly to
 		demonstrate the 'timeset' restart.
+
+	-2	Use python2 (default is $PYTHON_VERSION)
+
+	-3	Use python3 (default is $PYTHON_VERSION)
 EOT
 	exit "${1:-99}"
 }
@@ -56,6 +68,12 @@ while [ "$#" -gt 0 ]; do
 		;;
 	-x*)	MINSLEEP=20; export MINSLEEP
 		SLEEPRANGE=20; export SLEEPRANGE
+		;;
+	-2)
+		PYTHON=python2
+		;;
+	-3)
+		PYTHON=python3
 		;;
 	-h)
 		usage 0
@@ -115,4 +133,4 @@ while [ "$#" -gt 0 ]; do
 	shift
 done
 
-exec $TFBIN/taskforce $TFARGS --log-stderr --config-file $EXCONF --roles-file $EXROLES
+exec $PYTHON $TFBIN/taskforce $TFARGS --log-stderr --config-file $EXCONF --roles-file $EXROLES
