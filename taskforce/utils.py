@@ -163,12 +163,18 @@ def version_cmp(ver_a, ver_b):
 	a = a.split('.')
 	b = b.split('.')
 
+	restrip = re.compile(r'[^\d]+$')
+
 	for i in range(0, max(len(a), len(b))):
 		if i >= len(a): return -1
 		if i >= len(b): return 1
-		try: aint = int(a[i])
+		astr = restrip.sub('', a[i])
+		if not astr: astr = '0'
+		bstr = restrip.sub('', b[i])
+		if not bstr: bstr = '0'
+		try: aint = int(astr)
 		except: return -1
-		try: bint = int(b[i])
+		try: bint = int(bstr)
 		except: return -1
 		if aint < bint: return -1
 		elif aint > bint: return 1
