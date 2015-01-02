@@ -105,7 +105,7 @@ class Test(object):
 				print "PID read back as:", claim_pid
 			assert claim_pid == pid
 			(wpid, status) = os.wait()
-			print "Child ran", utils.deltafmt(time.time() - status, decimals=3)
+			print "Child ran", utils.deltafmt(time.time() - start, decimals=3)
 			print "Child", utils.statusfmt(status)
 			assert status == 0
 			assert not os.path.exists(pidfile)
