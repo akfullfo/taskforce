@@ -36,7 +36,7 @@ class env(object):
 		self.roles_file = os.path.join(self.temp_dir, 'test.roles')
 		self.test_roles = ['frontend', 'backend']
 		if not os.path.isdir(self.temp_dir):
-			os.mkdir(self.temp_dir, 0777)
+			os.mkdir(self.temp_dir, 0x1FF)
 
 	def __del__(self):
 		if os.path.isdir(self.temp_dir):
@@ -361,7 +361,7 @@ if __name__ == "__main__":
 		if p.pid in seen:
 			return
 		seen[p.pid] = True
-		print ''.rjust(level, ' '), p.pid, p.name, p.time
+		print("%*d %s %.1f" % (level*2+6, p.pid, p.name, p.time))
 		for c in sorted(p.children, key=lambda p: p.pid):
 			pump(c, level+1)
 		
@@ -378,7 +378,7 @@ if __name__ == "__main__":
 		if cnt > max_kids:
 			long_name = name
 			max_kids = cnt
-	print 'Process name with the most instances -', long_name+':',
+	pids = ''
 	for p in sorted(procs.names[long_name], key=lambda p: p.pid):
-		print p.pid,
-	print
+		pids += ' ' + str(p.pid)
+	print('Process name with the most instances - %s%s' % (long_name+':', pids))
