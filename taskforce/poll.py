@@ -279,7 +279,3 @@ class poll(object):
 			for fo in wfos:
 				evlist.append((fo, POLLOUT))
 			return evlist
-
-if __name__ == '__main__':
-	print "Use nosetests for testing"
-	sys.exit(0)
