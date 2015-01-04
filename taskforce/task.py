@@ -18,13 +18,13 @@
 #
 
 import sys, os, fcntl, pwd, grp, signal, errno, time, socket, select, yaml, re
-import utils
-from utils import ses, deltafmt, statusfmt
-from utils import get_caller as my
-import poll
-import watch_files
-import watch_modules
 import logging
+from . import utils
+from .utils import ses, deltafmt, statusfmt
+from .utils import get_caller as my
+from . import poll
+from . import watch_files
+from . import watch_modules
 
 #  The seconds before a SIGTERM sent to a task is
 #  escalated to a SIGKILL.
@@ -2045,46 +2045,3 @@ Params are:
 			return False
 		log.debug("%s managing '%s'", my(self), self._name)
 		return self._start()
-
-if __name__ == "__main__":
-	import argparse
-
-	def_roles_file = 'tf_roles.conf'
-	def_config_file = 'taskforce.conf'
-
-	p = argparse.ArgumentParser(
-		formatter_class=argparse.RawDescriptionHelpFormatter,
-		description=utils.module_description(__name__, __doc__, __file__))
-
-	p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
-	p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Warnings and errors only')
-	p.add_argument('-f', '--config-file', action='store', dest='config_file', default=def_config_file,
-			help='Configuration.  File will be watched for changes.  Default '+def_config_file)
-	p.add_argument('-r', '--roles-file', action='store', dest='roles_file', default=def_roles_file,
-			help='File to load roles from.  File will be watched for changes.  Default '+def_roles_file)
-	p.add_argument('-C', '--check-config', action='store_true', dest='check', help='Check the config and exit')
-
-	args = p.parse_args()
-
-	log = logging.getLogger()
-	log.addHandler(logging.StreamHandler())
-
-	if args.verbose:
-		log.setLevel(logging.DEBUG)
-	elif args.quiet:
-		log.setLevel(logging.WARNING)
-	else:
-		log.setLevel(logging.INFO)
-
-	try:
-		l = legion(log=log)
-		l.set_roles_file(args.roles_file)
-		l.set_config_file(args.config_file)
-		if args.check:
-			log.info("Config file '%s' appears valid", args.config_file)
-			sys.exit(0)
-		l.manage()
-	except Exception as e:
-		log.error('Error -- %s', str(e), exc_info=args.verbose)
-		sys.exit(2)
-	sys.exit(0)

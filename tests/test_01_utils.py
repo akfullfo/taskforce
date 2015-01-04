@@ -18,17 +18,19 @@
 #
 
 import os, sys, time, signal, fcntl, errno
+import support
 import taskforce.utils as utils
 
 class Test(object):
 
 	@classmethod
 	def setUpAll(self, mode=None):
-		pass
+		self.log = support.logger()
+		self.log.info("%s started", self.__module__)
 
 	@classmethod
 	def tearDownAll(self):
-		pass
+		self.log.info("%s ended", self.__module__)
 
 	def Test_A_ses(self):
 		assert "%d thing%s found" % (0, utils.ses(0))					== '0 things found'
@@ -43,15 +45,15 @@ class Test(object):
 		Not all systems support setproctitle()
 	"""
 		new_title = utils.appname() + ' testing mode'
-		print 'New title is:', new_title
+		self.log.info('New title is: %s', new_title)
 		old_title = utils.setproctitle(new_title)
 
 		if old_title == new_title:
-			print "Title unchanged from '%s'" % (old_title,)
+			self.log.info("Title unchanged from '%s'", old_title)
 		elif old_title:
-			print "Title changed from '%s' to '%s'" % (old_title, new_title)
+			self.log.info("Title changed from '%s' to '%s'", old_title, new_title)
 		else:
-			print "Process title change not supported"
+			self.log.info("Process title change not supported")
 
 	def Test_C_versions(self):
 		version_list = ['2', '1.2', '2.1', '1.2.3.4', 'abc', '1.2.3.4c', '1.2.3.14', '1.2.3.3', '1.2.3.4.3']
@@ -82,7 +84,7 @@ class Test(object):
 			('release-1.2.3.4.tgz', 'release-1.2.3.4.tar', 0)	#  trailing non-numbers ignored
 		]
 		for left, right, result in versions:
-			print "Does '%s' cmp '%s' == %d?" % (left, right, result)
+			self.log.info("Does '%s' cmp '%s' == %d?", left, right, result)
 			assert utils.version_cmp(left, right) == result
 
 	def Test_D_pidclaim(self):
@@ -99,14 +101,14 @@ class Test(object):
 			os.execlp('tests/scripts/pidclaim', 'pidclaim', pidfile)
 		else:
 			time.sleep(1)
-			print "Child PID is:", pid
+			self.log.info("Child PID is: %d", pid)
 			with open(pidfile, 'r') as f:
 				claim_pid = int(f.readline().strip())
-				print "PID read back as:", claim_pid
+				self.log.info("PID read back as: %d", claim_pid)
 			assert claim_pid == pid
 			(wpid, status) = os.wait()
-			print "Child ran", utils.deltafmt(time.time() - start, decimals=3)
-			print "Child", utils.statusfmt(status)
+			self.log.info("Child ran %s", utils.deltafmt(time.time() - start, decimals=3))
+			self.log.info("Child %s", utils.statusfmt(status))
 			assert status == 0
 			assert not os.path.exists(pidfile)
 
@@ -120,7 +122,7 @@ class Test(object):
 		for name, number, canon in sig_list:
 			num = utils.signum(name)
 			nam = utils.signame(num)
-			print "Checking %s => %d => %s" % (name, num, nam)
+			self.log.info("Checking %s => %d => %s", name, num, nam)
 			assert num == number
 			assert nam == canon
 
@@ -130,25 +132,25 @@ class Test(object):
 			try:
 				fcntl.fcntl(fd, fcntl.F_GETFD)
 				isopen.add(fd)
-			except Exception as e:
-				if e[0] != errno.EBADF:
+			except OSError as e:
+				if e.errno != errno.EBADF:
 					raise e
 		return isopen
 
 	def Test_E_closeall(self):
 		maxfd = utils.sys_maxfd()
-		print "System MAX fd =", maxfd
+		self.log.info("System MAX fd = %d", maxfd)
 		assert maxfd > 20
 		start_fds = self.now_open(maxfd)
-		print "Pretest open fds:", start_fds
+		self.log.info("Pretest open fds: %s", start_fds)
 		rd = os.open('/dev/null', os.O_RDONLY)
 		wd = os.open('/dev/null', os.O_WRONLY)
 		open_fds = set(start_fds)
 		open_fds.add(rd)
 		open_fds.add(wd)
-		print "Test open fds:", open_fds
+		self.log.info("Test open fds: %s", open_fds)
 		assert open_fds == self.now_open(maxfd)
 		utils.closeall(exclude=list(start_fds))
 		post_fds = self.now_open(maxfd)
-		print "Post test open fds:", post_fds
+		self.log.info("Post test open fds: %s", post_fds)
 		assert post_fds == start_fds

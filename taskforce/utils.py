@@ -437,7 +437,7 @@ def closeall(**params):
 			_pick_fd(exclude_list, excludes)
 
 	#  Find the largest excluded fd
-	exlist = excludes.keys()
+	exlist = list(excludes)
 	if len(exlist) > 0:
 		exlist.sort(reverse=True)
 		last_exc_fd = exlist[0]

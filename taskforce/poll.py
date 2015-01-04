@@ -79,7 +79,7 @@ class poll(object):
 	def __init__(self):
 		self._mode_map = dict((val, nam) for nam, val in globals().items() if nam.startswith('PL_'))
 		self._poll_map = dict((val, nam) for nam, val in globals().items() if nam.startswith('POLL'))
-		self._poll_keys = self._poll_map.keys()
+		self._poll_keys = list(self._poll_map)
 		self._poll_keys.sort()
 		self._available_modes = set()
 		self._has_registered = False
@@ -127,7 +127,7 @@ class poll(object):
 
 	def get_available_mode_names(self):
 		names = []
-		modes = self._mode_map.keys()
+		modes = list(self._mode_map)
 		modes.sort()
 		for mode in modes:
 			if mode in self._available_modes:
@@ -144,13 +144,21 @@ class poll(object):
 		return s
 
 	def register(self, fo, eventmask=POLLIN|POLLOUT):
-		if isinstance(fo, (int, long)):
-			fd = fo
-		elif hasattr(fo, 'fileno') and callable(fo.fileno):
-			fd = fo.fileno()
-		else:
-			raise Error("File object '%s' is neither 'int' nor object with fileno() method" % (str(fo),))
-		if not isinstance(fd, (int, long)):
+		fd = None
+		try:
+			#  This tests that the fd is an int type
+			#  In python2, this will also coerce a long
+			#  to an int.
+			#
+			fd = int(fo)
+		except:
+			pass
+		if fd is None:
+			if hasattr(fo, 'fileno') and callable(fo.fileno):
+				fd = fo.fileno()
+			else:
+				raise Error("File object '%s' is neither 'int' nor object with fileno() method" % (str(fo),))
+		if not isinstance(fd, int):
 			raise Error("File object '%s' fileno() method did not return an 'int'" % (str(fo),))
 		if not self._has_registered:
 			if self._mode == PL_KQUEUE:
@@ -195,12 +203,16 @@ class poll(object):
 			self.register(fo, eventmask)
 
 	def unregister(self, fo):
-		if isinstance(fo, (int, long)):
-			fd = fo
-		elif hasattr(fo, 'fileno') and callable(fo.fileno):
-			fd = fo.fileno()
-		else:
-			raise Error("File object '%s' is neither 'int' nor object with fileno() method" % (str(fo),))
+		fd = None
+		try:
+			fd = int(fo)
+		except:
+			pass
+		if fd is None:
+			if hasattr(fo, 'fileno') and callable(fo.fileno):
+				fd = fo.fileno()
+			else:
+				raise Error("File object '%s' is neither 'int' nor object with fileno() method" % (str(fo),))
 		if fd in self._fd_map:
 			del self._fd_map[fd]
 		if self._mode == PL_KQUEUE:

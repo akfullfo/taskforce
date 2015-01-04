@@ -201,7 +201,7 @@ class watch(object):
 		#  definitely need the destructor here.
 		#
 		if close_fds:
-			for fd in self.fds_open.keys():
+			for fd in list(self.fds_open):
 				try: os.close(fd)
 				except: pass
 				del self.fds_open[fd]
@@ -442,7 +442,7 @@ class watch(object):
 		#
 		removed = 0
 		added = 0
-		for path in self.paths_open.keys():
+		for path in list(self.paths_open):
 			if path not in self.paths:
 				fd = self.paths_open[path]
 				if self._mode == WF_KQUEUE:
@@ -625,7 +625,7 @@ class watch(object):
 					self.last_changes[path] = now
 		else:
 			raise Exception("Unsupported polling mode " + self.get_mode_name())
-		paths = self.last_changes.keys()
+		paths = list(self.last_changes)
 		paths.sort()
 		log.debug("%s Change was to %d path%s", my(self), len(paths), ses(len(paths)))
 		return paths
