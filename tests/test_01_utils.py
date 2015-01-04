@@ -132,7 +132,7 @@ class Test(object):
 			try:
 				fcntl.fcntl(fd, fcntl.F_GETFD)
 				isopen.add(fd)
-			except OSError as e:
+			except (OSError, IOError) as e:
 				if e.errno != errno.EBADF:
 					raise e
 		return isopen
