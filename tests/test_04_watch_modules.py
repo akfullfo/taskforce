@@ -42,7 +42,7 @@ class Test(object):
 
 		self.log.info("%d files open before watch started", self.start_fds)
 		if not os.path.isdir(working_dir):
-			os.mkdir(working_dir, 0777)
+			os.mkdir(working_dir, 0x1FF)
 		self.module_list = []
 		self.file_list = []
 		self.change_target = None

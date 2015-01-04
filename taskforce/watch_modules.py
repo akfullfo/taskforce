@@ -233,7 +233,7 @@ class watch(object):
 			log.debug("%s Command '%s' added for '%s'", my(self), command, name)
 			self.modules[command] = [name]
 			rebuild = True
-		for modname, mod in finder.modules.iteritems():
+		for modname, mod in list(finder.modules.items()):
 			path = mod.__file__
 			if not path:
 				log.debug("%s Skipping module '%s' -- no __file__ in module", my(self), modname)
