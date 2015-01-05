@@ -654,7 +654,7 @@ Params are:
 		if sig == signal.SIGCHLD:
 			log.debug("%s Received SIGCHLD", my(self))
 			try:
-				os.write(self._wakeup, '*')
+				os.write(self._wakeup, '*'.encode('utf-8')
 			except Exception as e:
 				log.error("%s Write to self-pipe failed -- %s", my(self), str(e))
 			return

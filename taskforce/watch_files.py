@@ -307,7 +307,7 @@ class watch(object):
 		Trigger activity for the caller by writting a NUL to the self-pipe.
 	"""
 		try:
-			os.write(self._poll_send, '\0')
+			os.write(self._poll_send, '\0'.encode('utf-8'))
 		except Exception as e:
 			log = self._getparam('log', self._discard)
 			log.debug("%s Ignoring self-pipe write error -- %s", my(self), str(e))
