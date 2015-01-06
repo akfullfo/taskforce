@@ -56,8 +56,10 @@ class Test(object):
 		self.log.info("%s ended", self.__module__)
 
 	def Test_A_add(self):
+		global default_mode
 		snoop = watch_files.watch(log=self.log, timeout=0.1, limit=3)
-		self.log.info("Watching in %s mode", snoop.get_mode_name())
+		default_mode = snoop.get_mode()
+		self.log.info("Watching in %s mode", snoop.get_mode_name(default_mode))
 		snoop.add(self.file_list)
 
 		self.log.info("%d files open watching %d paths with watch started",
@@ -75,14 +77,36 @@ class Test(object):
 		assert len(self.file_list) > 1
 		snoop.remove(self.file_list[1])
 		remove_fds = len(support.find_open_fds())
-		self.log.info("%d files open after remove", remove_fds)
 		if snoop.get_mode() == watch_files.WF_INOTIFYX:
 			#  inotify doesn't need open files for watches
+			self.log.info("%d files open after remove, %d expected", remove_fds, added_fds)
 			assert remove_fds == added_fds
 		else:
+			self.log.info("%d files open after remove, %d expected", remove_fds, added_fds - 1)
 			assert remove_fds == added_fds - 1
 
-	def Test_D_missing(self):
+	def Test_D_remove_polling(self):
+		global default_mode
+		if default_mode == watch_files.WF_POLLING:
+			self.log.info("Skipping remove test in polling mode, already tested as default")
+			return
+		snoop = watch_files.watch(polling=True, log=self.log, timeout=0.1, limit=3)
+		self.log.info("Default mode %s (%s), running remove test in polling mode",
+							str(default_mode), snoop.get_mode_name(default_mode))
+		snoop.add(self.file_list)
+		added_fds = len(support.find_open_fds())
+		assert len(self.file_list) > 1
+		snoop.remove(self.file_list[1])
+		remove_fds = len(support.find_open_fds())
+		if snoop.get_mode() == watch_files.WF_INOTIFYX:
+			#  inotify doesn't need open files for watches
+			self.log.info("%d files open after remove, %d expected", remove_fds, added_fds)
+			assert remove_fds == added_fds
+		else:
+			self.log.info("%d files open after remove, %d expected", remove_fds, added_fds - 1)
+			assert remove_fds == added_fds - 1
+
+	def Test_E_missing(self):
 		snoop = watch_files.watch(log=self.log, timeout=0.1, limit=3)
 		log_level = self.log.getEffectiveLevel()
 		try:
@@ -98,7 +122,7 @@ class Test(object):
 			added = False
 		assert not added
 
-	def Test_E_watch(self):
+	def Test_F_watch(self):
 		snoop = watch_files.watch(log=self.log, timeout=0.1, limit=3)
 		snoop.add(self.file_list)
 		self.log.info("%d files open watching %d paths with watch started",
@@ -137,7 +161,7 @@ class Test(object):
 		self.log.info("%d files open after watch: %s", len(del_fds), str(del_fds))
 		self.log.info("paths known to watcher: %s", str(fds_open))
 
-	def Test_F_cleanup_test(self):
+	def Test_G_cleanup_test(self):
 		del_fds = len(support.find_open_fds())
-		self.log.info("%d files open after object delete", del_fds)
+		self.log.info("%d files open after object delete, %d expected", del_fds, self.start_fds)
 		assert del_fds == self.start_fds

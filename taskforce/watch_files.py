@@ -461,6 +461,10 @@ class watch(object):
 						del self._poll_stat[fd]
 					else:
 						log.warning("%s fd watched path '%s' missing from _poll_stat map", my(self), path)
+					try:
+						os.close(fd)
+					except Exception as e:
+						log.warning("%s close failed on watched file '%s' -- %s", my(self), path, str(e))
 				if fd in self.fds_open:
 					del self.fds_open[fd]
 				else:
