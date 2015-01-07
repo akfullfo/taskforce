@@ -482,7 +482,7 @@ class watch(object):
 		failed = []
 		last_exc = None
 		log.debug("%s %d watched path%s", my(self), len(self.paths), ses(len(self.paths)))
-		for path in self.paths.keys():
+		for path in list(self.paths):
 			if path not in self.paths_open:
 				try:
 					if not self._add_file(path, **params):
@@ -622,7 +622,7 @@ class watch(object):
 			for path in self._poll_pending:
 				self.last_changes[path] = self._poll_pending[path]
 			self._poll_pending = {}
-			for fd in self._poll_stat.keys():
+			for fd in list(self._poll_stat):
 				path = self.fds_open[fd]
 				fstate = self._poll_get_stat(fd, path)
 				if fstate is None:
@@ -733,7 +733,7 @@ class watch(object):
 				return
 		if self._mode == WF_POLLING:
 			log.debug("%s Checking %d open path%s", my(self), len(self._poll_stat), ses(len(self._poll_stat)))
-			for fd in self._poll_stat.keys():
+			for fd in list(self._poll_stat):
 				fstate = self._poll_get_stat(fd, self.fds_open[fd])
 				if fstate is None or self._poll_stat[fd] != fstate:
 					self._poll_trigger()

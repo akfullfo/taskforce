@@ -1130,7 +1130,9 @@ Params are:
 							self._load_config()
 							self._reload_config = None
 						except Exception as e:
-							log.error("%s Config load sequence failed -- %s", my(self), str(e))
+
+							log.error("%s Config load sequence failed -- %s",
+											my(self), str(e), exc_info=True)
 
 					#  Housekeeping
 					#
@@ -1662,7 +1664,7 @@ Params are:
 		if self._context != new_context:
 			if log.isEnabledFor(logging.DEBUG):
 				log.debug("%s Task '%s' change - context change", my(self), self._name)
-				for tag in list(set(self._context.keys() + new_context.keys())):
+				for tag in set(list(self._context) + list(new_context)):
 					o = self._context.get(tag)
 					n = new_context.get(tag)
 					if o != n:
