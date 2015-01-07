@@ -22,6 +22,7 @@ import modulefinder
 from . import watch_files
 from . import utils
 from .utils import get_caller as my
+from .utils import ses
 
 class watch(object):
 	"""
@@ -132,7 +133,7 @@ class watch(object):
 			else:
 				log.warning("%s Path '%s' had no matching watch entry", my(self), path)
 		names = list(changes)
-		log.debug("%s Change was to %d name%s", my(self), len(names), '' if len(names) == 1 else 's')
+		log.debug("%s Change was to %d name%s", my(self), len(names), ses(len(names)))
 		names.sort()
 		resp = []
 		for name in names:
