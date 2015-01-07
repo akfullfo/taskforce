@@ -131,7 +131,7 @@ class watch(object):
 						changes[name] = [path]
 			else:
 				log.warning("%s Path '%s' had no matching watch entry", my(self), path)
-		names = changes.keys()
+		names = list(changes)
 		log.debug("%s Change was to %d name%s", my(self), len(names), '' if len(names) == 1 else 's')
 		names.sort()
 		resp = []
