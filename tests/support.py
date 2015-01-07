@@ -194,7 +194,7 @@ class taskforce(object):
 			raise e
 		if self.proc.poll() is not None: return ''
 
-	def search(self, regex, limit=45, iolimit=30, log=None):
+	def search(self, regex, limit=45, iolimit=15, log=None):
 		"""
 		Search for the regular expression which must be
 		created with re.compile().  Returns True if found,
