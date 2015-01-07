@@ -1649,7 +1649,7 @@ Params are:
 		if self._config_running is None:
 			log.debug("%s Task '%s' change - no previous config", my(self), self._name)
 			return True
-		for elem in list(set(self._config_running.keys() + self._config_pending.keys())):
+		for elem in set(list(self._config_running) + list(self._config_pending)):
 			#  Ignore these elements as they don't affect the operation of a process
 			#  that is already running
 			#
