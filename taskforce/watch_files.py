@@ -175,6 +175,9 @@ class watch(object):
 			self._poll_pending = {}
 
 	def __del__(self):
+		self.close()
+
+	def close(self):
 		close_fds = True
 		if self._mode == WF_KQUEUE and self._kq:
 			#  The is actually auto-closed, so this bit is not
