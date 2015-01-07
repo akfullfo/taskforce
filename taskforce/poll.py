@@ -54,11 +54,11 @@ class poll(object):
 	There are a few differences to the select.poll() interface:
 
 	1.  poll.Error exceptions are raised by this module to distinguish them from
-	    the underlying select.* object exceptions.  As a special case, the
-	    select.error exception for EINTR is reraised as OSError(errno=EINTR)
-	    so callers do not have to catch the multple inconsistent forms.  Other
-	    than this case, no special attempt is made to make exceptions consistent
-	    across the underlying services.
+	    the underlying select.* object exceptions.	As a special case, the any
+	    exceptions for EINTR are reraised as OSError(errno=EINTR) so callers do
+	    not have to catch the multple inconsistent forms and the python2/python3
+	    variations.  Other than this case, no special attempt is made to make
+	    exceptions consistent across the underlying services.
 
 	2.  The events that are available across all modes are POLLIN and POLLOUT.
 	    POLLPRI is not available with PL_KQUEUE so if you actually need this,
