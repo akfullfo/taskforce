@@ -81,6 +81,43 @@ def find_open_fds():
 			pass
 	return fds
 
+def known_fds(fwatch, log=None, exclude=set()):
+	"""
+	Build text describing the open file descriptors associated
+	with a watch_files object.  This attempts to include all
+	files expected to be open, and if possible reports infomation
+	about any unknown fds.  You can set an exclude-set for fds
+	you know are ok.  Unknown reporting will only work on Linux
+	as it depends on the structure of the /proc file system.
+"""
+	fds_open = find_open_fds()
+	fds_info = {}
+	for fd in fds_open:
+		try:
+			fds_info[fd] = os.readlink('/proc/self/fd/'+str(fd))
+		except Exception as e:
+			if log: log.debug("Could not read fd %d info, probably not Linux -- %s", fd, str(e))
+	fds_known = fwatch.fds_open.copy()
+	fds_known[fwatch.fileno()] = '*control*'
+	if 0 not in fds_known: fds_known[0] = '*stdin*'
+	if 1 not in fds_known: fds_known[1] = '*stdout*'
+	if 2 not in fds_known: fds_known[2] = '*stderr*'
+	mode = fwatch.get_mode()
+	if mode == 0:
+		if fwatch._poll_send not in fds_known: fds_known[fwatch._poll_send] = '*poll_write*'
+
+	for fd in fds_open:
+		if fd not in fds_known and fd in fds_info:
+			if fds_info[fd].endswith('/urandom') or fds_info[fd].endswith('/random'):
+				fds_known[fd] = '*randev*'
+			elif fd not in exclude:
+				if log: log.info("Unknown fd %d: %s", fd, fds_info[fd])
+
+	text = '%d fds: ' % (len(fds_known),)
+	for fd in sorted(fds_known):
+		text += ' %d<%s>' % (fd, fds_known[fd])
+	return text
+
 class taskforce(object):
 	"""
 	Start a taskforce process via subproccess().  taskforce is started with

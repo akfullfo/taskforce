@@ -17,7 +17,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, logging, errno, time
+import os, sys, logging, errno, time, gc
 import taskforce.poll as poll
 import taskforce.utils as utils
 import taskforce.watch_files as watch_files
@@ -53,36 +53,14 @@ class Test(object):
 			except: pass
 		if os.path.isdir(working_dir):
 			os.rmdir(working_dir)
+
+		#  Make sure all objects are freed which closes file descriptors.
+		#  In python3 there seems to be a race condition between delayed
+		#  garbage colletion and "nose" doing post-test cleanup.
+		#
+		gc.collect()
+
 		self.log.info("%s ended", self.__module__)
-
-	def known_fds(self, snoop):
-		fds_open = support.find_open_fds()
-		fds_info = {}
-		for fd in fds_open:
-			try:
-				fds_info[fd] = os.readlink('/proc/self/fd/'+str(fd))
-			except Exception as e:
-				self.log.debug("Could not read fd %d info, probably not Linux -- %s", fd, str(e))
-		fds_known = snoop.fds_open.copy()
-		fds_known[snoop.fileno()] = '*control*'
-		if 0 not in fds_known: fds_known[0] = '*stdin*'
-		if 1 not in fds_known: fds_known[1] = '*stdout*'
-		if 2 not in fds_known: fds_known[2] = '*stderr*'
-		mode = snoop.get_mode()
-		if mode == watch_files.WF_POLLING:
-			if snoop._poll_send not in fds_known: fds_known[snoop._poll_send] = '*poll_write*'
-
-		for fd in fds_open:
-			if fd not in fds_known and fd in fds_info:
-				if fds_info[fd].endswith('/urandom') or fds_info[fd].endswith('/random'):
-					fds_known[fd] = '*randev*'
-				else:
-					self.log.info("Unknown fd %d: %s", fd, fds_info[fd])
-
-		text = '%d fds: ' % (len(fds_known),)
-		for fd in sorted(fds_known):
-			text += ' %d<%s>' % (fd, fds_known[fd])
-		return text
 
 	def Test_A_add(self):
 		global default_mode
@@ -93,7 +71,7 @@ class Test(object):
 
 		open_fds = support.find_open_fds()
 		self.log.info("%d files open watching %d paths with watch started", len(open_fds), len(snoop.paths_open))
-		self.log.debug("mapping after add: %s", self.known_fds(snoop))
+		self.log.debug("mapping after add: %s", support.known_fds(snoop, log=self.log))
 
 	def Test_B_autodel(self):
 		del_fds = len(support.find_open_fds())
@@ -150,8 +128,13 @@ class Test(object):
 			self.log.setLevel(log_level)
 			self.log.info("Received missing exception ok -- %s", str(e))
 			added = False
-		self.log.debug("paths after missing: %s", self.known_fds(snoop))
-		snoop.close()		# Force fds closed.  GC doesn't happen until later when exc is raised in python3
+		self.log.debug("paths after missing: %s", support.known_fds(snoop, log=self.log))
+
+		# Force garbage collection.  Otherwise in python3, the object cleanup may be delayed
+		# until after all tests have run, which upsets the file descriptor accounting.
+		#
+		gc.collect()
+
 		assert not added
 
 	def Test_F_watch(self):
@@ -189,7 +172,7 @@ class Test(object):
 			break
 		del_fds = support.find_open_fds()
 		self.log.info("%d files open after watch: %s", len(del_fds), str(del_fds))
-		self.log.debug("paths known to watcher: %s", self.known_fds(snoop))
+		self.log.debug("paths known to watcher: %s", support.known_fds(snoop, log=self.log))
 
 	def Test_G_cleanup_test(self):
 		del_fds = len(support.find_open_fds())

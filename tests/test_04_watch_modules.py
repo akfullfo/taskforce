@@ -17,7 +17,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, logging, errno, time
+import os, sys, logging, errno, time, gc
 import taskforce.poll as poll
 import taskforce.utils as utils
 import taskforce.watch_modules as watch_modules
@@ -70,6 +70,12 @@ class Test(object):
 			except: pass
 		if os.path.isdir(working_dir):
 			os.rmdir(working_dir)
+
+		#  Make sure all objects are freed which closes file descriptors.
+		#  In python3 there seems to be a race condition between delayed
+		#  garbage colletion and "nose" doing post-test cleanup.
+		#
+		gc.collect()
 		self.log.info("%s ended", self.__module__)
 
 	def Test_A_add(self):
@@ -139,11 +145,9 @@ class Test(object):
 				assert path == os.path.realpath(self.test_module)
 			break
 		del pset
-		fds_open = snoop._watch.fds_open.copy()
-		fds_open[snoop.fileno()] = '*control*'
 		del_fds = support.find_open_fds()
 		self.log.info("%d files open after watch: %s", len(del_fds), str(del_fds))
-		self.log.info("paths known to watcher: %s", str(fds_open))
+		self.log.info("paths known to watcher: %s", support.known_fds(snoop._watch, log=self.log))
 
 	def Test_D_autodel(self):
 		del_fds = len(support.find_open_fds())
