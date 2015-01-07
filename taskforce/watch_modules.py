@@ -79,7 +79,7 @@ class watch(object):
 		rebuild = False
 		wparams = params.copy()
 		wparams['commit'] = False
-		for path in self._watch.paths_open.keys():
+		for path in list(self._watch.paths_open):
 			if path in self.modules:
 				continue
 			try:
@@ -91,7 +91,7 @@ class watch(object):
 
 		#  Find all the modules that are new and should be watched
 		#
-		for path in self.modules.keys():
+		for path in list(self.modules):
 			if path not in self._watch.paths_open:
 				try:
 					self._watch.add(path, **wparams)
@@ -266,7 +266,7 @@ class watch(object):
 			raise Exception("Command '%s' has never been added" % (name,))
 		del self.names[name]
 		rebuild = False
-		for path in self.modules.keys():
+		for path in list(self.modules):
 			if name in self.modules[path]:
 				self.modules[path].remove(name)
 			if len(self.modules[path]) == 0:
