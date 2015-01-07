@@ -236,9 +236,16 @@ class poll(object):
 			evlist = []
 			try:
 				kelist = self._kq.control(None, 1024, timeout)
-			except (select.error, OSError, IOError) as e:
-				if e[0] == errno.EINTR:
+			except select.error as e:
+				if hasattr(e, 'errno') and e.errno == errno.EINTR:
+					raise OSError(e.errno, e.strerror)
+				elif 0 in e and e[0] == errno.EINTR:
 					raise OSError(e[0], e[1])
+				else:
+					raise e
+			except Exception as e:
+				if hasattr(e, 'errno') and e.errno == errno.EINTR:
+					raise OSError(e.errno, e.strerror)
 				else:
 					raise e
 			if not kelist:
@@ -258,9 +265,16 @@ class poll(object):
 			evlist = []
 			try:
 				pllist = self._poll.poll(timeout)
-			except (select.error, OSError, IOError) as e:
-				if e[0] == errno.EINTR:
+			except select.error as e:
+				if hasattr(e, 'errno') and e.errno == errno.EINTR:
+					raise OSError(e.errno, e.strerror)
+				elif 0 in e and e[0] == errno.EINTR:
 					raise OSError(e[0], e[1])
+				else:
+					raise e
+			except Exception as e:
+				if hasattr(e, 'errno') and e.errno == errno.EINTR:
+					raise OSError(e.errno, e.strerror)
 				else:
 					raise e
 			for pl in pllist:
