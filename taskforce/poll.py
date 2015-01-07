@@ -230,78 +230,65 @@ class poll(object):
 			self._xfos.discard(fo)
 
 	def poll(self, timeout=None):
-		if self._mode == PL_KQUEUE:
-			if timeout is not None:
-				timeout /= 1000.0
-			evlist = []
-			try:
+		try:
+			if self._mode == PL_KQUEUE:
+				if timeout is not None:
+					timeout /= 1000.0
+				evlist = []
 				kelist = self._kq.control(None, 1024, timeout)
-			except select.error as e:
-				if hasattr(e, 'errno') and e.errno == errno.EINTR:
-					raise OSError(e.errno, e.strerror)
-				elif 0 in e and e[0] == errno.EINTR:
-					raise OSError(e[0], e[1])
-				else:
-					raise e
-			except Exception as e:
-				if hasattr(e, 'errno') and e.errno == errno.EINTR:
-					raise OSError(e.errno, e.strerror)
-				else:
-					raise e
-			if not kelist:
+				if not kelist:
+					return evlist
+				for ke in kelist:
+					fd = ke.ident
+					if fd not in self._fd_map:
+						raise Error("Unknown fd '%s' in kevent" % (str(fd),))
+					if ke.filter == select.KQ_FILTER_READ:
+						evlist.append((self._fd_map[fd], POLLIN))
+					elif ke.filter == select.KQ_FILTER_WRITE:
+						evlist.append((self._fd_map[fd], POLLOUT))
+					else:
+						raise Error("Unexpected filter 0x%x from kevent for fd %d" % (ke.filter, fd))
 				return evlist
-			for ke in kelist:
-				fd = ke.ident
-				if fd not in self._fd_map:
-					raise Error("Unknown fd '%s' in kevent" % (str(fd),))
-				if ke.filter == select.KQ_FILTER_READ:
-					evlist.append((self._fd_map[fd], POLLIN))
-				elif ke.filter == select.KQ_FILTER_WRITE:
-					evlist.append((self._fd_map[fd], POLLOUT))
-				else:
-					raise Error("Unexpected filter 0x%x from kevent for fd %d" % (ke.filter, fd))
-			return evlist
-		elif self._mode == PL_POLL:
-			evlist = []
-			try:
+			elif self._mode == PL_POLL:
+				evlist = []
 				pllist = self._poll.poll(timeout)
-			except select.error as e:
-				if hasattr(e, 'errno') and e.errno == errno.EINTR:
-					raise OSError(e.errno, e.strerror)
-				elif 0 in e and e[0] == errno.EINTR:
-					raise OSError(e[0], e[1])
-				else:
-					raise e
-			except Exception as e:
-				if hasattr(e, 'errno') and e.errno == errno.EINTR:
-					raise OSError(e.errno, e.strerror)
-				else:
-					raise e
-			for pl in pllist:
-				(fd, mask) = pl
-				if fd not in self._fd_map:
-					raise Error("Unknown fd '%s' in select.poll()" % (str(fd),))
-				evlist.append((self._fd_map[fd], mask))
-			return evlist
-		elif self._mode == PL_SELECT:
-			if timeout is not None:
-				timeout /= 1000.0
-			try:
+				for pl in pllist:
+					(fd, mask) = pl
+					if fd not in self._fd_map:
+						raise Error("Unknown fd '%s' in select.poll()" % (str(fd),))
+					evlist.append((self._fd_map[fd], mask))
+				return evlist
+			elif self._mode == PL_SELECT:
+				if timeout is not None:
+					timeout /= 1000.0
 				rfos, wfos, xfos = select.select(self._rfos, self._wfos, self._xfos, timeout)
-			except (select.error, OSError, IOError) as e:
-				if e[0] == errno.EINTR:
-					raise OSError(e[0], e[1])
-				else:
-					raise e
 
-			#  select.select() already returns the registered object so no need
-			#  to map through _fd_map.
-			#
-			evlist = []
-			for fo in xfos:
-				evlist.append((fo, POLLPRI))
-			for fo in rfos:
-				evlist.append((fo, POLLIN))
-			for fo in wfos:
-				evlist.append((fo, POLLOUT))
-			return evlist
+				#  select.select() already returns the registered object so no need
+				#  to map through _fd_map.
+				#
+				evlist = []
+				for fo in xfos:
+					evlist.append((fo, POLLPRI))
+				for fo in rfos:
+					evlist.append((fo, POLLIN))
+				for fo in wfos:
+					evlist.append((fo, POLLOUT))
+				return evlist
+		except Exception as e:
+			ecode = None
+			etext = None
+			try:
+				ecode = e.errno
+				etext = e.strerror
+			except:
+				pass
+			if ecode is None:
+				try:
+					ecode = e[0]
+					etext = e[1]
+				except:
+					pass
+			if ecode == errno.EINTR:
+				raise OSError(ecode, etext)
+			else:
+				raise e
