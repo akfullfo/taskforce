@@ -30,7 +30,7 @@ fi
 usage()
 {
 	cat >&2 <<EOT
-Usage: ./$P [-v] [-C] [-x] role [...]
+Usage: ./$P [-v] [-C] [-x] [-2|-3] role [...]
 
        Run the example configuration in the specified role.
        This must be run from within the example directory, ie:
