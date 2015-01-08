@@ -39,8 +39,8 @@ class env(object):
 			os.mkdir(self.temp_dir, 0x1FF)
 
 	def __del__(self):
-		if os.path.isdir(self.temp_dir):
-			os.rmdir(self.temp_dir)
+		try: os.rmdir(self.temp_dir)
+		except: pass
 
 def logger():
 	if logger.log:
@@ -128,12 +128,29 @@ class taskforce(object):
 	The process will be destroyed when the object is removed, or when the
 	close() method is called.
 """
+	python_exec = None
+
 	@classmethod
 	def command_line(self, e, *args, **params):
 		if 'python' in params:
 			python = params['python']
+		elif self.python_exec:
+			python = self.python_exec
 		else:
-			python = 'python'
+			procs = proctree()
+			mypid = os.getpid()
+			if mypid in procs.processes:
+				myproc = procs.processes[mypid]
+				cmd = myproc.command.split(' ')[0]
+				if cmd.find('python') >= 0:
+					self.python_exec = os.path.basename(cmd)
+				else:
+					#  python no mentioned in the command, go with
+					self.python_exec = 'python'
+			else:
+				#  Hmm, that's weird, we'll punt
+				self.python_exec = 'python'
+			python = self.python_exec
 		cmd = [
 			python,
 			os.path.join(e.bin_dir, 'taskforce'),
@@ -396,6 +413,11 @@ class proctree(object):
 				raise Exception("Process %d has non-existant parent %d" % (pid, p.ppid))
 
 if __name__ == "__main__":
+
+	e = env(base='.')
+	print("Command line: %s" % (taskforce.command_line(e),))
+	print("Command line: %s" % (taskforce.command_line(e),))
+
 	procs = proctree()
 	seen = {}
 
