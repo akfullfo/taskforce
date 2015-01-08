@@ -130,7 +130,12 @@ class taskforce(object):
 """
 	@classmethod
 	def command_line(self, e, *args, **params):
+		if 'python' in params:
+			python = params['python']
+		else:
+			python = 'python'
 		cmd = [
+			python,
 			os.path.join(e.bin_dir, 'taskforce'),
 			'--log-stderr',
 			'--config-file', e.config_file,
