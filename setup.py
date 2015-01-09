@@ -19,13 +19,21 @@ def has_developer_tools():
 		if os.path.exists(python_h):
 			ok = True
 	except Exception as e:
-		sys.stderr.write("Warning: Could not determine if python-dev is installed -- " + str(e))
+		sys.stderr.write("Warning: Could not determine if python-dev is installed -- " + str(e) + "\n")
 	return ok
 
 def get_requires(namesonly = False):
 	requires = ['PyYAML>=3.09']
 	if sys.platform.startswith('linux'):
-		if has_developer_tools():
+		if sys.version_info[0] > 2:
+			sys.stderr.write("""
+---------------------------------------------------------------------
+WARNING: The "inotifyx" bindings to inotify(7) do not currently
+	 support Python 3.  "taskforce" will still work, but with
+	 a slightly higher overhead and lower responsiveness.
+---------------------------------------------------------------------
+""")
+		elif has_developer_tools():
 			requires += ['inotifyx>=0.2.2']
 		elif not has_inotifyx():
 			sys.stderr.write("""
@@ -35,7 +43,7 @@ WARNING: The linux implementation will use the "inotifyx" bindings to
 	 inotify(7) if available.  On this system, "inotifyx" is not
 	 already present and the "python-dev" system is not loaded so
 	 "inotifyx" can't be installed.  "taskforce" will still work,
-	 but with a higher overhead and lower responsiveness.
+	 but with a slightly higher overhead and lower responsiveness.
 
 	 If you would like to gain full performance, install the
 	 "python-dev" package which is needed to install "inotifyx",
