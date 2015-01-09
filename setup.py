@@ -91,7 +91,7 @@ It will detect executable and/or module changes and automatically restart the af
 	'include_package_data': True,
 	'platforms': ['Linux', 'BSD', 'Mac OS X'],
 	'classifiers': [
-		'Development Status :: 3 - Alpha',
+		'Development Status :: 4 - Beta',
 		'Environment :: No Input/Output (Daemon)',
 		'Intended Audience :: Developers',
 		'Intended Audience :: System Administrators',
