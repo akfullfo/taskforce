@@ -166,7 +166,7 @@ class taskforce(object):
 
 	def __init__(self, e, *args, **params):
 		cmd = self.command_line(e, *args, **params)
-		with open('/dev/null', 'r') as dev_null:
+		with open(os.devnull, 'r') as dev_null:
 			self.proc = subprocess.Popen(cmd,
 					bufsize=1,
 					stdin=dev_null,
@@ -186,22 +186,24 @@ class taskforce(object):
 		if self.proc is None:
 			if self.log and warn: self.log.warning("taskforce() has already been closed")
 			return
-		if self.proc.returncode is not None:
-			if self.log: self.log.info("taskforce() has already exited 0x%x", self.proc.returncode)
-			return
+		ret = self.proc.poll()
+		if ret is not None:
+			if self.log: self.log.info("taskforce() has already exited %d", ret)
+			return ret
 		self.proc.terminate()
 		start = time.time()
 		for i in range(50):
-			if self.proc.poll() is not None:
-				if self.log: self.log.info("taskforce() successfully terminated after %.1fs", time.time()-start)
+			ret = self.proc.poll()
+			if ret is not None:
+				if self.log: self.log.info("taskforce() terminated %d after %.1fs", ret, time.time()-start)
 				break
 			time.sleep(0.1)
 		if self.proc.returncode is None:
 			if self.log: self.log.info("taskforce() did not terminate, killing")
 			self.proc.kill()
 			self.proc.wait()
+			ret = self.proc.returncode
 			if self.log: self.log.info("taskforce() killed after %.1fs", time.time()-start)
-		ret = self.proc.returncode
 		self.proc = None
 		return ret
 
@@ -209,12 +211,33 @@ class taskforce(object):
 		if self.proc is None:
 			raise Exception("Attempt to follow() a closed process")
 		try:
-			return self.proc.stdout.readline().rstrip()
+			ret = self.proc.stdout.readline()
+			if ret == '':
+				#  In python 3, readline() returns empty when the underlying fd has been
+				#  set to O_NONBLOCK.  In python 2 this throws an EAGAIN exception.
+				#  The python 2 behavior is actually more useful because we can distiguish
+				#  EOF and nothing-available, but this code takes account of both.
+				#  It is no big deal because a real EOF will only happen when the process
+				#  exits, and this code detects that as well.
+				#
+				ecode = self.proc.poll()
+				if ecode is not None:
+					if self.log: self.log.debug("support.follow(): proc exited %d", ecode)
+					return ret
+				else:
+					return None
+			else:
+				return ret
 		except Exception as e:
-			if e[0] == errno.EAGAIN:
+			ecode = None
+			try: ecode = e.errno
+			except: pass
+			if ecode is None:
+				try: ecode = e[0]
+				except: pass
+			if ecode == errno.EAGAIN:
 				return None
 			raise e
-		if self.proc.poll() is not None: return ''
 
 	def search(self, regex, limit=45, iolimit=15, log=None):
 		"""
@@ -238,6 +261,7 @@ class taskforce(object):
 			if l == '':
 				if log: log.debug("support.search() EOF")
 				return None
+			l = l.rstrip()
 			if regex.search(l):
 				if log: log.debug("support.search() found in: %s", l)
 				return True
