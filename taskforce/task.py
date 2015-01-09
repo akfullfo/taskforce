@@ -1269,7 +1269,7 @@ Params are:
 		#  Register with legion
 		self._legion.task_add(self, periodic=self._task_periodic)
 
-	def __del__(self):
+	def close(self):
 		if self._legion:
 			try: self._event_deregister()
 			except: pass
@@ -1794,7 +1794,7 @@ Params are:
 		if self._stopped:
 			if self._dnr:
 				log.info("%s Task %s stopped and will now be deleted", my(self), self._name)
-				self.__del__()
+				self.close()
 				return False
 			elif once:
 				log.debug("%s 'once' task %s exited %s ago",
