@@ -612,7 +612,6 @@ optional arguments:
 
 ### ToDo ###
 * Support the **nowait** and **adopt** controls
-* Extend support for python 3
 * Add a control path
 * Add status access
 * Support logging or other capture of task output
