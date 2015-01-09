@@ -28,7 +28,8 @@ taskforce
 
 
 ### Introduction ###
-Taskforce starts and restarts daemon processes.  It will detect executable and/or module changes and automatically restart the affected processes.  Initially this supports python 2.7 on Unix derivatives.
+Taskforce starts and restarts daemon processes.  It will detect executable and/or module changes and automatically restart the
+affected processes.  This supports python 2.7 and python 3 on Unix derivatives.
 
 Commands to be run are defined in a configuration file in YAML format.  Let's go straight to a quick example:
 

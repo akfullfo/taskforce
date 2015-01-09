@@ -1,7 +1,8 @@
-Initially this supports python 2.7 on Unix derivatives.  It has specific support
-for select.kqueue on MacOS and \*BSD and the inotifyx bindings for Linux inotify.
-If neither of these facilities is available, `taskforce` operates in polling mode
-which adds some latency and processing overhead but is functionally the same.
+This supports python 2.7 and python 3 on Unix derivatives.  It has specific
+support for select.kqueue on MacOS and \*BSD and the inotifyx bindings for
+Linux inotify.  If neither of these facilities is available, `taskforce`
+operates in polling mode which adds some latency and processing overhead but
+is functionally the same.
 
 Commands to be run are defined in a configuration file in YAML format.  Let's go
 straight to a quick example::
