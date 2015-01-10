@@ -428,6 +428,11 @@ class proctree(object):
 			else:
 				self.names[p.name] = [p]
 			p.children = []
+		limit = time.time() + 1
+		while time.time() < limit:
+			if proc.poll() is not None:
+				break
+			time.sleep(0.05)
 		if proc.poll() is None:
 			raise Exception("Command '%s' still running after output consumed", (' '.join(cmd),))
 		for p in self.processes.values():
