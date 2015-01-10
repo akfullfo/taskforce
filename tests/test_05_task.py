@@ -24,6 +24,13 @@ import taskforce.task as task
 
 env = support.env(base='.')
 
+#  These values depend on the examples.conf configuration and will need to be updated
+#  if the configuration is changed to add or remove processes.
+#
+expected_frontback_process_count = 8
+expected_frontend_process_count = 7
+expected_backend_process_count = 3
+
 class Test(object):
 
 	@classmethod
@@ -73,6 +80,15 @@ class Test(object):
 			if tag in os.environ:
 				del(os.environ[tag])
 		
+	def find_children(self, tf, roles=None):
+		kids = support.proctree().processes[tf.pid].children
+		self.log.info("Processes for %s: %d", roles, len(kids))
+		k = 0
+		for kid in kids:
+			k += 1
+			self.log.debug("    %2d %s", k, kid.command)
+		return k
+
 	def set_roles(self, roles):
 		if not type(roles) is list:
 			roles = [roles]
@@ -107,23 +123,38 @@ class Test(object):
 		self.log.info("Will run: %s", ' '.join(support.taskforce.command_line(env)))
 		tf = support.taskforce(env, log=self.log)
 
-		self.log.info("Checking startup of %s roles", env.test_roles)
+		stable = re.compile(r'timeout is now 5')
+		is_stable = False
+
+		new_roles = env.test_roles
+		self.log.info("Checking startup of %s roles", new_roles)
 		db_started = tf.search(re.compile(r'Execing: db_server'), log=self.log)
-		assert db_started
+		if db_started:
+			is_stable = tf.search(stable, log=self.log)
+		assert db_started and is_stable
+		kids = len(support.proctree().processes[tf.pid].children) 
+		assert self.find_children(tf, roles=new_roles) == expected_frontback_process_count
 		self.log.info("Startup ok")
 
 		new_roles = env.test_roles[0]
 		self.log.info("Switching to role %s", new_roles)
 		self.set_roles(new_roles)
 		db_stopped = tf.search(re.compile(r"event_target.proc_exit.*task 'db_server'"), log=self.log)
-		assert db_stopped
-		self.log.info("Switch to %s ok", new_roles)
+		if db_stopped:
+			is_stable = tf.search(stable, log=self.log)
+		assert db_stopped and is_stable
+		assert self.find_children(tf, roles=new_roles) == expected_frontend_process_count
+		self.log.info("Switch to %s ok, pid to check is %d", new_roles, tf.pid)
 
 		new_roles = env.test_roles[1]
 		self.log.info("Switching to role %s", new_roles)
 		self.set_roles(new_roles)
 		db_restarted = tf.search(re.compile(r'Execing: db_server'), log=self.log)
-		assert db_restarted
-		self.log.info("Switch to %s ok", new_roles)
+		if db_restarted:
+			is_stable = tf.search(stable, log=self.log)
+		assert db_restarted and is_stable
+		tf.search(re.compile(r'httpd task marked started'), log=self.log)
+		assert self.find_children(tf, roles=new_roles) == expected_backend_process_count
+		self.log.info("Switch to %s ok, pid to check is %d", new_roles, tf.pid)
 
 		tf.close()
