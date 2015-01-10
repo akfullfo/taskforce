@@ -175,6 +175,7 @@ class taskforce(object):
 					close_fds=True,
 					cwd=e.working_dir,
 					universal_newlines=True)
+		self.pid = self.proc.pid
 		fl = fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_GETFL)
 		fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
 		self.log = params.get('log')
