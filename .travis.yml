@@ -7,7 +7,7 @@ os:
   - linux
   - osx
 env:
-  - NOSE_LOG_LEVEL=warning
+  - NOSE_LOG_LEVEL=debug
 install:
   - python setup.py install
 script:
