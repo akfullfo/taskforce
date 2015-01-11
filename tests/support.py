@@ -243,7 +243,7 @@ class taskforce(object):
 				return None
 			raise e
 
-	def search(self, regex, limit=45, iolimit=15, log=None):
+	def search(self, regex_list, limit=45, iolimit=15, log=None):
 		"""
 		Search for the regular expression which must be
 		created with re.compile().  Returns True if found,
@@ -253,6 +253,11 @@ class taskforce(object):
 		start = time.time()
 		proc_limit = start + limit
 		line_limit = start + iolimit
+		if not type(regex_list) is list:
+			regex_list = [regex_list]
+		need_regex = {}
+		for regex in regex_list:
+			need_regex[regex] = re.compile(regex)
 		while time.time() < proc_limit:
 			now = time.time()
 			l = self.follow()
@@ -266,10 +271,16 @@ class taskforce(object):
 				if log: log.debug("support.search() EOF")
 				return None
 			l = l.rstrip()
-			if regex.search(l):
-				if log: log.debug("support.search() found in: %s", l)
+			found = False
+			for regex in list(need_regex):
+				if need_regex[regex].search(l):
+					if log: log.debug("support.search(%s) found in: %s", regex, l)
+					found = True
+					del need_regex[regex]
+					break
+			if not found and log: log.debug("support.search() no match: %s", l)
+			if len(need_regex) == 0:
 				return True
-			if log: log.debug("support.search() no match: %s", l)
 			line_limit = now + iolimit
 		if log: log.debug("support.search() search timeout")
 		return False
