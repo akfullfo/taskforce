@@ -69,10 +69,9 @@ class Test(object):
 
 	def check_procsim_errors(self):
 		try:
-			run_dir = os.path.join(env.examples_dir, 'var', 'run')
 			err_files = []
-			for fname in os.listdir(run_dir):
-				path = os.path.join(run_dir, fname)
+			for fname in os.listdir(env.examples_run):
+				path = os.path.join(env.examples_run, fname)
 				if os.path.isfile(path) and path.endswith('.err'):
 					err_files.append(path)
 		except Exception as e:

@@ -29,14 +29,17 @@ class env(object):
 		self.bin_dir = os.path.join(self.base_dir, "bin")
 		self.test_dir = os.path.join(self.base_dir, "tests")
 		self.temp_dir = os.path.join(self.test_dir, "tmp")
-		self.examples_dir = os.path.realpath("examples")
+		self.examples_dir =  os.path.join(self.base_dir, "examples")
+		self.examples_run = os.path.join(self.examples_dir, 'var', 'run')
 		self.working_dir = self.examples_dir
 		self.examples_bin = os.path.join(self.examples_dir, "bin")
 		self.config_file = os.path.join(self.examples_dir, "example.conf")
 		self.roles_file = os.path.join(self.temp_dir, 'test.roles')
 		self.test_roles = ['frontend', 'backend']
+		if not os.path.isdir(self.examples_run):
+			os.makedirs(self.examples_run)
 		if not os.path.isdir(self.temp_dir):
-			os.mkdir(self.temp_dir, 0x1FF)
+			os.makedirs(self.temp_dir)
 
 	def __del__(self):
 		try: os.rmdir(self.temp_dir)
