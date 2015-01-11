@@ -94,7 +94,7 @@ class Test(object):
 					self.log.warning("%s teardown error on err file '%s' -- %s", self.__module__, path, str(e))
 		else:
 			self.log.info("No err files found")
-		#assert err_file_cnt == 0
+		assert err_file_cnt == 0
 
 	def set_path(self, tag, val):
 		if tag in self.startenv:
