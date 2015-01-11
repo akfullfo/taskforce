@@ -243,7 +243,7 @@ class taskforce(object):
 				return None
 			raise e
 
-	def search(self, regex_list, limit=45, iolimit=15, log=None):
+	def search(self, regex_list, limit=60, iolimit=20, log=None):
 		"""
 		Search for the regular expression which must be
 		created with re.compile().  Returns True if found,
