@@ -9,18 +9,36 @@ try:
 except:
 	has_setproctitle = False
 
+def final(code, fmt=None, *fargs):
+	global pidfile, procname
+
+	if code < 10:
+		sys.exit(code)
+	msg = fmt.rstrip() % fargs
+	if 'NOSE_LOG_LEVEL' not in os.environ or not pidfile:
+		sys.stderr.write(msg + '\n')
+		sys.exit(code)
+	try:
+		outfile = re.sub(r'\.pid', '', pidfile) + '.err'
+		stamp = time.strftime('%Y.%m.%d-%H:%M:%S ')
+		with open(outfile, 'a') as f:
+			f.write(stamp + msg + '\n')
+	except:
+		sys.stderr.write(msg + '\n')
+	sys.exit(code)
+
 def catch(sig, frame):
 	if sig == signal.SIGTERM:
-		sys.exit(0)
+		final(0)
 	elif sig == signal.SIGHUP:
 		#  Represents a reconfiguation
 		return
 	elif sig == signal.SIGUSR1:
-		sys.exit(1)
+		final(1)
 	elif sig == signal.SIGUSR2:
-		sys.exit(2)
+		final(2)
 	else:
-		sys.exit(86)
+		final(86, 'Unknown signal %s', str(sig))
 
 def daemonize(**params):
 	if os.fork() != 0:
@@ -116,8 +134,7 @@ if pidfile is not None:
 	try:
 		utils.pidclaim(pidfile)
 	except Exception as e:
-		sys.stderr.write('Fatal error -- ' + str(e))
-		sys.exit(85)
+		final(85, "Error claiming pidfile '%s' -- %s", pidfile, str(e))
 
 started = time.time()
 if sleep_period is None:
@@ -131,7 +148,7 @@ else:
 	while True:
 		now = time.time()
 		if now >= toolong:
-			sys.exit(0)
+			final(0)
 		if has_setproctitle:
 			setproctitle("%s %.1f of %.1f secs" % (procname, now-started, sleep_period))
 		time.sleep(0.2)
