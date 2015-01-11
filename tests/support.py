@@ -144,7 +144,7 @@ class taskforce(object):
 			mypid = os.getpid()
 			if mypid in procs.processes:
 				myproc = procs.processes[mypid]
-				cmd = myproc.command.split(' ')[0]
+				cmd = myproc.command.split(' ')[0].rstrip(':')
 				if cmd.find('python') >= 0:
 					self.python_exec = os.path.basename(cmd)
 				else:
