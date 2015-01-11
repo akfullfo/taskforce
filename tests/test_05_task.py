@@ -67,6 +67,36 @@ class Test(object):
 		self.reset_env()
 		os.chdir(env.base_dir)
 
+	def check_procsim_errors(self):
+		try:
+			run_dir = os.path.join(env.examples_dir, 'var', 'run')
+			err_files = []
+			for fname in os.listdir(run_dir):
+				path = os.path.join(run_dir, fname)
+				if os.path.isfile(path) and path.endswith('.err'):
+					err_files.append(path)
+		except Exception as e:
+			self.log.warning("%s teardown error during err file scan -- %s", self.__module__, str(e))
+		err_file_cnt = len(err_files)
+		if err_file_cnt > 0:
+			self.log.warning("Found %d error file%s from process simulator",
+								err_file_cnt, '' if err_file_cnt==1 else 's')
+			for path in sorted(err_files):
+				try:
+					with open(path, 'rt') as f:
+						while True:
+							t = str(f.readline())
+							if t:
+								self.log.warning("   %s: %s", os.path.basename(path), t.rstrip())
+							else:
+								break
+					os.unlink(path)
+				except Exception as e:
+					self.log.warning("%s teardown error on err file '%s' -- %s", self.__module__, path, str(e))
+		else:
+			self.log.info("No err files found")
+		#assert err_file_cnt == 0
+
 	def set_path(self, tag, val):
 		if tag in self.startenv:
 			os.environ[tag] = val + ':' + self.startenv[tag]
@@ -156,5 +186,7 @@ class Test(object):
 		tf.search(re.compile(r'httpd task marked started'), log=self.log)
 		#assert self.find_children(tf, roles=new_roles) == expected_backend_process_count
 		self.log.info("Switch to %s ok, pid to check is %d", new_roles, tf.pid)
+
+		self.check_procsim_errors()
 
 		tf.close()
