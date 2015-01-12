@@ -182,7 +182,7 @@ class Test(object):
 		self.log.info("Will run: %s", ' '.join(support.watch_files.command_line(env, self.file_list)))
 		wf = support.watch_files(env, self.file_list, log=self.log)
 		started = wf.search(["Added watch for path '"+self.file_list[1], " added, 0 removed"],
-										limit=5, iolimit=5, log=self.log)
+										limit=11, iolimit=11, log=self.log)
 
 		srcfile = os.path.join(env.temp_dir, "data.tmp")
 		self.log.info("Starting renam tests")
@@ -193,7 +193,7 @@ class Test(object):
 			self.log.debug("Rename test %d ...", test+1)
 			os.rename(srcfile, self.file_list[1])
 			changed = wf.search(["Change on '"+self.file_list[1], "Change was to 1 path"],
-										limit=5, iolimit=2, log=self.log)
+										limit=11, iolimit=11, log=self.log)
 			assert changed
 			self.log.debug("Rename test %d successful", test+1)
 		delta = time.time() - start
