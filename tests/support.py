@@ -121,12 +121,15 @@ def known_fds(fwatch, log=None, exclude=set()):
 		text += ' %d<%s>' % (fd, fds_known[fd])
 	return text
 
-class taskforce(object):
+class python_subprocess(object):
 	"""
-	Start a taskforce process via subproccess().  taskforce is started with
-	logging to stderr and stdout and stderr collected.  The log level can
-	be set witht the 'verbose' param (default True means debug level).
-	The follow() method can be used to read the log output in a non-blocking manner.
+	Start a python process via subproccess().  It is started with logging to stderr
+	and stdout and stderr collected.  The log level can be set witht the 'verbose'
+	param (default True means debug level).  The follow() method can be used to
+	read the log output in a non-blocking manner.
+
+	The version of python can be specified with the 'python' param.  The default is
+	to attempt to find the executable used to run the current process and use that.
 
 	The process will be destroyed when the object is removed, or when the
 	close() method is called.
@@ -134,7 +137,9 @@ class taskforce(object):
 	python_exec = None
 
 	@classmethod
-	def command_line(self, e, *args, **params):
+	def command_line(self, e, args, **params):
+		if 'exe' not in params:
+			raise Exception("No 'exe' params, maybe the superclass was called directly")
 		if 'python' in params:
 			python = params['python']
 		elif self.python_exec:
@@ -146,9 +151,12 @@ class taskforce(object):
 				myproc = procs.processes[mypid]
 				cmd = myproc.command.split(' ')[0].rstrip(':')
 				if cmd.find('python') >= 0:
-					self.python_exec = os.path.basename(cmd)
+					if cmd.startswith('/'):
+						self.python_exec = cmd
+					else:
+						self.python_exec = os.path.basename(cmd)
 				else:
-					#  python no mentioned in the command, go with
+					#  python not mentioned in the command, punt
 					self.python_exec = 'python'
 			else:
 				#  Hmm, that's weird, we'll punt
@@ -156,10 +164,8 @@ class taskforce(object):
 			python = self.python_exec
 		cmd = [
 			python,
-			os.path.join(e.bin_dir, 'taskforce'),
-			'--log-stderr',
-			'--config-file', e.config_file,
-			'--roles-file', e.roles_file
+			params['exe'],
+			'--log-stderr'
 		]
 		if 'verbose' not in params or params.get('verbose'):
 			cmd.append('--verbose')
@@ -167,8 +173,9 @@ class taskforce(object):
 			cmd.extend(args)
 		return cmd
 
-	def __init__(self, e, *args, **params):
-		cmd = self.command_line(e, *args, **params)
+	def __init__(self, e, args, **params):
+		self.log = params.get('log')
+		cmd = self.command_line(e, args, **params)
 		with open(os.devnull, 'r') as dev_null:
 			self.proc = subprocess.Popen(cmd,
 					bufsize=1,
@@ -181,33 +188,33 @@ class taskforce(object):
 		self.pid = self.proc.pid
 		fl = fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_GETFL)
 		fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
-		self.log = params.get('log')
 
 	def __del__(self):
 		self.close(warn=False)
 
 	def close(self, warn=True):
 		if self.proc is None:
-			if self.log and warn: self.log.warning("taskforce() has already been closed")
+			if self.log and warn: self.log.warning("'%s' has already been closed", self.__class__.__name__)
 			return
 		ret = self.proc.poll()
 		if ret is not None:
-			if self.log: self.log.info("taskforce() has already exited %d", ret)
+			if self.log: self.log.info("%s() has already exited %d", self.__class__.__name__, ret)
 			return ret
 		self.proc.terminate()
 		start = time.time()
 		for i in range(50):
 			ret = self.proc.poll()
 			if ret is not None:
-				if self.log: self.log.info("taskforce() terminated %d after %.1fs", ret, time.time()-start)
+				if self.log: self.log.info("%s() terminated %d after %.1fs",
+									self.__class__.__name__, ret, time.time()-start)
 				break
 			time.sleep(0.1)
 		if self.proc.returncode is None:
-			if self.log: self.log.info("taskforce() did not terminate, killing")
+			if self.log: self.log.info("%s() did not terminate, killing", self.__class__.__name__)
 			self.proc.kill()
 			self.proc.wait()
 			ret = self.proc.returncode
-			if self.log: self.log.info("taskforce() killed after %.1fs", time.time()-start)
+			if self.log: self.log.info("%s() killed after %.1fs", self.__class__.__name__, time.time()-start)
 		self.proc = None
 		return ret
 
@@ -284,6 +291,40 @@ class taskforce(object):
 			line_limit = now + iolimit
 		if log: log.debug("support.search() search timeout")
 		return False
+
+class taskforce(python_subprocess):
+	"""
+	Start a taskforce subprocess
+"""
+	@classmethod
+	def command_line(self, e, args, **params):
+		params = params.copy()
+		args = list(args)
+		params['exe'] = os.path.join(e.bin_dir, 'taskforce')
+		args.extend(['--config-file', e.config_file, '--roles-file', e.roles_file])
+		return super(taskforce, self).command_line(e, args, **params)
+
+	def __init__(self, e, args, **params):
+		params = params.copy()
+		args = list(args)
+		params['exe'] = os.path.join(e.bin_dir, 'taskforce')
+		args.extend(['--config-file', e.config_file, '--roles-file', e.roles_file])
+		super(taskforce, self).__init__(e, args, **params)
+
+class watch_files(python_subprocess):
+	"""
+	Start a watch_files subprocess
+"""
+	@classmethod
+	def command_line(self, e, args, **params):
+		params = params.copy()
+		params['exe'] = os.path.join(e.test_dir, 'scripts', 'watch_files')
+		return super(watch_files, self).command_line(e, args, **params)
+
+	def __init__(self, e, args, **params):
+		params = params.copy()
+		params['exe'] = os.path.join(e.test_dir, 'scripts', 'watch_files')
+		super(watch_files, self).__init__(e, args, **params)
 
 class proctree(object):
 	"""

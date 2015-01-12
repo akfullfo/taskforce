@@ -135,8 +135,8 @@ class Test(object):
 		l.set_config_file(env.config_file)
 
 	def Test_B_sanity(self):
-		self.log.info("Will run: %s", ' '.join(support.taskforce.command_line(env, '--sanity')))
-		tf = support.taskforce(env, '--sanity', log=self.log)
+		self.log.info("Will run: %s", ' '.join(support.taskforce.command_line(env, ['--sanity'])))
+		tf = support.taskforce(env, ['--sanity'], log=self.log)
 		sanity_established = tf.search(r'Sanity check completed ok', log=self.log)
 		tf.close()
 		assert sanity_established
@@ -148,10 +148,8 @@ class Test(object):
 		new_roles = env.test_roles
 		self.set_roles(new_roles)
 		self.log.info("Setting roles %s", new_roles)
-		self.log.info("Will run: %s", ' '.join(support.taskforce.command_line(env)))
-		tf = support.taskforce(env, log=self.log)
-
-		is_stable = False
+		self.log.info("Will run: %s", ' '.join(support.taskforce.command_line(env, [])))
+		tf = support.taskforce(env, [], log=self.log)
 
 		new_roles = env.test_roles
 		self.log.info("Checking startup of %s roles", new_roles)
