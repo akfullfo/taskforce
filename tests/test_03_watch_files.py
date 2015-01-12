@@ -179,13 +179,19 @@ class Test(object):
 		"""
 		Test taskforce issue #7 where the inotify-based watch was missing file changes that via os.rename()
 	"""
-		self.log.info("Will run: %s", ' '.join(support.watch_files.command_line(env, self.file_list)))
-		wf = support.watch_files(env, self.file_list, log=self.log)
+		global default_mode
+		watch_args = []
+		if default_mode == watch_files.WF_POLLING:
+			#  If the test will be in polling mode, reduce the scan rate so it goes faster.
+			watch_args.extend(['--poll-rate', '0.5'])
+		watch_args.extend(self.file_list)
+		self.log.info("Will run: %s", ' '.join(support.watch_files.command_line(env, watch_args)))
+		wf = support.watch_files(env, watch_args, log=self.log)
 		started = wf.search(["Added watch for path '"+self.file_list[1], " added, 0 removed"],
 										limit=11, iolimit=11, log=self.log)
 
 		srcfile = os.path.join(env.temp_dir, "data.tmp")
-		self.log.info("Starting renam tests")
+		self.log.info("Starting rename tests")
 		start = time.time()
 		for test in range(10):
 			with open(srcfile, "wt") as f:
