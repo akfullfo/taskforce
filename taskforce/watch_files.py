@@ -630,6 +630,7 @@ class watch(object):
 				elif self._poll_stat[fd] != fstate:
 					self._poll_stat[fd] = fstate
 					self.last_changes[path] = now
+					log.debug("%s Change on '%s'", my(self), path)
 		else:
 			raise Exception("Unsupported polling mode " + self.get_mode_name())
 		paths = list(self.last_changes)
