@@ -28,6 +28,7 @@ p = argparse.ArgumentParser(
 
 p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
 p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Warnings and errors only')
+p.add_argument('-e', '--log-stderr', action='store_true', dest='log_stderr', help='Ignored, always logs to stderr')
 p.add_argument('-t', '--timeout', action='store', dest='timeout', type=float, default=0.0, help='Aggregation timeout')
 p.add_argument('-l', '--limit', action='store', dest='limit', type=int, default=0, help='Aggregation limit')
 p.add_argument('-p', '--polling', action='store_true', dest='polling', help='Using polling instead of file-system events')
@@ -52,7 +53,7 @@ pset.register(snoop, poll.POLLIN)
 
 while True:
 	try:
-		evlist = pset.poll(3000)
+		evlist = pset.poll(5000)
 	except OSError as e:
 		if e.errno != errno.EINTR:
 			log.error("Select failed -- %s", str(e))
