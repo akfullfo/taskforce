@@ -123,6 +123,11 @@ def _fmt_context(arg_list, context):
 					break
 				arg = res
 			except:
+				if res is None:
+					#  If the formatting fails, revert to
+					#  last successful value and stop.
+					#
+					res = arg
 				break
 		ans.append(res)
 	return (ans[0] if just_one else ans)
