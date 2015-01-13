@@ -38,7 +38,7 @@ def catch(sig, frame):
 	elif sig == signal.SIGUSR2:
 		final(2)
 	else:
-		final(86, 'Unknown signal %s', str(sig))
+		final(76, 'Unknown signal %s', str(sig))
 
 def daemonize(**params):
 	if os.fork() != 0:
@@ -134,7 +134,7 @@ if pidfile is not None:
 	try:
 		utils.pidclaim(pidfile)
 	except Exception as e:
-		final(85, "Error claiming pidfile '%s' -- %s", pidfile, str(e))
+		final(75, "Error claiming pidfile '%s' -- %s", pidfile, str(e))
 
 started = time.time()
 if sleep_period is None:
