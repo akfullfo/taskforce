@@ -184,10 +184,6 @@ class Test(object):
 		if default_mode == watch_files.WF_POLLING:
 			#  If the test will be in polling mode, reduce the scan rate so it goes faster.
 			watch_args.extend(['--poll-rate', '0.5'])
-		elif default_mode == watch_files.WF_INOTIFYX:
-			#  NOTE NOTE NOTE
-			#  For now, override inotifyx, on travis it doesn't seem to work (works everywhere else)
-			watch_args.extend(['--polling', '--poll-rate', '0.5'])
 		watch_args.extend(self.file_list)
 		self.log.info("Will run: %s", ' '.join(support.watch_files.command_line(env, watch_args)))
 		wf = support.watch_files(env, watch_args, log=self.log)
