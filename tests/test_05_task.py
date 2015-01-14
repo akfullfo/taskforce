@@ -121,9 +121,10 @@ class Test(object):
 	def set_roles(self, roles):
 		if not type(roles) is list:
 			roles = [roles]
-		fname = env.roles_file
+		fname = env.roles_file + '.tmp'
 		with open(fname, 'w') as f:
 			f.write('\n'.join(roles) + '\n')
+		os.rename(fname, env.roles_file)
 
 	def Test_A_check_config(self):
 		self.set_path('PATH', env.examples_bin)
