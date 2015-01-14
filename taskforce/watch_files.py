@@ -164,6 +164,10 @@ class watch(object):
 			#  to only trigger events when somethingn changes.
 			#
 			self._inx_mask = inotifyx.IN_ALL_EVENTS & ~(inotifyx.IN_ACCESS | inotifyx.IN_CLOSE | inotifyx.IN_OPEN)
+
+			# Record inode of watched paths to work around simfs bug 
+			#
+			self._inx_inode = {}
 		elif self._mode == WF_POLLING:
 			self._self_pipe()
 
@@ -274,6 +278,8 @@ class watch(object):
 		self._close(fd)
 		if self._mode == WF_POLLING and fd in self._poll_stat:
 			del self._poll_stat[fd]
+		if self._mode == WF_INOTIFYX and path in self._inx_inode:
+			del self._inx_inode[path]
 		del self.fds_open[fd]
 		del self.paths_open[path]
 		if self.paths[path]:
@@ -320,13 +326,15 @@ class watch(object):
 			if fd in self.fds_open:
 				path = self.fds_open[fd]
 				del self.fds_open[fd]
+				if self._mode == WF_INOTIFYX and path in self._inx_inode:
+					del self._inx_inode[path]
 				if path in self.paths_open:
 					del self.paths_open[path]
 			self._close(fd)
 
 	def _trigger(self, fd, **params):
 		"""
-		We need to trigger events on fire appearance because the code
+		We need events to fire on appearance because the code
 		doesn't see the file until after it has been created.
 
 		In WF_KQUEUE mode, this simulates triggering an event by firing
@@ -413,6 +421,18 @@ class watch(object):
 			#  inotify doesn't need the target paths open, so now it is known to be
 			#  accessible, close the actual fd and use the watch-descriptor as the fd.
 			#
+			#  However, due to an apparent simfs bug where inotify does not fire either
+			#  IN_DELETE_SELF or IN_MOVE_SELF, we need to record the inode so that we
+			#  can detect deletes and renames internally.  simfs is used in containers.
+			#
+			try:
+				s = os.fstat(fd)
+				self._inx_inode[path] = s.st_ino
+			except Exception as e:
+				log.error("%s fstat(%d) failed on open path '%s' -- %s", my(self), fd, path, str(e))
+				try: os.close(fd)
+				except: pass
+				raise e
 			try: os.close(fd)
 			except: pass
 			try:
@@ -459,6 +479,8 @@ class watch(object):
 						inotifyx.rm_watch(self._inx_fd, fd)
 					except Exception as e:
 						log.warning("%s remove failed on watched file '%s' -- %s", my(self), path, str(e))
+					if path in self._inx_inode:
+						del self._inx_inode[path]
 				elif self._mode == WF_POLLING:
 					if fd in self._poll_stat:
 						del self._poll_stat[fd]
@@ -593,10 +615,24 @@ class watch(object):
 				if limit and len(evagg) >= limit:
 					break
 			for path, ev in evagg.items():
+				log.debug("%s Change on '%s' -- %s", my(self), path, ev.get_mask_description())
 				if ev.mask & (inotifyx.IN_DELETE_SELF | inotifyx.IN_MOVE_SELF):
 					self._disappeared(ev.wd, path, **params)
+				elif ev.mask & inotifyx.IN_ATTRIB:
+					file_move_del = False
+					try:
+						s = os.stat(path)
+						if s.st_ino != self.xxx[path]:
+							file_move_del = True
+							log.info("%s 'simfs' (used with containers) bug detected -- '%s' moved",
+													my(self), path)
+					except Exception as e:
+						file_move_del = True
+						log.info("%s 'simfs' (used with containers) bug detected -- '%s' removed",
+													my(self), path)
+					if file_move_del:
+						self._disappeared(ev.wd, path, **params)
 				self.last_changes[path] = time.time()
-				log.debug("%s Change on '%s' -- %s", my(self), path, ev.get_mask_description())
 
 		elif self._mode == WF_POLLING:
 			#  Consume any pending data from the self-pipe.  Read
