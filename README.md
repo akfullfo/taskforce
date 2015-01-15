@@ -336,14 +336,14 @@ The example itself is documented with comments so that it can be read separately
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN anchor_conf TO UPDATE -->
 <pre>
 {
-    "<a href="#defaults">defaults</a>": {
+    '<a href="#defaults">defaults</a>': {
         #  These defaults are applied globally to the context used when running all tasks.
         #  The values will only be used if they are not present in the environment or
         #  in the task-specified configurations.
         #
         #  The PATH value here will be used if no PATH was set in the environment when
         #  "taskforce" was started.  If security or other concerns justify mandate a
-        #  specific PATH, the value can be set in the "<a href="#defines">defines</a>" section.  It can also
+        #  specific PATH, the value can be set in the '<a href="#defines">defines</a>' section.  It can also
         #  be overriden for each task.
         #
         "PATH": "/usr/bin:/usr/sbin:/bin:/usr/local/bin:/usr/local/sbin",
@@ -354,7 +354,7 @@ The example itself is documented with comments so that it can be read separately
         #
         "EXAMPLES_BASE": "",
     },
-    "<a href="#defines">defines</a>": {
+    '<a href="#defines">defines</a>': {
         #  These defines are also global.  They will override environment values
         #  if present but will be overridden by task-specific defines.
         #
@@ -363,47 +363,47 @@ The example itself is documented with comments so that it can be read separately
         "confdir": "/usr/local/etc",
         "wsurl": "wss://localhost:9000/"
     },
-    "<a href="#tasks">tasks</a>": {
+    '<a href="#tasks">tasks</a>': {
         "timeset": {
             #  This task is run once when "taskforce" first starts.  It simulates
             #  running the base time setting operation of "ntpd" which is similar
             #  to using "ntpdate" but does not require a separate time service
             #  configuration.
             #
-            "<a href="#control">control</a>": "once",
+            '<a href="#control">control</a>': "once",
 
             #  The "commands" section defines one or more lists which are used
             #  to run commands.  Each task must have at least one command, the
             #  "start" command.  Refere to the "commands" description for other
             #  possible commands.
             #
-            "<a href="#commands">commands</a>": { "start": ["ntpd", "-c", "{ntpd_conf}", "-n", "-g", "-q"] },
+            '<a href="#commands">commands</a>': { "start": ["ntpd", "-c", "{ntpd_conf}", "-n", "-g", "-q"] },
         },
         "ntpd": {
             #  The "ntpd" task is started when the "timeset" command has completed,
             #  indicated by the "requires" list.  The "wait" control indicates the
             #  command will be restarted if it exists.
             #
-            "<a href="#control">control</a>": "wait",
-            "<a href="#requires">requires</a>": [ "timeset" ],
+            '<a href="#control">control</a>': "wait",
+            '<a href="#requires">requires</a>': [ "timeset" ],
 
             #  "pidfile" will be used internally by "taskforce" in the future (see
             #  description).  It also sets the "Task_pidfile" context value so the
             #  value will remain consistent between "taskforce" and the task.
             #
-            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            "<a href="#defines">defines</a>": {
+            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            '<a href="#defines">defines</a>': {
                 "keys": "/etc/ntp/ntp.keys",
                 "drift": "/var/db/ntpd.drift"
             },
 
             #  This "start" command includes a more complex list expression (see
-            #  "<a href="#values-and-lists">Values and Lists</a>"), allowing the "run" script to cause the task to
+            #  'Values and Lists'), allowing the "run" script to cause the task to
             #  exit after a random interval (via the "-x" flag).  Using this option
             #  means the example will demonstrate task startup interaction (see the
             #  "onexit" element below).
             #
-            "<a href="#commands">commands</a>": {
+            '<a href="#commands">commands</a>': {
                 "start": [
                     "{<a href="#Task_name">Task_name</a>}",
                         "-c", "{ntpd_conf}",
@@ -423,7 +423,7 @@ The example itself is documented with comments so that it can be read separately
             #  probably because such updates tend to coincide with a broad O/S
             #  upgrade that requires a server-reboot.
             #
-            "<a href="#events">events</a>": [
+            '<a href="#events">events</a>': [
                 { "type": "file_change", "path": [ "{ntpd_conf}", "{keys}" ],
                   "command": "stop" }
             ],
@@ -436,12 +436,12 @@ The example itself is documented with comments so that it can be read separately
             #  restarted, it will continue to exit.  By triggering "timeset" after each
             #  exit, the time can be resynchronized before "ntpd" is restarted.
             #
-            "<a href="#onexit">onexit</a>": [
+            '<a href="#onexit">onexit</a>': [
                 { "type": "start", "task": "timeset" }
             ]
         },
         "haproxy": {
-            #  This task has "<a href="#roles">roles</a>" specified.  That means the task will only
+            #  This task has '<a href="#roles">roles</a>' specified.  That means the task will only
             #  be started if the "frontend" role is present in the roles file.
             #
             #  Roles allow a single configuration file to be used for multiple
@@ -452,20 +452,20 @@ The example itself is documented with comments so that it can be read separately
             #  for each host type if the global view is not needed or becomes
             #  cumbersome.
             #
-            "<a href="#control">control</a>": "wait",
-            "<a href="#roles">roles</a>": [ "frontend" ],
-            "<a href="#requires">requires</a>": [ "ntpd" ],
+            '<a href="#control">control</a>': "wait",
+            '<a href="#roles">roles</a>': [ "frontend" ],
+            '<a href="#requires">requires</a>': [ "ntpd" ],
 
-            #  The "<a href="#start_delay">start_delay</a>" here means that other tasks that require this
+            #  The '<a href="#start_delay">start_delay</a>' here means that other tasks that require this
             #  task will not be started for at least 1 second after this task
             #  starts.
             #
-            "<a href="#start_delay">start_delay</a>": 1,
-            "<a href="#defines">defines</a>": { "conf": "{confdir}/haproxy.conf" },
-            "<a href="#commands">commands</a>": {
+            '<a href="#start_delay">start_delay</a>': 1,
+            '<a href="#defines">defines</a>': { "conf": "{confdir}/haproxy.conf" },
+            '<a href="#commands">commands</a>': {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-f", "{conf}" ]
             },
-            "<a href="#events">events</a>": [
+            '<a href="#events">events</a>': [
                 #  Here, a "self" event is used so the task will be restarted if
                 #  the "haproxy" executable is updated.  That choice might be made
                 #  if there is an expectation that "haproxy" will be updated frequently
@@ -478,22 +478,22 @@ The example itself is documented with comments so that it can be read separately
         "httpd": {
             #  The "httpd" task is set to run if either or both "frontend"
             #  and "backend" roles are active.  With only these two roles
-            #  in use, this is the equivalent of specifying no "<a href="#roles">roles</a>".
+            #  in use, this is the equivalent of specifying no '<a href="#roles">roles</a>'.
             #  The advantage of enumerating them is that if an additional
             #  role is added, the task would not automatically be started
             #  for that role.  In the case of the "ntpd" task there is
             #  an expectation that this would be run on a server regardless
             #  of that server's role.
             #
-            "<a href="#control">control</a>": "wait",
-            "<a href="#roles">roles</a>": [ "frontend", "backend" ],
-            "<a href="#requires">requires</a>": [ "ntpd" ],
-            "<a href="#start_delay">start_delay</a>": 1,
-            "<a href="#defines">defines</a>": {
+            '<a href="#control">control</a>': "wait",
+            '<a href="#roles">roles</a>': [ "frontend", "backend" ],
+            '<a href="#requires">requires</a>': [ "ntpd" ],
+            '<a href="#start_delay">start_delay</a>': 1,
+            '<a href="#defines">defines</a>': {
                 "conf": "{confdir}/httpd-inside.conf"
             },
 
-            #  The "<a href="#role_defines">role_defines</a>" value here sets the configuration
+            #  The '<a href="#role_defines">role_defines</a>' value here sets the configuration
             #  according to what role is active.  The default is
             #  to use the "inside" configuration which would possibly
             #  cover web-based administrative operations.
@@ -505,14 +505,14 @@ The example itself is documented with comments so that it can be read separately
             #  If both roles are active, the "frontend" role will
             #  trump the "backend" role.
             #
-            "<a href="#role_defines">role_defines</a>": {
+            '<a href="#role_defines">role_defines</a>': {
                 "frontend": { "conf": "{confdir}/httpd-outside.conf" },
             },
-            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            "<a href="#commands">commands</a>": {
+            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            '<a href="#commands">commands</a>': {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-f", "{conf}" ]
             },
-            "<a href="#events">events</a>": [
+            '<a href="#events">events</a>': [
                 { "type": "self", "command": "stop" },
                 { "type": "file_change",
                     "path": [
@@ -527,14 +527,23 @@ The example itself is documented with comments so that it can be read separately
             #  The "ws_server" task is set to only start once the "httpd"
             #  task has started.
             #
-            "<a href="#control">control</a>": "wait",
-            "<a href="#roles">roles</a>": [ "frontend" ],
-            "<a href="#requires">requires</a>": [ "httpd" ],
-            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            "<a href="#commands">commands</a>": {
+            '<a href="#control">control</a>': "wait",
+            '<a href="#roles">roles</a>': [ "frontend" ],
+            '<a href="#requires">requires</a>': [ "httpd" ],
+
+            #  This is set up to start 4 instances of this process.
+            #
+            '<a href="#count">count</a>': 4,
+
+            #  Using the {<a href="#Task_instance">Task_instance</a>} value ensures that the pidfile is
+            #  unique for each process, and will be a consistent set of names
+            #  across multiple taskforce executions.
+            #
+            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}-{<a href="#Task_instance">Task_instance</a>}.pid",
+            '<a href="#commands">commands</a>': {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-l", "{wsurl}", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
             },
-            "<a href="#events">events</a>": [
+            '<a href="#events">events</a>': [
                 #  The "python" event type requires that the task be written in
                 #  Python.  The task is then examined and will be restarted in
                 #  any of the non-system modules change.  This is useful because
@@ -550,15 +559,15 @@ The example itself is documented with comments so that it can be read separately
             #  The "db_server" task is set to only run if the
             #  "backend" role is active.
             #
-            "<a href="#control">control</a>": "wait",
-            "<a href="#roles">roles</a>": [ "backend" ],
-            "<a href="#requires">requires</a>": [ "httpd" ],
-            "<a href="#defines">defines</a>": { "conf": "{confdir}/db.conf" },
-            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            "<a href="#commands">commands</a>": {
+            '<a href="#control">control</a>': "wait",
+            '<a href="#roles">roles</a>': [ "backend" ],
+            '<a href="#requires">requires</a>': [ "httpd" ],
+            '<a href="#defines">defines</a>': { "conf": "{confdir}/db.conf" },
+            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            '<a href="#commands">commands</a>': {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-c", "{conf}", "-n", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
             },
-            "<a href="#events">events</a>": [
+            '<a href="#events">events</a>': [
                 { "type": "self", "command": "stop" },
 
                 #  The "file_change" event will fire if the db_server configuration
