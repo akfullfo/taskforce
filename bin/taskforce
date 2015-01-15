@@ -22,6 +22,7 @@ force_interval = 300
 import os, time, sys, signal, argparse, logging
 from taskforce.watch_files import WF_POLLING
 from taskforce import utils, task
+from taskforce.__init__ import __version__ as package_version
 
 cmd_at_startup = list(sys.argv)
 env_at_startup = {}
@@ -173,6 +174,7 @@ def sanity_test(l):
 
 p = argparse.ArgumentParser(description="Manage tasks and process pools")
 
+p.add_argument('-V', '--version', action='store_true', dest='version', help='Report version of package and exit')
 p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
 p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Quiet logging, warnings and errors only')
 p.add_argument('-e', '--log-stderr', action='store_true', dest='log_stderr', help='Log to stderr instead of syslog')
@@ -193,6 +195,10 @@ p.add_argument('--sanity', action='store_true', dest='sanity',
 			help='Perform a basic sanity check and exit.  This is effectively "-C -e" with a simple config')
 
 args = p.parse_args()
+
+if args.version:
+	print(package_version)
+	sys.exit(0)
 
 if args.pidfile is None and (args.daemonize or args.reset or args.stop):
 	pidfile = def_pidfile
