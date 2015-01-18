@@ -25,6 +25,7 @@ from .utils import get_caller as my
 from . import poll
 from . import watch_files
 from . import watch_modules
+from . import httpd
 
 #  The seconds before a SIGTERM sent to a task is
 #  escalated to a SIGKILL.
@@ -547,11 +548,17 @@ Params are:
 			  because this can cause the list of watched files
 			  to grow very large.  The PYTHONPATH default is
 			  normally a very good choice.
+	http		- Listen address for HTTP management and statistics
+			  service.
 """
 	def __init__(self, **params):
 		self._params = dict(params)
 		self._discard = logging.getLogger(__name__)
 		self._discard.addHandler(logging.NullHandler())
+
+		http_listen = self._params.get('http')
+		if http_listen:
+			self._http_server = httpd.Server(host=http_listen)
 
 		log = self._params.get('log', self._discard)
 

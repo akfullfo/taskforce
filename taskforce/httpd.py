@@ -29,7 +29,7 @@ except:
 	import BaseHTTPServer as http_server
 	from urlparse import parse_qs, urlparse
 
-from __init__ import __version__ as taskforce_version
+from .__init__ import __version__ as taskforce_version
 
 class HTTP_handler(http_server.BaseHTTPRequestHandler):
 	server_version = 'taskforce/' + taskforce_version
@@ -117,6 +117,7 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 	Parameters:
 
 	  host		- The address to listen on, defaults to Server.def_host.
+	  		  This may also be specified as "[host][:port]".
 	  port		- The port to listen on, defaults to Server.def_port.
 	  timeout	- The timeout in seconds (float) for handler reads.
 	  log		- A 'logging' object to log errors and activity.
@@ -126,17 +127,33 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 	allow_reuse_address = True
 	daemon_threads = True
 
-	def __init__(self, host=def_host, port=def_port, timeout=2, log=None):
-		super(Server, self).__init__((host, port), HTTP_handler)
-		if timeout > 0:
-			self.timeout = timeout
-		else:
-			self.timeout = None
+	def __init__(self, host=None, port=None, timeout=2, log=None):
+		if not host: host = self.def_host
+		if not port: port = self.def_port
+
 		if log:
 			self.log = log
 		else:
 			self.log = logging.getLogger(__name__)
 			self.log.addHandler(logging.NullHandler())
+
+		shost = None
+		sport = None
+		m = re.match(r'^(.*):(.*)$', host)
+		if m:
+			shost = m.group(1)
+			try:
+				sport = int(m.group(2))
+			except:
+				raise Exception("HTTP listen port must be an integer")
+		if not shost: shost = host
+		if not sport: sport = port
+		self.log.info("Listen on %s:%d", shost, sport)
+		super(Server, self).__init__((shost, sport), HTTP_handler)
+		if timeout > 0:
+			self.timeout = timeout
+		else:
+			self.timeout = None
 		self.get_registrations = {}
 		self.post_registrations = {}
 
