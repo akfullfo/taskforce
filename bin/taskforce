@@ -21,7 +21,7 @@ force_interval = 300
 
 import os, time, sys, signal, argparse, logging
 from taskforce.watch_files import WF_POLLING
-from taskforce import utils, task
+from taskforce import utils, task, httpd
 from taskforce.__init__ import __version__ as package_version
 
 cmd_at_startup = list(sys.argv)
@@ -185,6 +185,9 @@ p.add_argument('-f', '--config-file', action='store', dest='config_file', defaul
 p.add_argument('-r', '--roles-file', action='store', dest='roles_file',
 			help='File to load roles from.  File will be watched for changes.  Default is selected from: ' +
 			', '.join(def_roles_filelist))
+p.add_argument('-w', '--http', action='store', dest='http_listen', metavar='LISTEN',
+			help='''Offer an HTTP service for statistics and management with listen address as "[host][:port]".
+			        Default is "%s:%d"''' % (httpd.Server.def_host, httpd.Server.def_port)),
 p.add_argument('-C', '--check-config', action='store_true', dest='check', help='Check the config and exit')
 p.add_argument('-R', '--reset', action='store_true', dest='reset',
 			help="""Cause the background %s to reset.
@@ -286,7 +289,7 @@ while True:
 	restart = time.time() + restart
 
 	try:
-		l = task.legion(log=log)
+		l = task.legion(log=log, http=args.http_listen)
 		if args.sanity:
 			sys.exit(sanity_test(l))
 		if not args.check:
