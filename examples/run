@@ -30,7 +30,7 @@ fi
 usage()
 {
 	cat >&2 <<EOT
-Usage: ./$P [-v] [-C] [-x] [-2|-3] role [...]
+Usage: ./$P [-v] [-C] [-x] [-w addr] role [...]
 
        Run the example configuration in the specified role.
        This must be run from within the example directory, ie:
@@ -50,9 +50,8 @@ Usage: ./$P [-v] [-C] [-x] [-2|-3] role [...]
 	-x	Cause simulated ntpd to exit randomly to
 		demonstrate the 'timeset' restart.
 
-	-2	Use python2 (default is $PYTHON_VERSION)
+	-w	Listen for HTTP on addr
 
-	-3	Use python3 (default is $PYTHON_VERSION)
 EOT
 	exit "${1:-99}"
 }
@@ -66,14 +65,12 @@ while [ "$#" -gt 0 ]; do
 	-C*)
 		TFARGS="$TFARGS --check-config"
 		;;
+	-w*)
+		shift
+		TFARGS="$TFARGS --http $1"
+		;;
 	-x*)	MINSLEEP=20; export MINSLEEP
 		SLEEPRANGE=20; export SLEEPRANGE
-		;;
-	-2)
-		PYTHON=python2
-		;;
-	-3)
-		PYTHON=python3
 		;;
 	-h)
 		usage 0

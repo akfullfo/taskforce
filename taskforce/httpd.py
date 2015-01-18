@@ -149,6 +149,7 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 		if not shost: shost = host
 		if not sport: sport = port
 		self.log.info("Listen on %s:%d", shost, sport)
+
 		super(Server, self).__init__((shost, sport), HTTP_handler)
 		if timeout > 0:
 			self.timeout = timeout

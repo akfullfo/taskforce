@@ -559,6 +559,8 @@ Params are:
 		http_listen = self._params.get('http')
 		if http_listen:
 			self._http_server = httpd.Server(host=http_listen)
+		else:
+			self._http_server = None
 
 		log = self._params.get('log', self._discard)
 
@@ -1083,6 +1085,8 @@ Params are:
 		pset.register(self._watch_child, poll.POLLIN)
 		pset.register(self._watch_modules, poll.POLLIN)
 		pset.register(self._watch_files, poll.POLLIN)
+		if self._http_server:
+			pset.register(self._http_server, poll.POLLIN)
 		try:
 			while True:
 				now = time.time()
@@ -1153,6 +1157,9 @@ Params are:
 
 				else:
 					for item, mask in evlist:
+						if item == self._http_server:
+							self._http_server.handle_request()
+							continue
 						if item == self._watch_child:
 							if self._reap() and timeout > timeout_short_cycle:
 								timeout = timeout_short_cycle
