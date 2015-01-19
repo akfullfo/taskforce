@@ -1,4 +1,3 @@
-
 # ________________________________________________________________________
 #
 #  Copyright (C) 2014 Andrew Fullford
@@ -461,7 +460,7 @@ class proctree(object):
 	def __init__(self):
 		bust = re.compile(r'\s+')
 		cmd = ['ps', 'waxl']
-		with open('/dev/null', 'r') as dev_null:
+		with open(os.devnull, 'r') as dev_null:
 			proc = subprocess.Popen(cmd,
 					stdin=dev_null,
 					stdout=subprocess.PIPE,
@@ -497,7 +496,112 @@ class proctree(object):
 			elif p.ppid != 0:
 				raise Exception("Process %d has non-existant parent %d" % (pid, p.ppid))
 
+def listeners(log=None):
+	"""
+	Builds a dict indexed by port for the current TCP listeners based on
+	running netstat(1).  A dict value will be a list of (protocol, address)
+	tuples where protocol will be either 'tcp4' or 'tcp6' and address will
+	the listen address.  For wildcard listeners, this will be either
+	('tcp4', '0.0.0.0') or ('tcp6', '::').
+"""
+	cmd = ['netstat', '-an']
+	with open(os.devnull, 'r') as dev_null:
+		proc = subprocess.Popen(cmd,
+				stdin=dev_null,
+				stdout=subprocess.PIPE,
+				stderr=subprocess.STDOUT,
+				close_fds=True,
+				universal_newlines=True)
+	choose = re.compile(r'\bLISTEN$')
+	portsep = re.compile(r'^(.*)[:\.](\d+)$')
+	ports = {}
+
+	#  Build a dict of sets of tuples.
+	#
+	while True:
+		line = proc.stdout.readline().strip()
+		if not line:
+			break
+		if not choose.search(line):
+			continue
+		f = line.split()
+		if len(f) != 6:
+			if log: log.warning("Ignoring unexpected '%s' LISTEN line: %s", ' '.join(cmd), line)
+			continue
+		protocol = f[0]
+		if protocol == 'tcp':
+			protocol = 'tcp4'
+		netaddr = f[3]
+		m = portsep.match(netaddr)
+		if m:
+			addr = m.group(1)
+			port = m.group(2)
+		else:
+			if log: log.warning("Ignoring unexpected '%s' listen address in line: %s", ' '.join(cmd), line)
+			continue
+		if addr == '*':
+			if protocol == 'tcp6':
+				addr = '::'
+			else:
+				addr = '0.0.0.0'
+		try:
+			port = int(port)
+		except Exception as e:
+			if log: log.warning("Ignoring '%s' non-integer port in line: %s", ' '.join(cmd), line)
+			continue
+		if port not in ports:
+			ports[port] = set()
+		if protocol == 'tcp46':
+			ports[port].add(('tcp4', addr))
+			ports[port].add(('tcp6', addr))
+		else:
+			ports[port].add((protocol, addr))
+
+	#  Now convert the sets of tuples into lists of tuples ordered by
+	#  (protocol, address)
+	#
+	def tup_order(key):
+		p, a = key
+		if a.find(':') >= 0:
+			f = list(reversed(a.split(':')))
+			r = []
+			for i in range(8):
+				e = 0
+				if f:
+					e = f.pop()
+					if e:
+						try:
+							e = int(e, 16)
+						except Exception as e:
+							if log: log.warning("Error canonicalizing '%s'", a)
+					else:
+						e = 0
+				r.append('%05d' % (e,))
+			r = ':'.join(reversed(r))
+		else:
+			f = a.split('.')
+			r = []
+			for e in f:
+				try:
+					e = int(e)
+				except Exception as e:
+					if log: log.warning("Error canonicalizing '%s'", a)
+					e = 0
+				r.append('%03d' % (e,))
+			r = '.'.join(reversed(r))
+		return p + '-' + r
+
+	for port in ports:
+		ports[port] = sorted(list(ports[port]), key=tup_order)
+	return ports
+
 if __name__ == "__main__":
+
+	import sys, pprint, logging
+
+	log = logger()
+	l = listeners(log=log)
+	pprint.pprint(l, indent=4)
 
 	e = env(base='.')
 	print("Command line: %s" % (taskforce.command_line(e),))
