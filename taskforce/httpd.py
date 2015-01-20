@@ -103,7 +103,6 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 
 	def log_message(self, fmt, *fargs): self.server.log.info(fmt, *fargs)
 
-socketserver.TCPServer.allow_reuse_address = True
 class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 	"""
 	Creates a threaded http service.  The returned object can be watched
@@ -126,6 +125,7 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 	def_host = 'localhost'
 	def_port = 8080
 	daemon_threads = True
+	allow_reuse_address = True
 
 	def __init__(self, host=None, port=None, timeout=2, log=None):
 		if not host: host = self.def_host

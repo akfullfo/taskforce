@@ -18,7 +18,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, json
+import os, sys, time, json
 import support
 import taskforce.poll
 import taskforce.httpd
@@ -134,7 +134,9 @@ class Test(object):
 		#
 		self.log.info("%s() listening on %s" % (sys._getframe().f_code.co_name, str(httpd.server_address)))
 		httpr = None
-		while True:
+		done = False
+		handled = False
+		while not done:
 			try:
 				evlist = pset.poll(5000)
 			except OSError as e:
@@ -145,7 +147,6 @@ class Test(object):
 					continue
 			if not evlist:
 				raise Exception("Event loop timed out")
-			handled = False
 			for item, mask in evlist:
 				if item == httpd:
 					try:
@@ -161,7 +162,8 @@ class Test(object):
 						self.log.debug('%s', line)
 					ans = json.loads(text)
 					assert ans == self.http_test_map
-					return
+					done = True
+					break
 				else:
 					raise Exception("Unknown event item: " + str(item))
 			if not handled:
@@ -169,6 +171,8 @@ class Test(object):
 				pset.register(httpr, taskforce.poll.POLLIN)
 				self.log.info("HTTP response object successfully registered")
 				handled = True
+		del httpd
+		time.sleep(1)
 
 	def Test_C_post(self):
 		httpd = taskforce.httpd.Server(host=self.http_host, port=self.http_port, log=self.log)
@@ -183,7 +187,9 @@ class Test(object):
 
 		self.log.info("%s() listening on %s" % (sys._getframe().f_code.co_name, str(httpd.server_address)))
 		httpr = None
-		while True:
+		done = False
+		handled = False
+		while not done:
 			try:
 				evlist = pset.poll(5000)
 			except OSError as e:
@@ -194,7 +200,6 @@ class Test(object):
 					continue
 			if not evlist:
 				raise Exception("Event loop timed out")
-			handled = False
 			for item, mask in evlist:
 				if item == httpd:
 					try:
@@ -212,7 +217,8 @@ class Test(object):
 							codeword = line.split()[0]
 						self.log.debug('%s', line)
 					assert codeword == 'ok'
-					return
+					done = True
+					break
 				else:
 					raise Exception("Unknown event item: " + str(item))
 			if not handled:
@@ -220,3 +226,5 @@ class Test(object):
 				pset.register(httpr, taskforce.poll.POLLIN)
 				self.log.info("HTTP response object successfully registered")
 				handled = True
+		del httpd
+		time.sleep(1)
