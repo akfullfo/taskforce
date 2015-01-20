@@ -18,16 +18,17 @@
 # ________________________________________________________________________
 #
 
-import os, json
+import os, sys, json
 import support
 import taskforce.poll
 import taskforce.httpd
 try:
 	from http.client import HTTPConnection
-	from urllib.parse import parse_qs, urlparse
+	from urllib.parse import parse_qs, urlparse, urlencode
 except:
 	from httplib import HTTPConnection
 	from urlparse import parse_qs, urlparse
+	from urllib import urlencode
 
 class Test(object):
 
@@ -82,7 +83,7 @@ class Test(object):
 
 	def poster(self, path, postdict):
 		u = urlparse(path)
-		log.info("For path: %s", path)
+		self.log.info("For path: %s", path)
 		p = postdict.copy()
 		if u.query:
 			q = parse_qs(u.query)
@@ -97,7 +98,14 @@ class Test(object):
 			if type(tag) is not str:
 				tag = tag.decode('utf-8')
 			q[tag] = vals
-		return ('ok\n', 'text/plain')
+		self.log.debug("Got: %s", str(q))
+		ans = json.loads(q.get('data')[0])
+		if ans == self.http_test_map:
+			return ('ok\n', 'text/plain')
+		text = ''
+		for tag in set(list(ans), list(self.http_test_map)):
+			text += "'%s' sent '%s' received '%s'\n" % (tag, self.http_test_map.get(tag), q.get(tag))
+		return ('bad\n' + text, 'text/plain')
 
 	def Test_A_open_close(self):
 		httpd = taskforce.httpd.Server(host=self.http_host, port=self.http_port, log=self.log)
@@ -124,7 +132,7 @@ class Test(object):
 		#  so immediately enter a poll loop, and collect the response once
 		#  the daemon thread has been started.
 		#
-		self.log.info("Listening on " + str(httpd.server_address))
+		self.log.info("%s() listening on %s" % (sys._getframe().f_code.co_name, str(httpd.server_address)))
 		httpr = None
 		while True:
 			try:
@@ -153,6 +161,57 @@ class Test(object):
 						self.log.debug('%s', line)
 					ans = json.loads(text)
 					assert ans == self.http_test_map
+					return
+				else:
+					raise Exception("Unknown event item: " + str(item))
+			if not handled:
+				httpr = httpc.getresponse()
+				pset.register(httpr, taskforce.poll.POLLIN)
+				self.log.info("HTTP response object successfully registered")
+				handled = True
+
+	def Test_C_post(self):
+		httpd = taskforce.httpd.Server(host=self.http_host, port=self.http_port, log=self.log)
+		httpd.register_post(r'/test/.*', self.poster)
+
+		body = urlencode({'data': json.dumps(self.http_test_map, indent=4)+'\n'})
+		httpc = HTTPConnection(self.http_host, self.http_port, timeout=5)
+		httpc.request('POST', '/test/json?hello=world', body, {"Content-type": "application/x-www-form-urlencoded"})
+
+		pset = taskforce.poll.poll()
+		pset.register(httpd, taskforce.poll.POLLIN)
+
+		self.log.info("%s() listening on %s" % (sys._getframe().f_code.co_name, str(httpd.server_address)))
+		httpr = None
+		while True:
+			try:
+				evlist = pset.poll(5000)
+			except OSError as e:
+				if e.errno != errno.EINTR:
+					raise e
+				else:
+					self.log.info("Interrupted poll()")
+					continue
+			if not evlist:
+				raise Exception("Event loop timed out")
+			handled = False
+			for item, mask in evlist:
+				if item == httpd:
+					try:
+						item.handle_request()
+					except Exception as e:
+						self.log.warning("HTTP error -- %s", str(e))
+				elif item == httpr:
+					assert item.getheader('Content-Type') == 'text/plain'
+					text = httpr.read().decode('utf-8')
+					self.log.info('%d byte response received', len(text))
+					self.log.debug('Answer ...')
+					codeword = None
+					for line in text.splitlines():
+						if not codeword:
+							codeword = line.split()[0]
+						self.log.debug('%s', line)
+					assert codeword == 'ok'
 					return
 				else:
 					raise Exception("Unknown event item: " + str(item))
