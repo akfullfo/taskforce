@@ -47,7 +47,7 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 			self.end_headers()
 			self.wfile.write(message)
 		else:
-			self.server.log.error("HTTP %d on '%s' -- %s", code, self.path, message, exc_info=True)
+			self.server.log.error("HTTP %d on '%s' -- %s", code, self.path, message)
 			self.end_headers()
 
 	def do_GET(self):
@@ -56,14 +56,15 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 			if not resp:
 				self.fault(404, self.path + ' not found')
 				return
-			if type(resp) != tuple or len(resp) != 2:
+			if type(resp) != tuple or len(resp) != 3:
 				self.fault(500, 'Bad callback response for ' + self.path)
-			content, content_type = resp
+			code, content, content_type = resp
 		except Exception as e:
+			self.server.log.warning("Traceback -- %s", str(e), exc_info=True)
 			self.fault(500, "Callback error -- " + str(e))
 			return
 		content = content.encode('utf-8')
-		self.send_response(200)
+		self.send_response(code)
 		self.send_header("Content-Type", content_type)
 		self.send_header("Content-Length", len(content))
 		self.end_headers()
@@ -73,29 +74,30 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 		try:
 			ctype, pdict = parse_header(self.headers['content-type'])
 			if ctype == 'multipart/form-data':
-				postdict = parse_multipart(self.rfile, pdict)
+				postmap = parse_multipart(self.rfile, pdict)
 			elif ctype == 'application/x-www-form-urlencoded':
 				length = int(self.headers['content-length'])
-				postdict = parse_qs(self.rfile.read(length), keep_blank_values=1)
+				postmap = parse_qs(self.rfile.read(length), keep_blank_values=1)
 			else:
-				postdict = {}
+				postmap = {}
 		except Exception as e:
 			self.fault(400, "Parse error -- " + str(e))
 			return
 		try:
-			resp = self.server.serve_post(self.path, postdict)
+			resp = self.server.serve_post(self.path, postmap)
 			if not resp:
 				self.fault(404, self.path + ' not found')
 				return
-			if type(resp) != tuple or len(resp) != 2:
+			if type(resp) != tuple or len(resp) != 3:
 				self.fault(500, 'Bad callback response for ' + self.path)
-			content, content_type = resp
+			code, content, content_type = resp
 		except Exception as e:
+			self.server.log.warning("Traceback -- %s", str(e), exc_info=True)
 			self.fault(500, "Callback error -- " + str(e))
 			return
 
 		content = content.encode('utf-8')
-		self.send_response(200)
+		self.send_response(code)
 		self.send_header("Content-Type", content_type)
 		self.send_header("Content-Length", len(content))
 		self.end_headers()
@@ -184,7 +186,7 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 
 		The callback will be called as:
 	
-			callback(path, postdict)
+			callback(path, postmap)
 	"""
 		if callback is None:
 			if regex in self.post_registrations:
@@ -211,7 +213,7 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 		one argument, the path used to match it.  The callback
 		must return a tuple:
 
-			(content, content_type)
+			(code, content, content_type)
 
 		If multiple registrations match the path, the one with
 		the longest matching text will be used.  Matches are
@@ -228,14 +230,14 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 		else:
 			return matched(path)
 
-	def serve_post(self, path, postdict):
+	def serve_post(self, path, postmap):
 		"""
 		Find a POST callback for the given HTTP path, call it and
 		return the results.  The callback is called with the path
 		used to match it and a dict of vars from the POST body.
 		The callback must return a tuple:
 
-			(content, content_type)
+			(code, content, content_type)
 
 		If multiple registrations match the path, the one with
 		the longest matching text will be used.  Matches are
@@ -248,131 +250,39 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 		if matched is None:
 			return None
 		else:
-			return matched(path, postdict)
+			return matched(path, postmap)
 
-if __name__ == "__main__":
-	import argparse, json
-	import poll
+	@classmethod
+	def merge_query(self, path, postmap, force_unicode=True):
+		"""
+		Merges params parsed from the URI into the mapping from
+		the POST body and returns a new dict with the values.
 
-	def_host = Server.def_host
-	def_port = Server.def_port
-
-	def getter(path):
-		global args
-		ans = {
-			u'English': u'hello, world',
-			u'français': u'bonjour le monde',
-			u'deutsch': u'hallo welt',
-			u'ελληνικά': u'γεια σας, στον κόσμο',
-			u'español': u'hola mundo',
-			u'ไทย': u'สวัสดี โลก',
-			u'日本人': u'こんにちは世界',
-			u'Nihonjin': u"kon'nichiwa sekai",
-			u'中国': u'你好世界',
-			u'Zhōngguó': u'nǐ hǎo shìjiè',
-		}
-		if args.json:
-			return (json.dumps(ans, indent=4)+'\n', 'application/json')
-		else:
-			text = """<html>
-<head>
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<meta charset="UTF-8">
-</head>
-<body>
-<center>
-<table width=600>
-"""
-			for lang in sorted(ans, key=lambda x: x.lower()):
-				text += '\t<tr><td align="center">%s</td>' % (lang, )
-				text += '<td align="center"><font size="15">%s</font></td></tr>\n' % (ans[lang],)
-			text += """</table>
-</center>
-</body>
-</html>
-"""
-			return (text, 'text/html; charset=utf-8')
-
-	def poster(path, postdict):
-		global log
+		This is a convenience function that gives use a dict
+		a bit like PHP's $_REQUEST array.  The original 'postmap'
+		is preserved so the caller can identify a param's source
+		if necessary.
+	"""
 		u = urlparse(path)
-		log.info("For path: %s", path)
-		p = postdict.copy()
+		p = postmap.copy()
 		if u.query:
 			q = parse_qs(u.query)
-			log.debug("Query held: %s", str(q))
 			p.update(q)
-		q = {}
-		for tag in p:
-			vals = []
-			for v in p[tag]:
-				if type(v) is not str:
-					v = v.decode('utf-8')
-				vals.append(v)
-			if type(tag) is not str:
-				tag = tag.decode('utf-8')
-			q[tag] = vals
-		for tag in sorted(q):
-			log.info("\t%s = '%s'", tag, ','.join(q[tag]))
-		return ('ok\n', 'text/plain')
 
-	p = argparse.ArgumentParser(description="Manage tasks and process pools")
-
-	p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
-	p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Quiet logging, warnings and errors only')
-	p.add_argument('-j', '--json', action='store_true', dest='json', help='Publish JSON instead of HTML')
-	p.add_argument('-l', '--listen', action='store', dest='listen', default='%s:%d' % (def_host, def_port),
-			help='Listen address in "[hostname]:[port]" format. Default is "%s:%d"' % (def_host, def_port))
-
-	args = p.parse_args()
-
-	log = logging.getLogger()
-	log.addHandler(logging.StreamHandler())
-	if args.verbose:
-		log.setLevel(logging.DEBUG)
-	elif args.quiet:
-		log.setLevel(logging.INFO)
-	else:
-		log.setLevel(logging.INFO)
-
-	m = re.match(r'^(.*):(.*)$', args.listen)
-	host = None
-	port = None
-	if m:
-		host = m.group(1)
-		try:
-			port = int(m.group(2))
-		except:
-			log.error("Port must be an integer")
-			sys.exit(2)
-	else:
-		host = args.listen
-	if not host: host = def_host
-	if not port: port = def_port
-
-	httpd = Server(host=host, port=port, timeout = 5, log = log)
-
-	httpd.register_get(r'/.*', getter)
-	httpd.register_post(r'/.*', poster)
-
-	pset = poll.poll()
-	pset.register(httpd, poll.POLLIN)
-
-	log.info("Listening on " + str(httpd.server_address))
-	while True:
-		try:
-			evlist = pset.poll(5000)
-		except OSError as e:
-			if e.errno != errno.EINTR:
-				raise e
-			else:
-				log.info("Interrupted poll()")
-				continue
-		if not evlist:
-			log.debug("Timeout")
-			continue
-		for item, mask in evlist:
-			try:
-				item.handle_request()
-			except Exception as e:
-				self.log.warning("HTTP error -- %s", str(e))
+		#  "p" now holds the merged mapping.  The rest of the
+		#  code is to coerce the values to unicode in a manner
+		#  that works for Python2 and Python3
+		#
+		if force_unicode:
+			q = {}
+			for tag in p:
+				vals = []
+				for v in p[tag]:
+					if type(v) is not str:
+						v = v.decode('utf-8')
+					vals.append(v)
+				if type(tag) is not str:
+					tag = tag.decode('utf-8')
+				q[tag] = vals
+			p = q
+		return p

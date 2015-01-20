@@ -60,7 +60,7 @@ class Test(object):
 		u = urlparse(path)
 		self.log.info("GET path '%s', query '%s'", u.path, u.query)
 		if u.path.endswith('/json'):
-			return (json.dumps(self.http_test_map, indent=4)+'\n', 'application/json')
+			return (200, json.dumps(self.http_test_map, indent=4)+'\n', 'application/json')
 		else:
 			text = """<html>
 <head>
@@ -79,33 +79,21 @@ class Test(object):
 </body>
 </html>
 """
-			return (text, 'text/html; charset=utf-8')
+			return (200, text, 'text/html; charset=utf-8')
 
 	def poster(self, path, postdict):
-		u = urlparse(path)
-		self.log.info("For path: %s", path)
-		p = postdict.copy()
-		if u.query:
-			q = parse_qs(u.query)
-			p.update(q)
-		q = {}
-		for tag in p:
-			vals = []
-			for v in p[tag]:
-				if type(v) is not str:
-					v = v.decode('utf-8')
-				vals.append(v)
-			if type(tag) is not str:
-				tag = tag.decode('utf-8')
-			q[tag] = vals
-		self.log.debug("Got: %s", str(q))
-		ans = json.loads(q.get('data')[0])
+		p = taskforce.httpd.Server.merge_query(path, postdict)
+		self.log.info('%d element post received', len(p))
+		self.log.debug('Answer ...')
+		for line in json.dumps(p, indent=4).splitlines():
+			self.log.debug('%s', line)
+		ans = json.loads(p.get('data')[0])
 		if ans == self.http_test_map:
-			return ('ok\n', 'text/plain')
+			return (200, 'ok\n', 'text/plain')
 		text = ''
 		for tag in set(list(ans), list(self.http_test_map)):
-			text += "'%s' sent '%s' received '%s'\n" % (tag, self.http_test_map.get(tag), q.get(tag))
-		return ('bad\n' + text, 'text/plain')
+			text += "'%s' sent '%s' received '%s'\n" % (tag, self.http_test_map.get(tag), p.get(tag))
+		return (409, 'bad\n' + text, 'text/plain')
 
 	def Test_A_open_close(self):
 		httpd = taskforce.httpd.Server(host=self.http_host, port=self.http_port, log=self.log)
