@@ -33,7 +33,8 @@ except:
 class Test(object):
 
 	http_host = '127.0.0.1'
-	http_port = 56789
+	http_port = 34567
+	http_address = http_host + ':' + str(http_port)
 	http_test_map = {
 		u'English': u'hello, world',
 		u'français': u'bonjour le monde',
@@ -82,7 +83,7 @@ class Test(object):
 			return (200, text, 'text/html; charset=utf-8')
 
 	def poster(self, path, postdict):
-		p = taskforce.httpd.Server.merge_query(path, postdict)
+		p = taskforce.httpd.merge_query(path, postdict)
 		self.log.info('%d element post received', len(p))
 		self.log.debug('Answer ...')
 		for line in json.dumps(p, indent=4).splitlines():
@@ -96,7 +97,7 @@ class Test(object):
 		return (409, 'bad\n' + text, 'text/plain')
 
 	def Test_A_open_close(self):
-		httpd = taskforce.httpd.Server(host=self.http_host, port=self.http_port, log=self.log)
+		httpd = taskforce.httpd.server(address=self.http_address, log=self.log)
 		self.log.info("Server listening on: %s", str(httpd.server_address))
 		l = support.listeners(log=self.log)
 		self.log.info("Service active, listening on port %d: %s", self.http_port, l.get(self.http_port))
@@ -107,7 +108,7 @@ class Test(object):
 		assert self.http_port not in l
 
 	def Test_B_get(self):
-		httpd = taskforce.httpd.Server(host=self.http_host, port=self.http_port, log=self.log)
+		httpd = taskforce.httpd.server(address=self.http_address, log=self.log)
 		httpd.register_get(r'/test/.*', self.getter)
 
 		httpc = HTTPConnection(self.http_host, self.http_port, timeout=5)
@@ -163,7 +164,7 @@ class Test(object):
 		time.sleep(1)
 
 	def Test_C_post(self):
-		httpd = taskforce.httpd.Server(host=self.http_host, port=self.http_port, log=self.log)
+		httpd = taskforce.httpd.server(address=self.http_address, log=self.log)
 		httpd.register_post(r'/test/.*', self.poster)
 
 		body = urlencode({'data': json.dumps(self.http_test_map, indent=4)+'\n'})

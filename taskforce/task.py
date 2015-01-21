@@ -563,8 +563,8 @@ Params are:
 		log = self._params.get('log', self._discard)
 
 		http_listen = self._params.get('http')
-		if http_listen:
-			self._http_server = httpd.Server(host=http_listen, log=log)
+		if http_listen is not None:
+			self._http_server = httpd.server(address=http_listen, log=log)
 			self._http_manage = manage.http(self, self._http_server, log=log)
 		else:
 			self._http_server = None
@@ -667,6 +667,10 @@ Params are:
 		for fd in [self._watch_child, self._wakeup]:
 			fl = fcntl.fcntl(fd, fcntl.F_GETFL)
 			fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+	def close(self):
+		if self._http_server:
+			self._http_server.close()
 
 	def _sig_handler(self, sig, frame):
 		log = self._params.get('log', self._discard)
