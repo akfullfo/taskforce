@@ -141,14 +141,16 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 		if host:
 			m = re.match(r'^(.*):(.*)$', host)
 			if m:
+				self.log.debug("Matched host '%s', port '%s'", m.group(1), m.group(2))
 				shost = m.group(1)
 				try:
 					sport = int(m.group(2))
 				except:
 					raise Exception("HTTP listen port must be an integer")
-				self.log.info("Matched '%s' giving '%s' '%d'", host, shost, sport)
 			else:
 				shost = host
+				sport = port
+				self.log.debug("No match, proceding with host '%s', port %d", shost, sport)
 		if not shost: shost = self.def_host
 		if not sport: sport = self.def_port
 		self.log.info("Listen on %s:%d", shost, sport)
