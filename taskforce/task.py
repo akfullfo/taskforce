@@ -26,6 +26,7 @@ from . import poll
 from . import watch_files
 from . import watch_modules
 from . import httpd
+from . import manage
 
 #  The seconds before a SIGTERM sent to a task is
 #  escalated to a SIGKILL.
@@ -551,18 +552,22 @@ Params are:
 	http		- Listen address for HTTP management and statistics
 			  service.
 """
+	all_controls = frozenset(['off', 'once', 'wait', 'nowait', 'adopt'])
+	run_controls = frozenset(set(list(all_controls)) - set(['off', 'once']))
+
 	def __init__(self, **params):
 		self._params = dict(params)
 		self._discard = logging.getLogger(__name__)
 		self._discard.addHandler(logging.NullHandler())
 
+		log = self._params.get('log', self._discard)
+
 		http_listen = self._params.get('http')
 		if http_listen:
-			self._http_server = httpd.Server(host=http_listen)
+			self._http_server = httpd.Server(host=http_listen, log=log)
+			self._http_manage = manage.http(self, self._http_server, log=log)
 		else:
 			self._http_server = None
-
-		log = self._params.get('log', self._discard)
 
 		#  Set to the program name (as delivered by set_own_module).
 		#  This is used to successfully dispatch legion events.
@@ -896,6 +901,12 @@ Params are:
 			log.error("%s Failed to stop processes for task '%s' -- %s", my(self), name)
 		for pid in t.get_procs():
 			self.proc_del(pid)
+
+	def task_get(self, taskname):
+		if taskname in self._tasknames:
+			return self._tasknames[taskname][0]
+		else:
+			return None
 
 	def task_list(self, pending=True):
 		"""
@@ -1258,6 +1269,7 @@ Params are:
 	log	- a logging object.  If not specified, log messages
 		  will be discrded
 """
+
 	def __init__(self, name, task_legion, **params):
 		if not isinstance(task_legion, legion):
 			raise TaskError(name, "Specified legion is not an instance of the class 'legion'")
@@ -2046,7 +2058,7 @@ Params are:
 		self._config_running = self._config_pending
 		self._context = self._context_build()
 
-		if control in set(['wait', 'nowait', 'adopt']):
+		if control in self._legion.run_controls:
 			self._event_register()
 		return self.manage()
 
