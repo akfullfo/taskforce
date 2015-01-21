@@ -308,6 +308,10 @@ while True:
 				log.error('Config load failed -- %s', str(e), exc_info=args.verbose)
 				sys.exit(1)
 		l.set_config_file(args.config_file)
+	except Exception as e:
+		log.error('Legion startup error -- %s', str(e), exc_info=args.verbose)
+		sys.exit(3)
+	try:
 		l.manage()
 		sys.exit(0)
 	except task.LegionReset as e:

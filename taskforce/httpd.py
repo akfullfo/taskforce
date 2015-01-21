@@ -130,9 +130,6 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 	allow_reuse_address = True
 
 	def __init__(self, host=None, port=None, timeout=2, log=None):
-		if not host: host = self.def_host
-		if not port: port = self.def_port
-
 		if log:
 			self.log = log
 		else:
@@ -141,15 +138,19 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer, object):
 
 		shost = None
 		sport = None
-		m = re.match(r'^(.*):(.*)$', host)
-		if m:
-			shost = m.group(1)
-			try:
-				sport = int(m.group(2))
-			except:
-				raise Exception("HTTP listen port must be an integer")
-		if not shost: shost = host
-		if not sport: sport = port
+		if host:
+			m = re.match(r'^(.*):(.*)$', host)
+			if m:
+				shost = m.group(1)
+				try:
+					sport = int(m.group(2))
+				except:
+					raise Exception("HTTP listen port must be an integer")
+				self.log.info("Matched '%s' giving '%s' '%d'", host, shost, sport)
+			else:
+				shost = host
+		if not shost: shost = self.def_host
+		if not sport: sport = self.def_port
 		self.log.info("Listen on %s:%d", shost, sport)
 
 		super(Server, self).__init__((shost, sport), HTTP_handler)
