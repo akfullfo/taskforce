@@ -254,8 +254,9 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 #  Default when no address is provided
 def_address = 'localhost:8080'
 
-#  Used when a TCP address is provided with no port
+#  Used when a IP address is provided with no port
 def_port = 8080
+def_sslport = 8443
 
 #  The cipher suite here insists on high quality crypto as per ssllabs.com.
 #  This checked from time to time and updated.
@@ -300,7 +301,7 @@ def server(address=None, timeout=2, log=None, certfile=None):
 	is used for addresses containing a "/", otherwise the TCPServer class is
 	used.  To create a Udom service in the current directory, use './name'.
 	If TCP is selected and no port is provided using the ":" syntax, then
-	def_port will be used.
+	def_port or def_sslport  will be used as appropriate.
 	
 	The BaseServer provides the code for registering HTTP handler callbacks.
 
@@ -342,7 +343,7 @@ def server(address=None, timeout=2, log=None, certfile=None):
 			host = address
 			log.debug("No match, proceding with host '%s'", host)
 		if not port:
-			port = self.def_port
+			port = def_sslport if certfile else def_port
 		httpd = TCPServer(host, port, timeout, log)
 	if certfile:
 		ciphers = ' '.join(ssl_ciphers)
