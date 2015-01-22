@@ -30,6 +30,8 @@ except:
 	from urlparse import parse_qs, urlparse
 	from urllib import urlencode
 
+env = support.env(base='.')
+
 class Test(object):
 
 	http_host = '127.0.0.1'
@@ -97,8 +99,8 @@ class Test(object):
 		return (409, 'bad\n' + text, 'text/plain')
 
 	def Test_A_open_close(self):
-		httpd = taskforce.httpd.server(address=self.http_address, log=self.log)
-		self.log.info("Server listening on: %s", str(httpd.server_address))
+		httpd = taskforce.httpd.server(address=self.http_address, log=self.log,
+						certfile=os.path.join(env.test_dir, 'sslcert.pem'))
 		l = support.listeners(log=self.log)
 		self.log.info("Service active, listening on port %d: %s", self.http_port, l.get(self.http_port))
 		assert self.http_port in l
@@ -121,7 +123,6 @@ class Test(object):
 		#  so immediately enter a poll loop, and collect the response once
 		#  the daemon thread has been started.
 		#
-		self.log.info("%s() listening on %s" % (sys._getframe().f_code.co_name, str(httpd.server_address)))
 		httpr = None
 		done = False
 		handled = False
@@ -174,7 +175,6 @@ class Test(object):
 		pset = taskforce.poll.poll()
 		pset.register(httpd, taskforce.poll.POLLIN)
 
-		self.log.info("%s() listening on %s" % (sys._getframe().f_code.co_name, str(httpd.server_address)))
 		httpr = None
 		done = False
 		handled = False

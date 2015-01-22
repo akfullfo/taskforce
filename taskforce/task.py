@@ -564,7 +564,7 @@ Params are:
 
 		http_listen = self._params.get('http')
 		if http_listen is not None:
-			self._http_server = httpd.server(address=http_listen, log=log)
+			self._http_server = httpd.server(address=http_listen, certfile=self._params.get('certfile'), log=log)
 			self._http_manage = manage.http(self, self._http_server, log=log)
 		else:
 			self._http_server = None

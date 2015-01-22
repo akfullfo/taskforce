@@ -187,7 +187,10 @@ p.add_argument('-r', '--roles-file', action='store', dest='roles_file',
 			', '.join(def_roles_filelist))
 p.add_argument('-w', '--http', action='store', dest='http_listen', metavar='LISTEN',
 			help='''Offer an HTTP service for statistics and management with listen address.
-			        Default is "%s"''' % (httpd.def_address,)),
+			        Default is "%s"''' % (httpd.def_address,))
+p.add_argument('-c', '--certfile', action='store', dest='certfile', metavar='FILE',
+			help='''PEM-formatted certificate file.  If specified, the HTTP service will be offered over TLS.
+				Ignored if -w is not specified.''')
 p.add_argument('-C', '--check-config', action='store_true', dest='check', help='Check the config and exit')
 p.add_argument('-R', '--reset', action='store_true', dest='reset',
 			help="""Cause the background %s to reset.
@@ -294,7 +297,7 @@ while True:
 			l = task.legion(log=log)
 			sys.exit(sanity_test(l))
 
-		l = task.legion(log=log, http=args.http_listen)
+		l = task.legion(log=log, http=args.http_listen, certfile=args.certfile)
 		if not args.check:
 			l.set_own_module(cmd_at_startup[0])
 		if args.roles_file:

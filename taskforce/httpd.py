@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # ________________________________________________________________________
 #
 #  Copyright (C) 2014 Andrew Fullford
@@ -18,7 +17,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, stat, errno, re, logging
+import os, sys, stat, errno, re, logging, ssl
 from cgi import parse_header, parse_multipart
 from . import utils
 try:
@@ -205,7 +204,6 @@ class TCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer, BaseServer)
 		self.port = port
 		self.timeout = timeout
 		self.log = log
-		self.log.info("HTTP service listening on tcp %s:%d", host, port)
 		super(TCPServer, self).__init__((host, port), HTTP_handler)
 
 	def close(self):
@@ -225,7 +223,6 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 		self.path = path
 		self.timeout = timeout
 		self.log = log
-		self.log.info("HTTP service listening on udom '%s'", path)
 		if os.path.exists(self.path):
 			try:
 				st = os.stat(self.path)
@@ -260,7 +257,34 @@ def_address = 'localhost:8080'
 #  Used when a TCP address is provided with no port
 def_port = 8080
 
-def server(address=None, timeout=2, log=None):
+#  The cipher suite here insists on high quality crypto as per ssllabs.com.
+#  This checked from time to time and updated.
+#
+#  At some point these might need to be exposed but for now we are really
+#  just trying to present enough such that our http module and the likes
+#  of libcurl can connect.
+#
+ssl_ciphers=[
+	'EECDH+ECDSA+AESGCM',
+	'EECDH+aRSA+AESGCM',
+	'EECDH+ECDSA+SHA384',
+	'EECDH+ECDSA+SHA256',
+	'EECDH+aRSA+SHA384',
+	'EECDH+aRSA+SHA256',
+	'EECDH',
+	'EDH+aRSA',
+	'HIGH',
+	'!ECDHE-RSA-NULL-SHA',
+	'!ECDHE-ECDSA-NULL-SHA',
+	'!ADH',
+	'!aNULL',
+	'!RC4',
+	'!DSS',
+	'!MD5',
+	'!DES'
+]
+
+def server(address=None, timeout=2, log=None, certfile=None):
 	"""
 	Creates a threaded http service.  The returned object can be watched
 	via taskforce.poll(), select.select(), etc.  When activiity is detected,
@@ -288,6 +312,8 @@ def server(address=None, timeout=2, log=None):
 			  at least one "/" character).
 	  timeout	- The timeout in seconds (float) for handler reads.
 	  log		- A 'logging' object to log errors and activity.
+	  certfile	- Wrap the connection as SSL using the specified path
+	  		  to a PEM certificate file.
 """
 	if log:
 		log = log
@@ -301,23 +327,50 @@ def server(address=None, timeout=2, log=None):
 		address = def_address
 
 	if address.find('/') >=0 :
-		return UnixStreamServer(address, timeout, log)
-
-	port = None
-	m = re.match(r'^(.*):(.*)$', address)
-	if m:
-		log.debug("Matched host '%s', port '%s'", m.group(1), m.group(2))
-		host = m.group(1)
-		try:
-			port = int(m.group(2))
-		except:
-			raise Exception("TCP listen port must be an integer")
+		httpd = UnixStreamServer(address, timeout, log)
 	else:
-		host = address
-		log.debug("No match, proceding with host '%s'", host)
-	if not port:
-		port = self.def_port
-	return TCPServer(host, port, timeout, log)
+		port = None
+		m = re.match(r'^(.*):(.*)$', address)
+		if m:
+			log.debug("Matched host '%s', port '%s'", m.group(1), m.group(2))
+			host = m.group(1)
+			try:
+				port = int(m.group(2))
+			except:
+				raise Exception("TCP listen port must be an integer")
+		else:
+			host = address
+			log.debug("No match, proceding with host '%s'", host)
+		if not port:
+			port = self.def_port
+		httpd = TCPServer(host, port, timeout, log)
+	if certfile:
+		ciphers = ' '.join(ssl_ciphers)
+		ctx = None
+		try:
+			ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+		except AttributeError:
+			log.warning("Implementation does not offer ssl.SSLContext() which may allow less secure connections")
+			pass
+		if ctx:
+			#  If ssl supports contexts, provide some tigher controls on the ssl negotiation
+			#
+			if 'OP_NO_SSLv2' in ssl.__dict__:
+				ctx.options |= ssl.OP_NO_SSLv2
+			else:
+				log.warning("Implementation does not offer ssl.OP_NO_SSLv2 which may allow less secure connections")
+			if 'OP_NO_SSLv3' in ssl.__dict__:
+				ctx.options |= ssl.OP_NO_SSLv3
+			else:
+				log.warning("Implementation does not offer ssl.OP_NO_SSLv3 which may allow less secure connections")
+			ctx.load_cert_chain(certfile)
+			ctx.set_ciphers(ciphers)
+			httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+		else:
+			httpd.socket = ssl.wrap_socket(httpd.socket, server_side=True,
+				certfile=certfile, ssl_version=ssl.PROTOCOL_TLSv1, ciphers=ciphers)
+	log.info("HTTP service listening on %s", httpd.socket)
+	return httpd
 
 def merge_query(path, postmap, force_unicode=True):
 	"""
