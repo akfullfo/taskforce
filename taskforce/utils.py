@@ -350,7 +350,7 @@ def statusfmt(status):
 """
 	if os.WIFSIGNALED(status):
 		msg = 'died on '+signame(os.WTERMSIG(status))
-	elif os.WIFEXITED(status):
+	elif os.WIFEXITED(status) and os.WEXITSTATUS(status) > 0:
 		msg = 'exited '+str(os.WEXITSTATUS(status))
 	elif os.WIFSTOPPED(status):
 		msg = 'exited '+str(os.WSTOPSIG(status))
