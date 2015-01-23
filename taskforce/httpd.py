@@ -372,38 +372,53 @@ def server(address=None, timeout=2, log=None, certfile=None):
 	log.info("HTTP service listening on %s", httpd.socket)
 	return httpd
 
-def merge_query(path, postmap, force_unicode=True):
+def _unicode(p):
 	"""
-	Merges params parsed from the URI into the mapping from
-	the POST body and returns a new dict with the values.
+	Used when force_unicode is True (default), the tags and values in the dict
+	will be coerced as 'str' (or 'unicode' with Python2).	In Python3 they can
+	otherwise end up as a mixtures of 'str' and 'bytes'.
+"""
+	q = {}
+	for tag in p:
+		vals = []
+		for v in p[tag]:
+			if type(v) is not str:
+				v = v.decode('utf-8')
+			vals.append(v)
+		if type(tag) is not str:
+			tag = tag.decode('utf-8')
+		q[tag] = vals
+	return q
 
-	This is a convenience function that gives use a dict
-	a bit like PHP's $_REQUEST array.  The original 'postmap'
-	is preserved so the caller can identify a param's source
-	if necessary.
+def get_query(path, force_unicode=True):
+	"""
+	Convert the query path of the URL to a dict.
+	See _unicode regarding force_unicode.
 """
 	u = urlparse(path)
+	if not u.query:
+		return {}
+	p = parse_qs(u.query)
+
+	if force_unicode:
+		p = _unicode(p)
+	return p
+
+def merge_query(path, postmap, force_unicode=True):
+	"""
+	Merges params parsed from the URI into the mapping from the POST body and
+	returns a new dict with the values.
+
+	This is a convenience function that gives use a dict a bit like PHP's $_REQUEST
+	array.	The original 'postmap' is preserved so the caller can identify a
+	param's source if necessary.
+"""
 	if postmap:
 		p = postmap.copy()
 	else:
 		p = {}
-	if u.query:
-		p.update(parse_qs(u.query))
+	p.update(get_query(path, force_unicode=False))
 
-	#  "p" now holds the merged mapping.  The rest of the
-	#  code is to coerce the values to unicode in a manner
-	#  that works for Python2 and Python3
-	#
 	if force_unicode:
-		q = {}
-		for tag in p:
-			vals = []
-			for v in p[tag]:
-				if type(v) is not str:
-					v = v.decode('utf-8')
-				vals.append(v)
-			if type(tag) is not str:
-				tag = tag.decode('utf-8')
-			q[tag] = vals
-		p = q
+		p = _unicode(p)
 	return p
