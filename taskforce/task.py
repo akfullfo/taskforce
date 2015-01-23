@@ -27,6 +27,7 @@ from . import watch_files
 from . import watch_modules
 from . import httpd
 from . import manage
+from . import status
 
 #  The seconds before a SIGTERM sent to a task is
 #  escalated to a SIGKILL.
@@ -570,6 +571,7 @@ Params are:
 		if http_listen is not None:
 			self._http_server = httpd.server(address=http_listen, certfile=self._params.get('certfile'), log=log)
 			self._http_manage = manage.http(self, self._http_server, control=self._params.get('control'), log=log)
+			self._http_status = status.http(self, self._http_server, log=log)
 		else:
 			self._http_server = None
 
