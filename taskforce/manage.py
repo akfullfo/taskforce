@@ -16,7 +16,7 @@
 # ________________________________________________________________________
 #
 
-import sys, os
+import sys, os, time
 
 """
 Implement management interfaces.  Currently supports http,
@@ -36,7 +36,7 @@ class http(object):
 	is performed, or the configuration file is changed
 	which causes a normal reconfiguration.
 """
-	def __init__(self, legion, httpd, log=None):
+	def __init__(self, legion, httpd, control=False, log=None):
 		if log:
 			self._log = log
 		else:
@@ -44,43 +44,62 @@ class http(object):
 			self._log.addHandler(logging.NullHandler())
 		self._legion = legion
 		self._httpd = httpd
+		self._control = control
 
-		self._httpd.register_post(r'/manage/control', self.post)
+		self._httpd.register_post(r'/manage/control', self.control)
+		self._httpd.register_post(r'/manage/stop', self.control)
+		self._httpd.register_post(r'/manage/reset', self.control)
+		self._httpd.register_get(r'/manage/stop', self.control)
+		self._httpd.register_get(r'/manage/reset', self.control)
 
-	def post(self, path, postmap):
-		postmap = self._httpd.merge_query(path, postmap)
-		results = {}
-		change_detected = False
-		error_detected = False
-		for taskname in postmap:
-			task = self._legion.task_get(taskname)
-			control = postmap[taskname][0]
-			if not task:
-				results[taskname] = 'not found'
-				error_detected = True
-			elif control not in self._legion.all_controls:
-				results[taskname] = "bad control '%s'" % (control,)
-				error_detected = True
-			elif not task._config_pending or 'control' not in task._config_pending:
-				results[taskname] = "no pending config"
-				error_detected = True
-			elif not task._config_running or 'control' not in task._config_running:
-				results[taskname] = "no running config"
-				error_detected = True
-			elif task._config_running['control'] == control:
-				results[taskname] = "no change"
+	def control(self, path, postmap=None):
+		if not self._control:
+			return (403, 'Control not permitted on this path\n', 'text/plain')
+		if path.startswith('/manage/control'):
+			postmap = self._httpd.merge_query(path, postmap)
+			results = {}
+			change_detected = False
+			error_detected = False
+			for taskname in postmap:
+				task = self._legion.task_get(taskname)
+				control = postmap[taskname][0]
+				if not task:
+					results[taskname] = 'not found'
+					error_detected = True
+				elif control not in self._legion.all_controls:
+					results[taskname] = "bad control '%s'" % (control,)
+					error_detected = True
+				elif not task._config_pending or 'control' not in task._config_pending:
+					results[taskname] = "no pending config"
+					error_detected = True
+				elif not task._config_running or 'control' not in task._config_running:
+					results[taskname] = "no running config"
+					error_detected = True
+				elif task._config_running['control'] == control:
+					results[taskname] = "no change"
+				else:
+					results[taskname] = "ok"
+					change_detected = True
+			text = ''
+			for taskname in sorted(results):
+				text += "%s\t%s\n" % (taskname, results[taskname])
+			if error_detected:
+				return (404, text, 'text/plain')
+			for taskname in postmap:
+				self._legion.task_get(taskname)._config_pending['control'] = postmap[taskname][0]
+			if change_detected:
+				self._legion._apply()
+				return (202, text, 'text/plain')
 			else:
-				results[taskname] = "ok"
-				change_detected = True
-		text = ''
-		for taskname in sorted(results):
-			text += "%s\t%s\n" % (taskname, results[taskname])
-		if error_detected:
-			return (404, text, 'text/plain')
-		for taskname in postmap:
-			self._legion.task_get(taskname)._config_pending['control'] = postmap[taskname][0]
-		if change_detected:
-			self._legion._apply()
-			return (202, text, 'text/plain')
+				return (200, text, 'text/plain')
+		elif path.startswith('/manage/stop'):
+			self._legion._exiting = time.time()
+			self._legion.stop_all()
+			return (202, 'Taskforce exit initiated\n', 'text/plain')
+		elif path.startswith('/manage/reset'):
+			self._legion._exiting = time.time()
+			self._legion._resetting = self._legion._exiting
+			self._legion.stop_all()
+			return (202, 'Taskforce reset initiated\n', 'text/plain')
 		else:
-			return (200, text, 'text/plain')
+			return (404, 'Unknown control path -- %s\n' % (path, ), 'text/plain')

@@ -551,6 +551,10 @@ Params are:
 			  normally a very good choice.
 	http		- Listen address for HTTP management and statistics
 			  service.
+	control		- If true, allow operations that can change the legion
+			  state such as change task control, resetting or
+			  stopping the legion.
+	certfile	- Enable SSL using this certificate file.
 """
 	all_controls = frozenset(['off', 'once', 'wait', 'nowait', 'adopt'])
 	run_controls = frozenset(set(list(all_controls)) - set(['off', 'once']))
@@ -565,7 +569,7 @@ Params are:
 		http_listen = self._params.get('http')
 		if http_listen is not None:
 			self._http_server = httpd.server(address=http_listen, certfile=self._params.get('certfile'), log=log)
-			self._http_manage = manage.http(self, self._http_server, log=log)
+			self._http_manage = manage.http(self, self._http_server, control=self._params.get('control'), log=log)
 		else:
 			self._http_server = None
 

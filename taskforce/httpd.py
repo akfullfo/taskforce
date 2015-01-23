@@ -383,10 +383,12 @@ def merge_query(path, postmap, force_unicode=True):
 	if necessary.
 """
 	u = urlparse(path)
-	p = postmap.copy()
+	if postmap:
+		p = postmap.copy()
+	else:
+		p = {}
 	if u.query:
-		q = parse_qs(u.query)
-		p.update(q)
+		p.update(parse_qs(u.query))
 
 	#  "p" now holds the merged mapping.  The rest of the
 	#  code is to coerce the values to unicode in a manner
