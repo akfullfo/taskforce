@@ -22,6 +22,9 @@ import os, sys, time, json
 import support
 import taskforce.poll
 import taskforce.httpd
+import taskforce.http
+from taskforce.utils import get_caller as my
+
 try:
 	from http.client import HTTPConnection
 	from urllib.parse import parse_qs, urlparse, urlencode
@@ -34,9 +37,9 @@ env = support.env(base='.')
 
 class Test(object):
 
-	http_host = '127.0.0.1'
-	http_port = 34567
-	http_address = http_host + ':' + str(http_port)
+	tcp_host = '127.0.0.1'
+	tcp_port = 34567
+	tcp_address = tcp_host + ':' + str(tcp_port)
 	http_test_map = {
 		u'English': u'hello, world',
 		u'français': u'bonjour le monde',
@@ -99,21 +102,22 @@ class Test(object):
 		return (409, 'bad\n' + text, 'text/plain')
 
 	def Test_A_open_close(self):
-		httpd = taskforce.httpd.server(address=self.http_address, log=self.log,
-						certfile=os.path.join(env.test_dir, 'sslcert.pem'))
+		self.log.info("Starting %s", my(self))
+		httpd = taskforce.httpd.server(address=self.tcp_address, log=self.log, certfile=env.cert_file)
 		l = support.listeners(log=self.log)
-		self.log.info("Service active, listening on port %d: %s", self.http_port, l.get(self.http_port))
-		assert self.http_port in l
+		self.log.info("Service active, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
+		assert self.tcp_port in l
 		del httpd
 		l = support.listeners(log=self.log)
-		self.log.info("Service deleted, listening on port %d: %s", self.http_port, l.get(self.http_port))
-		assert self.http_port not in l
+		self.log.info("Service deleted, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
+		assert self.tcp_port not in l
 
 	def Test_B_get(self):
-		httpd = taskforce.httpd.server(address=self.http_address, log=self.log)
+		self.log.info("Starting %s", my(self))
+		httpd = taskforce.httpd.server(address=self.tcp_address, log=self.log)
 		httpd.register_get(r'/test/.*', self.getter)
 
-		httpc = HTTPConnection(self.http_host, self.http_port, timeout=5)
+		httpc = taskforce.http.Client(address=self.tcp_address)
 		httpc.request('GET', '/test/json')
 
 		pset = taskforce.poll.poll()
@@ -121,7 +125,10 @@ class Test(object):
 
 		#  This is a little bit tricky because we are talking to ourselves,
 		#  so immediately enter a poll loop, and collect the response once
-		#  the daemon thread has been started.
+		#  the daemon thread has been started.  This also means we can't
+		#  exercise SSL because the httpd service needs control to complete
+		#  the handshake.  SSL testing is done against the actual taskforce
+		#  process in another test unit.
 		#
 		httpr = None
 		done = False
@@ -165,11 +172,12 @@ class Test(object):
 		time.sleep(1)
 
 	def Test_C_post(self):
-		httpd = taskforce.httpd.server(address=self.http_address, log=self.log)
+		self.log.info("Starting %s", my(self))
+		httpd = taskforce.httpd.server(address=self.tcp_address, log=self.log)
 		httpd.register_post(r'/test/.*', self.poster)
 
 		body = urlencode({'data': json.dumps(self.http_test_map, indent=4)+'\n'})
-		httpc = HTTPConnection(self.http_host, self.http_port, timeout=5)
+		httpc = taskforce.http.Client(address=self.tcp_address)
 		httpc.request('POST', '/test/json?hello=world', body, {"Content-type": "application/x-www-form-urlencoded"})
 
 		pset = taskforce.poll.poll()
