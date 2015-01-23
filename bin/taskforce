@@ -322,7 +322,7 @@ while True:
 		l.set_config_file(args.config_file)
 	except Exception as e:
 		log.error('Legion startup error -- %s', str(e), exc_info=args.verbose)
-		l.close()
+		if l: l.close()
 		exit_code = 3
 	try:
 		l.manage()
