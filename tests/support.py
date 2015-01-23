@@ -28,6 +28,7 @@ class env(object):
 		self.bin_dir = os.path.join(self.base_dir, "bin")
 		self.test_dir = os.path.join(self.base_dir, "tests")
 		self.temp_dir = os.path.join(self.test_dir, "tmp")
+		self.cert_file = os.path.join(self.test_dir, 'sslcert.pem')
 		self.examples_dir =  os.path.join(self.base_dir, "examples")
 		self.examples_run = os.path.join(self.examples_dir, 'var', 'run')
 		self.working_dir = self.examples_dir
