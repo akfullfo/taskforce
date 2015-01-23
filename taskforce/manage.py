@@ -16,7 +16,8 @@
 # ________________________________________________________________________
 #
 
-import sys, os, time
+import time
+from . import httpd
 
 """
 Implement management interfaces.  Currently supports http,
@@ -56,7 +57,7 @@ class http(object):
 		if not self._control:
 			return (403, 'Control not permitted on this path\n', 'text/plain')
 		if path.startswith('/manage/control'):
-			postmap = self._httpd.merge_query(path, postmap)
+			postmap = httpd.merge_query(path, postmap)
 			results = {}
 			change_detected = False
 			error_detected = False
