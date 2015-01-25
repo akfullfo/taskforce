@@ -103,7 +103,10 @@ class Test(object):
 
 	def Test_A_open_close(self):
 		self.log.info("Starting %s", my(self))
-		httpd = taskforce.httpd.server(address=self.tcp_address, log=self.log, certfile=env.cert_file)
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		http_service.certfile = env.cert_file
+		httpd = taskforce.httpd.server(http_service, log=self.log)
 		l = support.listeners(log=self.log)
 		self.log.info("Service active, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
 		assert self.tcp_port in l
@@ -114,7 +117,9 @@ class Test(object):
 
 	def Test_B_get(self):
 		self.log.info("Starting %s", my(self))
-		httpd = taskforce.httpd.server(address=self.tcp_address, log=self.log)
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		httpd = taskforce.httpd.server(http_service, log=self.log)
 		httpd.register_get(r'/test/.*', self.getter)
 
 		httpc = taskforce.http.Client(address=self.tcp_address)
@@ -173,7 +178,9 @@ class Test(object):
 
 	def Test_C_post(self):
 		self.log.info("Starting %s", my(self))
-		httpd = taskforce.httpd.server(address=self.tcp_address, log=self.log)
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		httpd = taskforce.httpd.server(http_service, log=self.log)
 		httpd.register_post(r'/test/.*', self.poster)
 
 		body = urlencode({'data': json.dumps(self.http_test_map, indent=4)+'\n'})

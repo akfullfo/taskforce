@@ -30,6 +30,56 @@ except:
 
 from .__init__ import __version__ as taskforce_version
 
+#  Default when no address is provided
+def_address = 'localhost:8080'
+
+#  Used when a IP address is provided with no port
+def_port = 8080
+def_sslport = 8443
+
+class HttpService(object):
+	"""
+	Defines all configuration needed to start an HTTP service.  In future, the
+	attributes may be extended to include such things as authenication method,
+	ciphers, SSL version list, etc.
+
+	A freshly initialized instance describes a service that would listen on
+	def_address, disallow control operations, and use 'http' protocol rather
+	than 'https'.
+
+	The caller should instantiate this class, change configuration attributes
+	as needed, and then create the service using the httpd.server() method.
+
+	'listen' may be specified as "[host][:port]" for TCP, or as "path" to select
+	a Udom service (path must contain at least one "/" character).
+
+	If 'allow_control' is True, control commands to change legion or task state
+	will be allowed.
+
+	If 'certfile' is specified, the connection will be wrapped as SSL using the
+	specified path to a PEM certificate file.
+
+	'timeout' specifies the time in float seconds that I/O operations may take
+	before the request is aborted.
+
+	Using a class for configuration allows extensions to be made in the
+	impelementation without callers needing to change until they want to make use
+	of the new feature.
+"""
+	listen = ''
+	allow_control = False
+	certfile = None
+	timeout = 3.0
+
+	def __init__(self): pass
+
+	def __str__(self):
+		return "[%s]%s%s" % (
+				self.listen,
+				' controlling' if self.allow_control else '',
+				' cert='+self.certfile if self.certfile else ''
+		)
+
 class HTTP_handler(http_server.BaseHTTPRequestHandler):
 	server_version = 'taskforce/' + taskforce_version
 
@@ -107,6 +157,7 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 class BaseServer(object):
 	get_registrations = {}
 	post_registrations = {}
+	allow_control = False
 
 	def register_get(self, regex, callback):
 		"""
@@ -250,13 +301,6 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 			info[0].settimeout(self.timeout)
 		return info
 
-#  Default when no address is provided
-def_address = 'localhost:8080'
-
-#  Used when a IP address is provided with no port
-def_port = 8080
-def_sslport = 8443
-
 #  The cipher suite here insists on high quality crypto as per ssllabs.com.
 #  This checked from time to time and updated.
 #
@@ -284,16 +328,16 @@ ssl_ciphers=[
 	'!DES'
 ]
 
-def server(address=None, timeout=2, log=None, certfile=None):
+def server(service, log=None):
 	"""
-	Creates a threaded http service.  The returned object can be watched
-	via taskforce.poll(), select.select(), etc.  When activiity is detected,
-	the handle_request() method should be invoked.  This starts a thread to
-	handle the request.  URL paths are handled with callbacks which need
-	to be established before any activity might occur.  If no callback
-	is registered for a given path, the embedded handler will report a
-	404 error.  Any exceptions raised by the callback result in a 500
-	error.
+	Creates a threaded http service based on the passed HttpService instance.
+
+	The returned object can be watched via taskforce.poll(), select.select(), etc.
+	When activiity is detected, the handle_request() method should be invoked.
+	This starts a thread to handle the request.  URL paths are handled with callbacks
+	which need to be established before any activity might occur.  If no callback
+	is registered for a given path, the embedded handler will report a 404 error.
+	Any exceptions raised by the callback result in a 500 error.
 
 	This function just instantiates either a TCPServer or UnixStreamServer based
 	on the address information in the "host" param.  The UnixStreamServer class
@@ -306,31 +350,25 @@ def server(address=None, timeout=2, log=None, certfile=None):
 
 	Parameters:
 
-	  address	- The address to listen on, defaults to "def_address".
-	  		  This may be specified as "[host][:port]" for TCP, or
-			  as "path" to select a Udom service (path must contain
-			  at least one "/" character).
-	  timeout	- The timeout in seconds (float) for handler reads.
+	  service	- Service configuration.  See the HttpService class above.
 	  log		- A 'logging' object to log errors and activity.
-	  certfile	- Wrap the connection as SSL using the specified path
-	  		  to a PEM certificate file.
 """
 	if log:
 		log = log
 	else:
 		log = logging.getLogger(__name__)
 		log.addHandler(logging.NullHandler())
-	if not timeout:
-		timeout = None
+	if not service.timeout:
+		service.timeout = None
 
-	if not address:
-		address = def_address
+	if not service.listen:
+		service.listen = def_address
 
-	if address.find('/') >=0 :
-		httpd = UnixStreamServer(address, timeout, log)
+	if service.listen.find('/') >=0 :
+		httpd = UnixStreamServer(service.listen, service.timeout, log)
 	else:
 		port = None
-		m = re.match(r'^(.*):(.*)$', address)
+		m = re.match(r'^(.*):(.*)$', service.listen)
 		if m:
 			log.debug("Matched host '%s', port '%s'", m.group(1), m.group(2))
 			host = m.group(1)
@@ -339,12 +377,12 @@ def server(address=None, timeout=2, log=None, certfile=None):
 			except:
 				raise Exception("TCP listen port must be an integer")
 		else:
-			host = address
+			host = service.listen
 			log.debug("No match, proceding with host '%s'", host)
 		if not port:
-			port = def_sslport if certfile else def_port
-		httpd = TCPServer(host, port, timeout, log)
-	if certfile:
+			port = def_sslport if service.certfile else def_port
+		httpd = TCPServer(host, port, service.timeout, log)
+	if service.certfile:
 		ciphers = ' '.join(ssl_ciphers)
 		ctx = None
 		try:
@@ -363,13 +401,17 @@ def server(address=None, timeout=2, log=None, certfile=None):
 				ctx.options |= ssl.OP_NO_SSLv3
 			else:
 				log.warning("Implementation does not offer ssl.OP_NO_SSLv3 which may allow less secure connections")
-			ctx.load_cert_chain(certfile)
+			log.info("Certificate file: %s", service.certfile)
+			with open(service.certfile, 'r') as f: pass
+			ctx.load_cert_chain(service.certfile)
 			ctx.set_ciphers(ciphers)
 			httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
 		else:
 			httpd.socket = ssl.wrap_socket(httpd.socket, server_side=True,
-				certfile=certfile, ssl_version=ssl.PROTOCOL_TLSv1, ciphers=ciphers)
-	log.info("HTTP service listening on %s", httpd.socket)
+				certfile=service.certfile, ssl_version=ssl.PROTOCOL_TLSv1, ciphers=ciphers)
+	if service.allow_control:
+		httpd.allow_control = True
+	log.info("HTTP%s service listening on %s", ' control' if httpd.allow_control else '', httpd.socket)
 	return httpd
 
 def _unicode(p):

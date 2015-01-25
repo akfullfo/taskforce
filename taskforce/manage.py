@@ -30,14 +30,11 @@ class http(object):
 	"""
 	Sets up a handler to allow limited task control via http.
 
-	The interface currently allows the 'control' setting
-	of a previously established task to be changed.
-
 	The change will persist until another control operation
 	is performed, or the configuration file is changed
 	which causes a normal reconfiguration.
 """
-	def __init__(self, legion, httpd, control=False, log=None):
+	def __init__(self, legion, httpd, log=None):
 		if log:
 			self._log = log
 		else:
@@ -45,7 +42,7 @@ class http(object):
 			self._log.addHandler(logging.NullHandler())
 		self._legion = legion
 		self._httpd = httpd
-		self._control = control
+		self._allow_control = self._httpd.allow_control
 
 		self._httpd.register_post(r'/manage/control', self.control)
 		self._httpd.register_post(r'/manage/stop', self.control)
@@ -54,7 +51,7 @@ class http(object):
 		self._httpd.register_get(r'/manage/reset', self.control)
 
 	def control(self, path, postmap=None):
-		if not self._control:
+		if not self._allow_control:
 			return (403, 'Control not permitted on this path\n', 'text/plain')
 		if path.startswith('/manage/control'):
 			postmap = httpd.merge_query(path, postmap)

@@ -515,7 +515,119 @@ access must be done with blocking activity fed through the legion event loop.
 		self._parent._resetting = now
 		self._parent.stop_all()
 
-class legion(object):
+class Context(object):
+	"""
+	Base class for legion and task to hold common code dealing with
+	context processing.
+"""
+	def _context_defines(self, context, conf):
+		"""
+		Apply any defines and role_defines from the current config.
+		The config might be at the task level or the global (top) level.
+		The order is such that a role_defines value will override
+		a normal defines value.
+	"""
+		if conf and 'defines' in conf and type(conf['defines']) is dict:
+			context.update(conf['defines'])
+		if hasattr(self, '_legion'):
+			roles = self._legion.get_roles()
+		else:
+			roles = self.get_roles()
+		if conf and roles and 'role_defines' in conf and type(conf['role_defines']) is dict:
+			for role in conf['role_defines']:
+				if role in roles:
+					context.update(conf['role_defines'][role])
+
+	def _context_defaults(self, context, conf):
+		"""
+		Apply any defaults and role_defaults from the current config.
+		The config might be at the task level or the global (top) level.
+		The order is such that a role_defaults value will be applied before
+		a normal defaults value so if present, the role_defaults is preferred.
+	"""
+		if hasattr(self, '_legion'):
+			roles = self._legion.get_roles()
+		else:
+			roles = self.get_roles()
+		if conf and roles and 'role_defaults' in conf and type(conf['role_defaults']) is dict:
+			for role in conf['role_defaults']:
+				if role in roles:
+					for tag, val in conf['role_defaults'][role].items():
+						if tag not in context:
+							context[tag] = val
+		if conf and 'defaults' in conf and type(conf['defaults']) is dict:
+			for tag, val in conf['defaults'].items():
+				if tag not in context:
+					context[tag] = val
+
+	def _get_list(self, value, context=None):
+		"""
+		Get a configuration value.  The result is None if "value" is None,
+		otherwise the result is a list.
+
+		"value" may be a list, dict, or str value.
+
+		If a list, each element of the list may be a list, dict, or
+		str value, and the value extraction proceeds recursively.
+
+		During processing, if a dict is encountered, each element of
+		the dict is checked for existence in the context.  If it
+		exists the associated value will be processed recursively as
+		before.
+
+		The final result will be the flattened list resulting from the
+		recursion.  Even if the initial "value" is a str, the result
+		will be a list, with one element.
+	"""
+		log = self._params.get('log', self._discard)
+		res = []
+		if value is None:
+			return res
+		if context is None:
+			context = self._context
+		if type(value) is list:
+			log.debug("%s Processing list %s", my(self), value)
+			for v in value:
+				res.extend(self._get_list(v, context=context))
+		elif type(value) is dict:
+			log.debug("%s Processing dict %s", my(self), value)
+			for k in value:
+				if k in context:
+					res.extend(self._get_list(value[k], context=context))
+		else:
+			log.debug("%s Processing value '%s'", my(self), value)
+			res.append(value)
+		return res
+
+	def _get(self, value, context=None, default=None):
+		"""
+		Similar to _get_list() except that the return value is required
+		to be a str.  This calls _get_list() to retrieve the value,
+		but raises an exception unless the return is None of a
+		single-valued list when that value will be returned.
+
+		If a default value is provided, it will be returned if the
+		value passed is None.  It is not applied during recursion,
+		but will be applied if the result of the recursion is None.
+	"""
+		if value is None:
+			return default
+
+		ret = self._get_list(value, context=context)
+		if ret is None:
+			return default
+		name = getattr(self, '_name', None)
+		if type(ret) is list:
+			if len(ret) == 0:
+				raise TaskError(name, "Value '%s' resolved to an empty list" % (value,))
+			elif len(ret) == 1:
+				return ret[0]
+			else:
+				raise TaskError(name, "Value '%s' resolved to a multi-valued list %s" % (value, str(ret)))
+		else:
+				raise TaskError(name, "Value '%s' resolved to unexpect type %s" % (value, str(type(ret))))
+
+class legion(Context):
 	"""
 Manage a group of daemons running disconnected from direct user interaction.
 And yes, "legion" is the accepted collective noun for daemons ...
@@ -566,14 +678,6 @@ Params are:
 		self._discard.addHandler(logging.NullHandler())
 
 		log = self._params.get('log', self._discard)
-
-		http_listen = self._params.get('http')
-		if http_listen is not None:
-			self._http_server = httpd.server(address=http_listen, certfile=self._params.get('certfile'), log=log)
-			self._http_manage = manage.http(self, self._http_server, control=self._params.get('control'), log=log)
-			self._http_status = status.http(self, self._http_server, log=log)
-		else:
-			self._http_server = None
 
 		#  Set to the program name (as delivered by set_own_module).
 		#  This is used to successfully dispatch legion events.
@@ -674,10 +778,6 @@ Params are:
 			fl = fcntl.fcntl(fd, fcntl.F_GETFL)
 			fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
-	def close(self):
-		if self._http_server:
-			self._http_server.close()
-
 	def _sig_handler(self, sig, frame):
 		log = self._params.get('log', self._discard)
 		if sig == signal.SIGCHLD:
@@ -734,6 +834,79 @@ Params are:
 			return '()'
 		else:
 			return '(' + ', '.join(val) + ')'
+	def _context_build(self, pending=False):
+		"""
+		Create a context dict from standard legion configuration.
+
+		The context is constructed in a standard way and is passed to str.format() on configuration.
+		The context consists of the entire os.environ, the config 'defines', and a set
+		of pre-defined values which have a common prefix from 'context_prefix'.
+
+		This is similar to the task conext but without the task-specific entries.
+	"""
+		log = self._params.get('log', self._discard)
+		log.debug("%s called with pending=%s", my(self), pending)
+		if pending:
+			conf = self._config_pending
+		else:
+			conf = self._config_running
+		if not conf:
+			log.warning("%s No config available", my(self)) 
+			conf = {}
+
+		#  Build context used to format process args.
+		#
+		context = {
+			context_prefix+'host': self.host,
+			context_prefix+'fqdn': self.fqdn
+		}
+
+		#  Add the environment to the context
+		#
+		context.update(os.environ)
+
+		if conf:
+			self._context_defines(context, conf)
+			self._context_defaults(context, conf)
+		else:
+			log.warning("%s No legion config available for defines", my(self)) 
+		return context
+
+	def _get_http_services(self):
+		"""
+		Returns a list of httpd.HttpService instances which describe the HTTP
+		services that should be started.
+
+		The is built from the settings.http section of the configuration.
+		The first element of that section is adjusted according to parameters
+		which have been passed into the legion.  If settings.http is empty or
+		missing but parameters are present, an httpd.HttpService instance will
+		built using just the parameters and the returned list will contain
+		just that entry.
+
+	"""
+		if not self._config_running:
+			raise Exception('Attempt to create HTTP services before config loaded')
+		conf = self._config_running
+		listen_param = self._params.get('http')
+		services = []
+		if 'settings' in conf and 'http' in conf['settings'] and len(conf['settings']['http']) > 0:
+			for service in conf['settings']['http']:
+				s = httpd.HttpService()
+				for att in ['listen', 'allow_control', 'certfile', 'timeout']:
+					val = service.get(att)
+					if val is not None:
+						setattr(s, att,  _fmt_context(self._get(val), self._context))
+				services.append(s)
+		elif listen_param is not None:
+			services.append(httpd.HttpService())
+		if services and listen_param is not None:
+			services[0].listen = listen_param
+			val = self._params.get('control')
+			if val is not None: services[0].allow_control = val
+			val = self._params.get('certfile')
+			if val is not None: services[0].certfile = val
+		return services
 
 	def _load_roles(self):
 		"""
@@ -1073,6 +1246,7 @@ Params are:
 
 	def _apply(self):
 		log = self._params.get('log', self._discard)
+		self._context = self._context_build()
 		target_tasks = self.task_list()
 		for t in set(self._tasks_scoped):
 			if t not in target_tasks:
@@ -1106,8 +1280,15 @@ Params are:
 		pset.register(self._watch_child, poll.POLLIN)
 		pset.register(self._watch_modules, poll.POLLIN)
 		pset.register(self._watch_files, poll.POLLIN)
-		if self._http_server:
-			pset.register(self._http_server, poll.POLLIN)
+
+		#http_listen = self._params.get('http')
+		http_servers = set()
+		for service in self._get_http_services():
+			server = httpd.server(service, log=log)
+			manage.http(self, server, log=log)
+			status.http(self, server, log=log)
+			pset.register(server, poll.POLLIN)
+			http_servers.add(server)
 		try:
 			while True:
 				now = time.time()
@@ -1178,8 +1359,8 @@ Params are:
 
 				else:
 					for item, mask in evlist:
-						if item == self._http_server:
-							self._http_server.handle_request()
+						if item in http_servers:
+							item.handle_request()
 							continue
 						if item == self._watch_child:
 							if self._reap() and timeout > timeout_short_cycle:
@@ -1237,7 +1418,8 @@ Params are:
 					self.stop_all()
 				except Exception as ee:
 					log.error("%s Failsafe attempt to stop tasks failed -- %s", my(self), str(ee))
-
+			for server in http_servers:
+				server.close()
 			#  Reset all signal handlers to their entry states
 			log.debug("%s reseting signals", my(self))
 			for sig, state in self._signal_prior.items():
@@ -1245,7 +1427,7 @@ Params are:
 		if self._resetting:
 			raise LegionReset()
 
-class task(object):
+class task(Context):
 	"""
 Manage daemon tasks.
 
@@ -1350,105 +1532,6 @@ Params are:
 
 	def get_name(self):
 		return self._name
-
-	def _get_list(self, value, context=None):
-		"""
-		Get a confiuration value.  The rsult is None if "value" is None,
-		otherwise the result is a list.
-
-		"value" may be a list, dict, or str value.
-
-		If a list, each element of the list may be a list, dict, or
-		str value, and the value extraction proceeds recursively.
-
-		During processing, if a dict is encountered, each element of
-		the dict is checked for existence in the context.  If it
-		exists the associated value will be processed recursively as
-		before.
-
-		The final result will be the flattened list resulting from the
-		recursion.  Even if the initial "value" is a str, the result
-		will be a list, with one element.
-	"""
-		log = self._params.get('log', self._discard)
-		res = []
-		if value is None:
-			return res
-		if context is None:
-			context = self._context
-		if type(value) is list:
-			log.debug("%s Processing list %s", my(self), value)
-			for v in value:
-				res.extend(self._get_list(v, context=context))
-		elif type(value) is dict:
-			log.debug("%s Processing dict %s", my(self), value)
-			for k in value:
-				if k in context:
-					res.extend(self._get_list(value[k], context=context))
-		else:
-			log.debug("%s Processing value '%s'", my(self), value)
-			res.append(value)
-		return res
-
-	def _get(self, value, context=None, default=None):
-		"""
-		Similar to _get_list() except that the return value is required
-		to be a str.  This calls _get_list() to retrieve the value,
-		but raises an exception unless the return is None of a
-		single-valued list when that value will be returned.
-
-		If a default value is provided, it will be returned if the
-		value passed is None.  It is not applied during recursion,
-		but will be applied if the result of the recursion is None.
-	"""
-		if value is None:
-			return default
-		ret = self._get_list(value, context=context)
-		if ret is None:
-			return default
-		if type(ret) is list:
-			if len(ret) == 0:
-				raise TaskError(self._name, "Value '%s' resolved to an empty list" % (value,))
-			elif len(ret) == 1:
-				return ret[0]
-			else:
-				raise TaskError(self._name, "Value '%s' resolved to a multi-valued list %s" % (value, str(ret)))
-		else:
-				raise TaskError(self._name, "Value '%s' resolved to unexpect type %s" % (value, str(type(ret))))
-
-	def _context_defines(self, context, conf):
-		"""
-		Apply any defines and role_defines from the current config.
-		The config might be at the task level or the global (top) level.
-		The order is such that a role_defines value will override
-		a normal defines value.
-	"""
-		if conf and 'defines' in conf and type(conf['defines']) is dict:
-			context.update(conf['defines'])
-		roles = self._legion.get_roles()
-		if conf and roles and 'role_defines' in conf and type(conf['role_defines']) is dict:
-			for role in conf['role_defines']:
-				if role in roles:
-					context.update(conf['role_defines'][role])
-
-	def _context_defaults(self, context, conf):
-		"""
-		Apply any defaults and role_defaults from the current config.
-		The config might be at the task level or the global (top) level.
-		The order is such that a role_defaults value will be applied before
-		a normal defaults value so if present, the role_defaults is preferred.
-	"""
-		roles = self._legion.get_roles()
-		if conf and roles and 'role_defaults' in conf and type(conf['role_defaults']) is dict:
-			for role in conf['role_defaults']:
-				if role in roles:
-					for tag, val in conf['role_defaults'][role].items():
-						if tag not in context:
-							context[tag] = val
-		if conf and 'defaults' in conf and type(conf['defaults']) is dict:
-			for tag, val in conf['defaults'].items():
-				if tag not in context:
-					context[tag] = val
 
 	def _context_build(self, pending=False):
 		"""
