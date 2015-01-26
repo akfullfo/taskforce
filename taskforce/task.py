@@ -1551,20 +1551,24 @@ Params are:
 			log.warning("%s No config available", my(self)) 
 			conf = {}
 
-		#  Build context used to format process args.
+		#  Initially create the context as a copy of the environment.
 		#
-		context = {
-			context_prefix+'instance': None,
-			context_prefix+'pid': None,
-			context_prefix+'name': self._name,
-			context_prefix+'ppid': os.getpid(),
-			context_prefix+'host': self._legion.host,
-			context_prefix+'fqdn': self._legion.fqdn
-		}
+		context = os.environ.copy()
 
-		#  Add the environment to the context
+		#  Merge in the built-in items.  It is important that these
+		#  will override any values from the environment as they will
+		#  have come from a parent instance of "taskforce".
 		#
-		context.update(os.environ)
+		context.update(
+			{
+				context_prefix+'instance': None,
+				context_prefix+'pid': None,
+				context_prefix+'name': self._name,
+				context_prefix+'ppid': os.getpid(),
+				context_prefix+'host': self._legion.host,
+				context_prefix+'fqdn': self._legion.fqdn
+			}
+		)
 
 		#  Add certain config values to the context
 		for tag in ['user', 'group', 'pidfile', 'cwd']:
