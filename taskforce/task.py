@@ -885,6 +885,8 @@ Params are:
 		just that entry.
 
 	"""
+		log = self._params.get('log', self._discard)
+
 		if not self._config_running:
 			raise Exception('Attempt to create HTTP services before config loaded')
 		conf = self._config_running
@@ -900,12 +902,18 @@ Params are:
 				services.append(s)
 		elif listen_param is not None:
 			services.append(httpd.HttpService())
-		if services and listen_param is not None:
-			services[0].listen = listen_param
+		if services:
+			if listen_param is not None:
+				log.debug("%s Service 0 listen from args: %s", listen_param)
+				services[0].listen = listen_param
 			val = self._params.get('control')
-			if val is not None: services[0].allow_control = val
+			if val is not None:
+				log.debug("%s Service 0 control from args: %s", val)
+				services[0].allow_control = val
 			val = self._params.get('certfile')
-			if val is not None: services[0].certfile = val
+			if val is not None:
+				log.debug("%s Service 0 certfile from args: %s", val)
+				services[0].certfile = val
 		return services
 
 	def _load_roles(self):
