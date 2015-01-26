@@ -31,6 +31,7 @@ for tag, val in os.environ.items():
 	env_at_startup[tag] = val
 
 program = utils.appname()
+def_logging_name = program
 def_pidfile = '/var/run/' + program + '.pid'
 def_roles_filelist = ['/var/local/etc/tf_roles.conf', '/usr/local/etc/tf_roles.conf' ]
 def_config_file = '/usr/local/etc/' + program + '.conf'
@@ -179,6 +180,8 @@ p.add_argument('-V', '--version', action='store_true', dest='version', help='Rep
 p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
 p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Quiet logging, warnings and errors only')
 p.add_argument('-e', '--log-stderr', action='store_true', dest='log_stderr', help='Log to stderr instead of syslog')
+p.add_argument('-L', '--logging-name', action='store', dest='logging_name', default=def_logging_name, metavar='NAME',
+			help='Use NAME instead of the default "%s" when logging to syslog' % (def_logging_name, ))
 p.add_argument('-b', '--background', action='store_true', dest='daemonize', help='Run in the background')
 p.add_argument('-p', '--pidfile', action='store', dest='pidfile', help='Pidfile path, default '+def_pidfile+', "-" means none')
 p.add_argument('-f', '--config-file', action='store', dest='config_file', default=def_config_file,
@@ -256,9 +259,9 @@ else:
 			logparams['address'] = addr
 			break
 	log_handler = logging.handlers.SysLogHandler(**logparams)
-	log_formatter = logging.Formatter(fmt="%(levelname)s %(message)s")
+	log_formatter = logging.Formatter(fmt="%(name)s[%(process)d]: %(levelname)s %(message).1000s")
 
-log = logging.getLogger()
+log = logging.getLogger(args.logging_name)
 log_handler.setFormatter(log_formatter)
 log.addHandler(log_handler)
 
