@@ -30,7 +30,7 @@ fi
 usage()
 {
 	cat >&2 <<EOT
-Usage: ./$P [-v] [-C] [-x] [-w addr] role [...]
+Usage: ./$P [-v] [-l] [-C] [-x] [-w addr] role [...]
 
        Run the example configuration in the specified role.
        This must be run from within the example directory, ie:
@@ -45,6 +45,8 @@ Usage: ./$P [-v] [-C] [-x] [-w addr] role [...]
 
 	-v	Enable verbose logging in the example run.
 
+	-l	Log to syslog
+
 	-C	Check the config and exit
 
 	-x	Cause simulated ntpd to exit randomly to
@@ -57,10 +59,14 @@ EOT
 }
 
 TFARGS=
+LOGDEST='--log-stderr'
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	-v*)
 		TFARGS="$TFARGS --verbose"
+		;;
+	-l*)
+		LOGDEST=''
 		;;
 	-C*)
 		TFARGS="$TFARGS --check-config"
@@ -130,4 +136,4 @@ while [ "$#" -gt 0 ]; do
 	shift
 done
 
-exec $PYTHON $TFBIN/taskforce $TFARGS --log-stderr --config-file $EXCONF --roles-file $EXROLES
+exec $PYTHON $TFBIN/taskforce $LOGDEST $TFARGS --config-file $EXCONF --roles-file $EXROLES
