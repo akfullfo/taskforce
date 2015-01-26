@@ -21,6 +21,18 @@ force_interval = 300
 legion_start_limit = 2
 
 import os, time, sys, signal, argparse, logging
+
+#  There is a long standing bug with setuptools and easy_install where
+#  system paths are injected in front of any PYTHONPATH entries.
+#  This is contrary to documentation, eg:
+#    https://docs.python.org/3.4/install/index.html#modifying-python-s-search-path
+#  which states:
+#    The PYTHONPATH variable can be set to a list of paths that will be added to the
+#    beginning of sys.path
+#  So add code in here so at least this program behaves as expected.
+if 'PYTHONPATH' in os.environ:
+	sys.path = os.environ['PYTHONPATH'].split(os.pathsep) + sys.path
+
 from taskforce.watch_files import WF_POLLING
 from taskforce import utils, task, httpd
 from taskforce.__init__ import __version__ as package_version
