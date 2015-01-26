@@ -30,7 +30,7 @@ fi
 usage()
 {
 	cat >&2 <<EOT
-Usage: ./$P [-v] [-l] [-C] [-x] [-w addr] role [...]
+Usage: ./$P [-v] [-l] [-C] [-x] [-w addr] [-c certfile] role [...]
 
        Run the example configuration in the specified role.
        This must be run from within the example directory, ie:
@@ -46,6 +46,8 @@ Usage: ./$P [-v] [-l] [-C] [-x] [-w addr] role [...]
 	-v	Enable verbose logging in the example run.
 
 	-l	Log to syslog
+
+	-c	Override examples certificate file
 
 	-C	Check the config and exit
 
@@ -70,6 +72,10 @@ while [ "$#" -gt 0 ]; do
 		;;
 	-C*)
 		TFARGS="$TFARGS --check-config"
+		;;
+	-c*)
+		shift
+		TFARGS="$TFARGS --certfile $1"
 		;;
 	-w*)
 		shift
