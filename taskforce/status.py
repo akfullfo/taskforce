@@ -147,16 +147,22 @@ class http(object):
 				info['control'] = t._get(conf.get('control'))
 				info['count'] = t._get(conf.get('count'), default=1)
 				info['processes'] = []
-				for instance in range(len(t._pids)):
+				for p in t._proc_state:
+					if p is None: continue
 					proc = {}
-					if t._pids[instance] is not None:
-						proc['pid'] = t._pids[instance]
-					if t._status[instance] is not None:
-						proc['status'] = t._status[instance]
-						proc['exit'] = utils.statusfmt(t._status[instance])
-					if t._proc_start[instance] is not None:
-						proc['started_t'] = t._proc_start[instance]
-						proc['started'] = utils.time2iso(t._proc_start[instance])
+					if p.pid is not None:
+						proc['pid'] = p.pid
+					if p.exit_code is not None:
+						proc['status'] = p.exit_code
+						proc['exit'] = utils.statusfmt(p.exit_code)
+					if p.started is not None:
+						proc['started_t'] = p.started
+						proc['started'] = utils.time2iso(p.started)
+					if p.exited is not None:
+						proc['exited_t'] = p.exited
+						proc['exited'] = utils.time2iso(p.exited)
+					if p.pending_sig is not None:
+						proc['exit_pending'] = True
 					info['processes'].append(proc)
 			ans[name] = info
 
