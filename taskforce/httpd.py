@@ -464,3 +464,22 @@ def merge_query(path, postmap, force_unicode=True):
 	if force_unicode:
 		p = _unicode(p)
 	return p
+
+def truthy(value):
+	"""
+	Evaluates True if "value" looks like it is intended to be true.  This translates
+	to an integer value greater than 0 or the first character starting with 'y'
+	or 't' (case independent).
+"""
+	if value is None or value == '':
+		return False
+	value = str(value)
+	try:
+		return (int(value) > 0)
+	except:
+		pass
+	try:
+		return (re.match(r'^[tTyY]', value) is not None)
+	except:
+		pass
+	return False
