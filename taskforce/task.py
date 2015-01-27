@@ -460,25 +460,33 @@ access must be done with blocking activity fed through the legion event loop.
 	"""
 		log = self._params.get('log', self._discard)
 		pid = self._key
-		status = details
-		why = statusfmt(status)
-		if pid not in self._parent._pids:
+		exit_code = details
+		why = statusfmt(exit_code)
+		proc = None
+		for p in self._parent._proc_state:
+			if pid == p.pid:
+				proc = p
+		if proc is None:
 			log.error("%s legion reported exit of unknown pid %s for task '%s' which %s",
 								my(self), str(pid), self._name, why)
 			return
-		slot = self._parent._pids.index(pid)
-		self._parent._pids[slot] = None
-		self._parent._status[slot] = status
-		self._parent._last_status = status
+
+		now = time.time()
+		proc.pid = None
+		proc.exit_code = exit_code
+		proc.exited = now
+		proc.pending_sig = None
+		proc.next_sig = None
+		self._parent._last_status = exit_code
 		extant = len(self._parent.get_pids())
 		if extant == 0:
 			self._parent._started = None
 			self._parent._stopping = None
-			self._parent._stopped = time.time()
+			self._parent._stopped = now
 			self._parent.onexit()
 		else:
 			log.debug("%s task '%s' still has %d process%s running", my(self), self._name, extant, ses(extant, 'es'))
-		if status:
+		if exit_code:
 			log.warning("%s task '%s' pid %d %s", my(self), self._name, pid, why)
 		else:
 			log.info("%s task '%s' pid %d %s", my(self), self._name, pid, why)
@@ -1435,6 +1443,22 @@ Params are:
 		if self._resetting:
 			raise LegionReset()
 
+class ProcessState(object):
+	"""
+	Record the process state for each task.  Tasks will
+	have one or more processes associated with them, recorded
+	in task._proc_state, a list ProcessState instances.
+	The list is maintained with active processes recorded
+	in range(count) of the task._proc_state list.
+"""
+	instance = None		#  This should always match the list position in _proc_state
+	pid = None		#  Process ID of the process in this slot
+	exit_code = None	#  Exit code from this slot's last process exit if any
+	started = None		#  When this slot's process was last started
+	exited = None		#  When this slot's process last exited
+	next_sig = None		#  When to send an escalated signal to this process
+	pending_sig = None	#  The signal to send if next_sig doesn't expire
+
 class task(Context):
 	"""
 Manage daemon tasks.
@@ -1482,9 +1506,7 @@ Params are:
 		self._discard.addHandler(logging.NullHandler())
 		self._config_running = None
 		self._config_pending = None
-		self._pids = []
-		self._status = []
-		self._proc_start = []
+		self._proc_state = []
 		self._last_status = None
 
 		#  Caches the executable path once it is looked up with get_path()
@@ -1630,10 +1652,7 @@ Params are:
 		return self._path
 
 	def get_pids(self):
-		return [i for i in self._pids if i != None]
-
-	def has_pid(self, pid):
-		return (pid in self._pids)
+		return [i.pid for i in self._proc_state if i.pid is not None]
 
 	def get_config(self, pending=False):
 		log = self._params.get('log', self._discard)
@@ -1819,13 +1838,17 @@ Params are:
 		log.debug("%s periodic", my(self))
 		self.manage()
 
-	def _signal(self, sig):
+	def _signal(self, sig, pid=None):
 		"""
-		Send a signal to all pids associated with this task.  Never fails, but logs
+		Send a signal to one or all pids associated with this task.  Never fails, but logs
 		signalling faults as warnings.
 	"""
 		log = self._params.get('log', self._discard)
-		for pid in self.get_pids():
+		if pid is None:
+			pids = self.get_pids()
+		else:
+			pids = [pid]
+		for pid in pids:
 			try:
 				os.kill(pid, sig)
 				log.debug("%s Signalled '%s' pid %d with %s", my(self), self._name, pid, utils.signame(sig))
@@ -1891,6 +1914,33 @@ Params are:
 			else:
 				log.error("%s Unknown type '%s' for task %s 'onexit' item %d", my(self), op_type, self._name, item)
 				continue
+
+	def _shrink(self, needed, running):
+		"""
+		Shrink the process pool from the number currently running to
+		the needed number.  The processes will be sent a SIGTERM at first
+		and if that doesn't clear the process, a SIGKILL.  Errors will
+		be logged but otherwise ignored.
+	"""
+		log = self._params.get('log', self._discard)
+		log.info("%s %d process%s running, reducing to %d process%s",
+						my(self), running, ses(running, 'es'), needed, ses(needed, 'es'))
+		now = time.time()
+		signalled = 0
+		for proc in self._proc_state[needed:]:
+			if proc.pid is None:
+				continue
+			if proc.pending_sig is None:
+				proc.pending_sig = signal.SIGTERM
+			if proc.next_sig is None or proc.next_sig < now:
+				self._signal(proc.pending_sig, pid=proc.pid)
+				signalled += 1
+				proc.pending_sig = signal.SIGKILL
+				proc.next_sig = now + sigkill_escalation
+			else:
+				log.debug("%s Process instance %d (pid %d) for task '%s' exit pending",
+						my(self), proc.instance, proc.pid, self._name)
+		log.info("%s %d process%s signalled", my(self), signalled, ses(signalled, 'es'))
 
 	def _start(self):
 		"""
@@ -2001,8 +2051,7 @@ Params are:
 			needed = self._get(conf.get('count'), default=1)
 			running = len(self.get_pids())
 			if needed < running:
-				log.warning("%s called with %d process%s running but only %d needed",
-											my(self), running, ses(running, 'es'))
+				self._shrink(needed, running)
 				return False
 			elif needed == running:
 				log.debug("%s all %d needed process%s running", my(self), running, ses(running, 'es'))
@@ -2015,13 +2064,14 @@ Params are:
 			log.debug("Found %d running, %d needed, starting %d", running, needed, needed-running)
 			started = 0
 			for instance in range(needed):
-				if instance < len(self._pids):
-					if self._pids[instance] is not None:
+				if instance < len(self._proc_state):
+					proc = self._proc_state[instance]
+					if proc.pid is not None:
 						log.debug("%s %s instance %d already started", my(self), self._name, instance)
 						continue
-					if not self._proc_start[instance]:
-						self._proc_start[instance] = now
-					last_start_delta = now - self._proc_start[instance]
+					if proc.started == None:
+						proc.started = now
+					last_start_delta = now - proc.started
 					if last_start_delta < 0:
 						#  This can happen when the system clock is manually set.  As one
 						#  of the goals here is to restart ntpd when it dies due to exceeding
@@ -2031,7 +2081,7 @@ Params are:
 						#
 						log.warning("%s Time flowed backwards, resetting %s instance %d start time",
 							my(self), self._name, instance)
-						self._proc_start[instance] = now
+						proc.started = now
 						continue
 					if last_start_delta < reexec_delay:
 						log.debug("%s %s instance %d restart skipped, last attempt %s ago",
@@ -2039,16 +2089,15 @@ Params are:
 						continue
 				else:
 					log.debug("%s %s growing instance %d", my(self), self._name, instance)
-					self._pids.append(None)
-					self._status.append(None)
-					self._proc_start.append(None)
+					self._proc_state.append(ProcessState())
+					proc = self._proc_state[instance]
 
 				pid = _exec_process(start_command, self._context, instance=instance, log=log)
 				log.debug("%s Forked pid %d for '%s', %d of %d now running",
 							my(self), pid, self._name, len(self.get_pids()), needed)
 				self._legion.proc_add(event_target(self, 'proc_exit', key=pid, log=log))
-				self._pids[instance] = pid
-				self._proc_start[instance] = now
+				proc.pid = pid
+				proc.started = now
 				started += 1
 
 			log.info("%s Task %s: %d process%s scheduled to start", my(self), self._name, started, ses(started, 'es'))
