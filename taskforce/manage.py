@@ -44,11 +44,8 @@ class http(object):
 		self._httpd = httpd
 		self._allow_control = self._httpd.allow_control
 
-		self._httpd.register_post(r'/manage/control', self.control)
-		self._httpd.register_post(r'/manage/stop', self.control)
-		self._httpd.register_post(r'/manage/reset', self.control)
-		self._httpd.register_get(r'/manage/stop', self.control)
-		self._httpd.register_get(r'/manage/reset', self.control)
+		self._httpd.register_post(r'/manage/', self.control)
+		self._httpd.register_get(r'/manage/', self.control)
 
 	def control(self, path, postmap=None):
 		if not self._allow_control:
@@ -59,8 +56,8 @@ class http(object):
 			change_detected = False
 			error_detected = False
 			for taskname in postmap:
-				task = self._legion.task_get(taskname)
 				control = postmap[taskname][0]
+				task = self._legion.task_get(taskname)
 				if not task:
 					results[taskname] = 'not found'
 					error_detected = True
@@ -90,6 +87,52 @@ class http(object):
 				return (202, text, 'text/plain')
 			else:
 				return (200, text, 'text/plain')
+		elif path.startswith('/manage/count'):
+			postmap = httpd.merge_query(path, postmap)
+			results = {}
+			counts = {}
+			change_detected = False
+			error_detected = False
+			for taskname in postmap:
+				try:
+					count = int(postmap[taskname][0])
+				except:
+					results[taskname] = 'bad count "%s"' % (postmap[taskname][0],)
+					continue
+				task = self._legion.task_get(taskname)
+				if not task:
+					results[taskname] = 'not found'
+					error_detected = True
+				elif count <= 0:
+					results[taskname] = "non-positive count '%s'" % (count,)
+					error_detected = True
+				elif not task._config_pending:
+					results[taskname] = "no pending config"
+					error_detected = True
+				elif not task._config_running:
+					results[taskname] = "no running config"
+					error_detected = True
+				elif task._config_running.get('count') == count:
+					results[taskname] = "no change"
+				else:
+					results[taskname] = "ok"
+					counts[taskname] = count
+					change_detected = True
+			text = ''
+			for taskname in sorted(results):
+				text += "%s\t%s\n" % (taskname, results[taskname])
+			if error_detected:
+				return (404, text, 'text/plain')
+			if change_detected:
+				for taskname in postmap:
+					self._legion.task_get(taskname)._config_pending['count'] = counts[taskname]
+				self._legion._apply()
+				return (202, text, 'text/plain')
+			else:
+				return (200, text, 'text/plain')
+		elif path.startswith('/manage/reload'):
+			self._legion._reload_config = time.time()
+			return (202, 'Taskforce config reload initiated\n', 'text/plain')
 		elif path.startswith('/manage/stop'):
 			self._legion._exiting = time.time()
 			self._legion.stop_all()
