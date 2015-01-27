@@ -263,6 +263,35 @@ def setproctitle(text):
 	setproctitle.setproctitle(text)
 	return prev
 
+def time2iso(unix_time, utc=False, terse=False, decimals=3):
+	from math import pow
+	from datetime import datetime
+	if utc:
+		tz_mins = 0
+	else:
+		tzdt = datetime.fromtimestamp(unix_time) - datetime.utcfromtimestamp(unix_time)
+		tz_mins = int((tzdt.days * 24 * 3600 + tzdt.seconds)/60)
+	if tz_mins == 0:
+		if terse:
+			tz = 'Z'
+		else:
+			tz = '+00:00'
+	else:
+		tz = "%+03d:%02d" % (tz_mins/60, tz_mins%60)
+	if utc:
+		tm = time.gmtime(unix_time)
+	else:
+		tm = time.localtime(unix_time)
+	if decimals > 0:
+		frac = '.' + "%0*.0f" % (decimals, (unix_time - int(unix_time)) * pow(10, decimals))
+	else:
+		frac = ''
+	if terse:
+		t = time.strftime("%Y%m%dT%H%M%S", tm) + frac + tz
+	else:
+		t = time.strftime("%Y-%m-%dT%H:%M:%S", tm) + frac + tz
+	return t
+
 def appname(path=None):
 	"""
 Return a useful application name based on the program argument.
@@ -630,6 +659,12 @@ when a subprocess needs to claim a lock on behalf of its parent.
 			pass
 
 if __name__ == "__main__":
+
+	now = time.time()
+	print(time2iso(now, utc=False, terse=False))
+	print(time2iso(now, utc=True, terse=False))
+	print(time2iso(now, utc=False, terse=True))
+	print(time2iso(now, utc=True, terse=True, decimals=0))
 
 	print("%d thing%s found" % (0, ses(0)))
 	print("%d item%s found" % (1, ses(1)))
