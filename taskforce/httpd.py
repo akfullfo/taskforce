@@ -31,7 +31,7 @@ except:
 from .__init__ import __version__ as taskforce_version
 
 #  Default when no address is provided
-def_address = 'localhost:8080'
+def_address = '/var/run/s.taskforce'
 
 #  Used when a IP address is provided with no port
 def_port = 8080
@@ -152,7 +152,31 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 		self.end_headers()
 		self.wfile.write(content)
 
-	def log_message(self, fmt, *fargs): self.server.log.info(fmt, *fargs)
+	def format_addr(self, addr, showport=False):
+		if type(addr) is tuple and len(addr) == 2:
+			if showport:
+				return "%s:%d" % (addr[0], addr[1])
+			else:
+				return str(addr[0])
+		elif type(addr) is str:
+			return addr
+		else:
+			return str(addr)
+
+	def log_message(self, fmt, *fargs):
+		try:
+			msg = fmt.strip() % fargs
+		except Exception as e:
+			msg = "Error formatting '%s' -- %s" % (str(fmt), str(e))
+		try:
+			saddr = self.format_addr(self.server.server_address, showport=True)
+		except:
+			saddr = 'unknown'
+		try:
+			raddr = self.format_addr(self.client_address)
+		except:
+			raddr = 'unknown'
+		self.server.log.info("%s>%s %s", raddr, saddr, msg)
 
 class BaseServer(object):
 	get_registrations = {}
