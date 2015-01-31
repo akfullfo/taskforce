@@ -192,16 +192,26 @@ taskforce configuration is traditionally done using YAML flow style which is eff
 
 Like the roles file, the configuration file is continuously monitored and configuration changes will be reflect immediately by stopping, starting, or restarting tasks to match the new state.
 
-The configuration consists of a key/value map at the top-level, where the values are further maps.  The term "map" here is the same as "associative array" or "dictionary".  The rest of this section describes the configuration keys in detail.
+The configuration consists of a key/value map at the top-level, where the values are further maps for lists.  The term "map" here is the same as "associative array" or "dictionary".  "list" is the same as "array".  The rest of this section describes the configuration keys in detail.
 
 #### Top-level Keys ####
 Key | Type | Decription
 :---|------|:----------
+<a name="settings"></a>`settings`| map | The associated map contains configuration for general taskforce operations.
 <a name="defines"></a>`defines`| map | The associated map is added to the base context used when building commands and other parameter substitions.
 <a name="role_defines"></a>`role_defines` | map | Maps individual roles to a key/value map.  The map is added to the context only if this role if in scope.
 <a name="defaults"></a>`defaults`| map | Similar to `defines`, but entries are only added when no matching entry is present in the context.
 <a name="role_defaults"></a>`role_defaults` | map | Similar to `role_defines`, but entries are only added when no matching entry is present in the context.
 `tasks` | map | Normally this is largest top-level key as its value is a map of all task names with their definitions (see below).
+
+#### The `settings` tag ####
+The `settings` map provides configuration of the taskforce instance as a whole.
+
+Key | Type | Decription
+:---|------|:----------
+`http`| list | A list of maps.  Each map describes an HTTP-base service which can be used for retrieving taskforce status or
+changing taskforce state (see []
+<a name="control"></a>`control`| string | Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed but the task will not be restarted.<br>**wait** indicates task processes once started  will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that will always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
 
 #### `defaults` and `defines` ####
 The top-level and task-level maps `defaults` and `defines` as well as `role_defaults` and `role_defines` are used to manipulate the [task context](#task-context).  The context becomes the Unix environment of the processes taskforce starts, so these maps also manipulate the process environment.
@@ -321,6 +331,62 @@ Action | Decription
 <a name="command"></a>`command`| Runs the command named which may be an explicit command from the `commands` tag or a built-in command.
 <a name="signal"></a>`signal`| Sends the signal named.  Signal names can be written 'HUP', 'SIGHUP', 1, '1', etc.
 
+### Management and Status via HTTP ###
+
+Taskforce provides management and status via HTTP or HTTPS to a built-in web service.  Web service is not enabled by default.  It is enabled in the `settings.http` section of the configuration file.  The [taskforce application](#application) (below) also provides flags to enable one service or override the configuration for the first service in the config file.
+
+### Application ###
+Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
+
+Here is the help message:
+```
+
+usage: taskforce [-h] [-V] [-v] [-q] [-e] [-L NAME] [-b] [-p PIDFILE]
+                 [-f CONFIG_FILE] [-r ROLES_FILE] [-w LISTEN] [-c FILE] [-A]
+                 [-C] [-R] [-S] [--sanity]
+
+Manage tasks and process pools
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -V, --version         Report version of package and exit
+  -v, --verbose         Verbose logging for debugging
+  -q, --quiet           Quiet logging, warnings and errors only
+  -e, --log-stderr      Log to stderr instead of syslog
+  -L NAME, --logging-name NAME
+                        Use NAME instead of the default "taskforce" when
+                        logging to syslog
+  -b, --background      Run in the background
+  -p PIDFILE, --pidfile PIDFILE
+                        Pidfile path, default /var/run/taskforce.pid, "-"
+                        means none
+  -f CONFIG_FILE, --config-file CONFIG_FILE
+                        Configuration. File will be watched for changes.
+                        Default /usr/local/etc/taskforce.conf
+  -r ROLES_FILE, --roles-file ROLES_FILE
+                        File to load roles from. File will be watched for
+                        changes. Default is selected from:
+                        /var/local/etc/tf_roles.conf,
+                        /usr/local/etc/tf_roles.conf
+  -w LISTEN, --http LISTEN
+                        Offer an HTTP service for statistics and management
+                        with listen address. Default is "localhost:8080"
+  -c FILE, --certfile FILE
+                        PEM-formatted certificate file. If specified, the HTTP
+                        service will be offered over TLS. Ignored if -w is not
+                        specified.
+  -A, --allow-control   Allow HTTP operations that can change the task state.
+                        Without this flag, only status operations are allowed
+  -C, --check-config    Check the config and exit
+  -R, --reset           Cause the background taskforce to reset. All
+                        unadoptable tasks will be stopped and the program will
+                        restart itself.
+  -S, --stop            Cause the background taskforce to exit. All
+                        unadoptable tasks will be stopped.
+  --sanity              Perform a basic sanity check and exit. This is
+                        effectively "-C -e" with a simple config
+```
+
 ### Example ###
 Below is a more complete configuration example.  This is included in the Github source distribution as a working example that runs simulatations of the various tasks to avoid interfering with normal system processes.  The simulated programs mostly just sleep.  To run the example, download and unpack the code from githib then run:
 
@@ -336,14 +402,14 @@ The example itself is documented with comments so that it can be read separately
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN anchor_conf TO UPDATE -->
 <pre>
 {
-    '<a href="#defaults">defaults</a>': {
+    "<a href="#defaults">defaults</a>": {
         #  These defaults are applied globally to the context used when running all tasks.
         #  The values will only be used if they are not present in the environment or
         #  in the task-specified configurations.
         #
         #  The PATH value here will be used if no PATH was set in the environment when
         #  "taskforce" was started.  If security or other concerns justify mandate a
-        #  specific PATH, the value can be set in the '<a href="#defines">defines</a>' section.  It can also
+        #  specific PATH, the value can be set in the "<a href="#defines">defines</a>" section.  It can also
         #  be overriden for each task.
         #
         "PATH": "/usr/bin:/usr/sbin:/bin:/usr/local/bin:/usr/local/sbin",
@@ -354,7 +420,7 @@ The example itself is documented with comments so that it can be read separately
         #
         "EXAMPLES_BASE": "",
     },
-    '<a href="#defines">defines</a>': {
+    "<a href="#defines">defines</a>": {
         #  These defines are also global.  They will override environment values
         #  if present but will be overridden by task-specific defines.
         #
@@ -363,47 +429,76 @@ The example itself is documented with comments so that it can be read separately
         "confdir": "/usr/local/etc",
         "wsurl": "wss://localhost:9000/"
     },
-    '<a href="#tasks">tasks</a>': {
+    "<a href="#settings">settings</a>": {
+        "http": [
+            {
+                #  Set up an HTTP service providing status-only access
+                #  on all interfaces.  The certfile setting means the service
+                #  will use SSL.  When SSL is used, the port will be the
+                #  internally defined port 8443.  If SSL is not used, the
+                #  default port is 8080.
+                #
+                #  Legion params can be used to override settings in the first
+                #  entry.
+                #
+                "listen": "0.0.0.0",
+                "certfile": "{EXAMPLES_BASE}/etc/sslcert.pem"
+            },
+            {
+                #  Set up a second HTTP service which allows control operations.
+                #  The default service listens on httpd.def_address, normally
+                #  "/var/run/taskforce.sock".  This value is overridden so
+                #  in this example so a the EXAMPLES_BASE will be honored.
+                #
+                #  Legion params are not applied to the second or subsequent
+                #  entries, so if configured they will always be run as written.
+                #
+                "listen": "{piddir}/taskforce.sock",
+                "allow_control": true
+            }
+        ]
+    },
+    "<a href="#tasks">tasks</a>": {
         "timeset": {
             #  This task is run once when "taskforce" first starts.  It simulates
             #  running the base time setting operation of "ntpd" which is similar
             #  to using "ntpdate" but does not require a separate time service
             #  configuration.
             #
-            '<a href="#control">control</a>': "once",
+            "<a href="#control">control</a>": "once",
 
             #  The "commands" section defines one or more lists which are used
             #  to run commands.  Each task must have at least one command, the
             #  "start" command.  Refere to the "commands" description for other
             #  possible commands.
             #
-            '<a href="#commands">commands</a>': { "start": ["ntpd", "-c", "{ntpd_conf}", "-n", "-g", "-q"] },
+            "<a href="#commands">commands</a>": { "start": ["ntpd", "-c", "{ntpd_conf}", "-n", "-g", "-q"] },
         },
         "ntpd": {
             #  The "ntpd" task is started when the "timeset" command has completed,
             #  indicated by the "requires" list.  The "wait" control indicates the
             #  command will be restarted if it exists.
             #
-            '<a href="#control">control</a>': "wait",
-            '<a href="#requires">requires</a>': [ "timeset" ],
+            "<a href="#control">control</a>": "wait",
+            "<a href="#requires">requires</a>": [ "timeset" ],
 
             #  "pidfile" will be used internally by "taskforce" in the future (see
             #  description).  It also sets the "Task_pidfile" context value so the
             #  value will remain consistent between "taskforce" and the task.
             #
-            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            '<a href="#defines">defines</a>': {
+            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            "<a href="#defines">defines</a>": {
                 "keys": "/etc/ntp/ntp.keys",
                 "drift": "/var/db/ntpd.drift"
             },
 
             #  This "start" command includes a more complex list expression (see
-            #  'Values and Lists'), allowing the "run" script to cause the task to
+            #  "<a href="#values-and-lists">Values and Lists</a>"), allowing the "run" script to cause the task to
             #  exit after a random interval (via the "-x" flag).  Using this option
             #  means the example will demonstrate task startup interaction (see the
             #  "onexit" element below).
             #
-            '<a href="#commands">commands</a>': {
+            "<a href="#commands">commands</a>": {
                 "start": [
                     "{<a href="#Task_name">Task_name</a>}",
                         "-c", "{ntpd_conf}",
@@ -423,25 +518,27 @@ The example itself is documented with comments so that it can be read separately
             #  probably because such updates tend to coincide with a broad O/S
             #  upgrade that requires a server-reboot.
             #
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 { "type": "file_change", "path": [ "{ntpd_conf}", "{keys}" ],
                   "command": "stop" }
             ],
 
-            #  The "onexit" setting causes the "timeset" task to be rerun if ever the "ntpd"
-            #  task exits.  "ntpd" will then re-wait for the "timeset" task to complete.
+            #  The "onexit" setting causes the "timeset" task to be rerun if ever the
+	    #  "ntpd" task exits.  "ntpd" will then re-wait for the "timeset" task to
+	    #  complete.
             #
             #  This interaction is actually a real-world case for ntpd.  If the system
-            #  time gets wildly off, ntpd will panic and exit.  If ntpd is then just blindly
-            #  restarted, it will continue to exit.  By triggering "timeset" after each
-            #  exit, the time can be resynchronized before "ntpd" is restarted.
+            #  time gets wildly off, ntpd will panic and exit.  If ntpd is then just
+	    #  blindly #  restarted, it will continue to exit.  By triggering "timeset"
+	    #  after each #  exit, the time can be resynchronized before "ntpd" is
+	    #  restarted.
             #
-            '<a href="#onexit">onexit</a>': [
+            "<a href="#onexit">onexit</a>": [
                 { "type": "start", "task": "timeset" }
             ]
         },
         "haproxy": {
-            #  This task has '<a href="#roles">roles</a>' specified.  That means the task will only
+            #  This task has "<a href="#roles">roles</a>" specified.  That means the task will only
             #  be started if the "frontend" role is present in the roles file.
             #
             #  Roles allow a single configuration file to be used for multiple
@@ -452,20 +549,20 @@ The example itself is documented with comments so that it can be read separately
             #  for each host type if the global view is not needed or becomes
             #  cumbersome.
             #
-            '<a href="#control">control</a>': "wait",
-            '<a href="#roles">roles</a>': [ "frontend" ],
-            '<a href="#requires">requires</a>': [ "ntpd" ],
+            "<a href="#control">control</a>": "wait",
+            "<a href="#roles">roles</a>": [ "frontend" ],
+            "<a href="#requires">requires</a>": [ "ntpd" ],
 
-            #  The '<a href="#start_delay">start_delay</a>' here means that other tasks that require this
+            #  The "<a href="#start_delay">start_delay</a>" here means that other tasks that require this
             #  task will not be started for at least 1 second after this task
             #  starts.
             #
-            '<a href="#start_delay">start_delay</a>': 1,
-            '<a href="#defines">defines</a>': { "conf": "{confdir}/haproxy.conf" },
-            '<a href="#commands">commands</a>': {
+            "<a href="#start_delay">start_delay</a>": 1,
+            "<a href="#defines">defines</a>": { "conf": "{confdir}/haproxy.conf" },
+            "<a href="#commands">commands</a>": {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-f", "{conf}" ]
             },
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 #  Here, a "self" event is used so the task will be restarted if
                 #  the "haproxy" executable is updated.  That choice might be made
                 #  if there is an expectation that "haproxy" will be updated frequently
@@ -478,22 +575,22 @@ The example itself is documented with comments so that it can be read separately
         "httpd": {
             #  The "httpd" task is set to run if either or both "frontend"
             #  and "backend" roles are active.  With only these two roles
-            #  in use, this is the equivalent of specifying no '<a href="#roles">roles</a>'.
+            #  in use, this is the equivalent of specifying no "<a href="#roles">roles</a>".
             #  The advantage of enumerating them is that if an additional
             #  role is added, the task would not automatically be started
             #  for that role.  In the case of the "ntpd" task there is
             #  an expectation that this would be run on a server regardless
             #  of that server's role.
             #
-            '<a href="#control">control</a>': "wait",
-            '<a href="#roles">roles</a>': [ "frontend", "backend" ],
-            '<a href="#requires">requires</a>': [ "ntpd" ],
-            '<a href="#start_delay">start_delay</a>': 1,
-            '<a href="#defines">defines</a>': {
+            "<a href="#control">control</a>": "wait",
+            "<a href="#roles">roles</a>": [ "frontend", "backend" ],
+            "<a href="#requires">requires</a>": [ "ntpd" ],
+            "<a href="#start_delay">start_delay</a>": 1,
+            "<a href="#defines">defines</a>": {
                 "conf": "{confdir}/httpd-inside.conf"
             },
 
-            #  The '<a href="#role_defines">role_defines</a>' value here sets the configuration
+            #  The "<a href="#role_defines">role_defines</a>" value here sets the configuration
             #  according to what role is active.  The default is
             #  to use the "inside" configuration which would possibly
             #  cover web-based administrative operations.
@@ -505,14 +602,14 @@ The example itself is documented with comments so that it can be read separately
             #  If both roles are active, the "frontend" role will
             #  trump the "backend" role.
             #
-            '<a href="#role_defines">role_defines</a>': {
+            "<a href="#role_defines">role_defines</a>": {
                 "frontend": { "conf": "{confdir}/httpd-outside.conf" },
             },
-            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            '<a href="#commands">commands</a>': {
+            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            "<a href="#commands">commands</a>": {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-f", "{conf}" ]
             },
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 { "type": "self", "command": "stop" },
                 { "type": "file_change",
                     "path": [
@@ -527,23 +624,23 @@ The example itself is documented with comments so that it can be read separately
             #  The "ws_server" task is set to only start once the "httpd"
             #  task has started.
             #
-            '<a href="#control">control</a>': "wait",
-            '<a href="#roles">roles</a>': [ "frontend" ],
-            '<a href="#requires">requires</a>': [ "httpd" ],
+            "<a href="#control">control</a>": "wait",
+            "<a href="#roles">roles</a>": [ "frontend" ],
+            "<a href="#requires">requires</a>": [ "httpd" ],
 
             #  This is set up to start 4 instances of this process.
             #
-            '<a href="#count">count</a>': 4,
+            "<a href="#count">count</a>": 4,
 
             #  Using the {<a href="#Task_instance">Task_instance</a>} value ensures that the pidfile is
             #  unique for each process, and will be a consistent set of names
             #  across multiple taskforce executions.
             #
-            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}-{<a href="#Task_instance">Task_instance</a>}.pid",
-            '<a href="#commands">commands</a>': {
+            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}-{<a href="#Task_instance">Task_instance</a>}.pid",
+            "<a href="#commands">commands</a>": {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-l", "{wsurl}", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
             },
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 #  The "python" event type requires that the task be written in
                 #  Python.  The task is then examined and will be restarted in
                 #  any of the non-system modules change.  This is useful because
@@ -559,15 +656,15 @@ The example itself is documented with comments so that it can be read separately
             #  The "db_server" task is set to only run if the
             #  "backend" role is active.
             #
-            '<a href="#control">control</a>': "wait",
-            '<a href="#roles">roles</a>': [ "backend" ],
-            '<a href="#requires">requires</a>': [ "httpd" ],
-            '<a href="#defines">defines</a>': { "conf": "{confdir}/db.conf" },
-            '<a href="#pidfile">pidfile</a>': "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
-            '<a href="#commands">commands</a>': {
+            "<a href="#control">control</a>": "wait",
+            "<a href="#roles">roles</a>": [ "backend" ],
+            "<a href="#requires">requires</a>": [ "httpd" ],
+            "<a href="#defines">defines</a>": { "conf": "{confdir}/db.conf" },
+            "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
+            "<a href="#commands">commands</a>": {
                 "start": [ "{<a href="#Task_name">Task_name</a>}", "-c", "{conf}", "-n", "-p", "{<a href="#Task_pidfile">Task_pidfile</a>}" ]
             },
-            '<a href="#events">events</a>': [
+            "<a href="#events">events</a>": [
                 { "type": "self", "command": "stop" },
 
                 #  The "file_change" event will fire if the db_server configuration
@@ -583,48 +680,10 @@ The example itself is documented with comments so that it can be read separately
 </pre>
 <!-- CONFIG "example.conf" END linked by anchor_conf.  Keep comment to allow auto update -->
 
-### Application ###
-Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
-
-Here is the help message:
-```
-
-usage: taskforce [-h] [-v] [-q] [-e] [-b] [-p PIDFILE] [-f CONFIG_FILE]
-                 [-r ROLES_FILE] [-C] [-R] [-S]
-
-Manage tasks and process pools
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -v, --verbose         Verbose logging for debugging
-  -q, --quiet           Quiet logging, warnings and errors only
-  -e, --log-stderr      Log to stderr instead of syslog
-  -b, --background      Run in the background
-  -p PIDFILE, --pidfile PIDFILE
-                        Pidfile path, default /var/run/taskforce.pid, "-"
-                        means none
-  -f CONFIG_FILE, --config-file CONFIG_FILE
-                        Configuration. File will be watched for changes.
-                        Default /usr/local/etc/taskforce.conf
-  -r ROLES_FILE, --roles-file ROLES_FILE
-                        File to load roles from. File will be watched for
-                        changes. Default is selected from:
-                        /var/local/etc/tf_roles.conf,
-                        /usr/local/etc/tf_roles.conf
-  -C, --check-config    Check the config and exit
-  -R, --reset           Cause the background taskforce to reset. All
-                        unadoptable tasks will be stopped and the program will
-                        restart itself.
-  -S, --stop            Cause the background taskforce to exit. All
-                        unadoptable tasks will be stopped.
-```
-
 ### ToDo ###
 * Support the **nowait** and **adopt** controls
-* Add a control path
-* Add status access
 * Support logging or other capture of task output
-* Add external events (snmp traps, nagios via NSCA)
+* Add external events (webhook, nagios via NSCA)
 
 ### License ###
 <center>
