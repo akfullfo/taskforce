@@ -14,12 +14,14 @@ taskforce
 - [Values and Lists](#values-and-lists)
 - [Configuration File](#configuration-file)
   - [Top-level Keys](#top-level-keys)
+  - [The `settings` tag](#the-settings-tag)
   - [`defaults` and `defines`](#defaults-and-defines)
   - [The `tasks` tag](#the-tasks-tag)
   - [The `tasks.commands` tag](#the-taskscommands-tag)
   - [The `tasks.events` tag](#the-tasksevents-tag)
-- [Example](#example)
+- [Management and Status via HTTP](#management-and-status-via-http)
 - [Application](#application)
+- [Example](#example)
 - [ToDo](#todo)
 - [License](#license)
 - [Acknowledgement](#acknowledgement)
@@ -211,7 +213,6 @@ Key | Type | Decription
 :---|------|:----------
 `http`| list | A list of maps.  Each map describes an HTTP-base service which can be used for retrieving taskforce status or
 changing taskforce state (see []
-<a name="control"></a>`control`| string | Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed but the task will not be restarted.<br>**wait** indicates task processes once started  will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that will always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
 
 #### `defaults` and `defines` ####
 The top-level and task-level maps `defaults` and `defines` as well as `role_defaults` and `role_defines` are used to manipulate the [task context](#task-context).  The context becomes the Unix environment of the processes taskforce starts, so these maps also manipulate the process environment.
@@ -333,7 +334,7 @@ Action | Decription
 
 ### Management and Status via HTTP ###
 
-Taskforce provides management and status via HTTP or HTTPS to a built-in web service.  Web service is not enabled by default.  It is enabled in the `settings.http` section of the configuration file.  The [taskforce application](#application) (below) also provides flags to enable one service or override the configuration for the first service in the config file.
+Taskforce provides management and status via HTTP or HTTPS to a built-in web service.  Web service is not enabled by default.  It is enabled in the `settings.http` section of the configuration file.  The [taskforce application](#application) also provides flags to enable one service or override the configuration for the first service in the config file.
 
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
@@ -524,14 +525,14 @@ The example itself is documented with comments so that it can be read separately
             ],
 
             #  The "onexit" setting causes the "timeset" task to be rerun if ever the
-	    #  "ntpd" task exits.  "ntpd" will then re-wait for the "timeset" task to
-	    #  complete.
+            #  "ntpd" task exits.  "ntpd" will then re-wait for the "timeset" task to
+            #  complete.
             #
             #  This interaction is actually a real-world case for ntpd.  If the system
             #  time gets wildly off, ntpd will panic and exit.  If ntpd is then just
-	    #  blindly #  restarted, it will continue to exit.  By triggering "timeset"
-	    #  after each #  exit, the time can be resynchronized before "ntpd" is
-	    #  restarted.
+            #  blindly #  restarted, it will continue to exit.  By triggering "timeset"
+            #  after each #  exit, the time can be resynchronized before "ntpd" is
+            #  restarted.
             #
             "<a href="#onexit">onexit</a>": [
                 { "type": "start", "task": "timeset" }
