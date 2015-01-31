@@ -349,6 +349,10 @@ Path | Control | Response Type | Description
 
 A "configuration event" is anything that causes the configuration file to be reprocessed.  They include a change to the configuration file, a change to the roles file, a taskforce reload, a taskforce reset, or a change to Python modules used by taskforce.
 
+A test instance is maintained to expose the **Management and Status** interface at *taskforce.fullford.com:8443*.  For example <a href="https://taskforce.fullford.com:8443/status/tasks?indent=4" target="_blank">this</a> returns the current task status.  As the exposed taskforce instance is managed by a separate taskforce instance, it should even be safe to do <a href="https://taskforce.fullford.com:8443/manage/stop" target="_blank">this</a>.
+
+This service is kept up to date with github repository and runs the [example configuration](#example).
+
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
 
