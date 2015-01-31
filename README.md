@@ -211,8 +211,7 @@ The `settings` map provides configuration of the taskforce instance as a whole.
 
 Key | Type | Decription
 :---|------|:----------
-`http`| list | A list of maps.  Each map describes an HTTP-base service which can be used for retrieving taskforce status or
-changing taskforce state (see []
+`http`| list | A list of maps with each map describes an HTTP-base service which can be used for retrieving taskforce status or changing taskforce state, see [Management and Status via HTTP](#management-and-status-via-http).  The tags define configuration for the service:<br>**listen** gives the address to listen on in the format `[host][:port]` for a TCP listener, or `path` for a Unix-domain listener.  To distinguish a Unix domain address from a TCP hostname, the Unix domain address must have a '/' in it somewhere.  Use './sockname' if you want it in the current directory.  If no **listen** tag is present or if the value is empty, a default address is used, currently `/var/run/s.taskforce`.<br>**certfile** specifies the PEM-formatted certificate change which should include the private key, certificate, and any intermediate CA certificates.  If specified, the service will listen for HTTPS connections.  This applies to both TCP and Unix domain listeners although its utility for Unix domain listeners is questionable.<br>**allow_control**, if true, enables control URLs on the service which can change the state of the taskforce instance.  Without this set, only status URLs are allowed.<br>**timeout** specfies how long the service will wait for I/O to complete before the handler thread exits.  
 
 #### `defaults` and `defines` ####
 The top-level and task-level maps `defaults` and `defines` as well as `role_defaults` and `role_defines` are used to manipulate the [task context](#task-context).  The context becomes the Unix environment of the processes taskforce starts, so these maps also manipulate the process environment.
@@ -335,6 +334,20 @@ Action | Decription
 ### Management and Status via HTTP ###
 
 Taskforce provides management and status via HTTP or HTTPS to a built-in web service.  Web service is not enabled by default.  It is enabled in the `settings.http` section of the configuration file.  The [taskforce application](#application) also provides flags to enable one service or override the configuration for the first service in the config file.
+
+The URL paths supported are shown below.  If Control is "Yes", the path is only available for services with **allow_control** set.
+
+Path | Control | Response Type | Description
+:----|---------|---------------|:-----------
+/status/config| No | JSON | Returns the configuration most recently loaded from the configuration file.  The JSON elements correspond the the [configuration file](#configuration-file) elements.
+/status/tasks| No | JSON | Returns the running state for each configured task as a map of task names with these tags:<br>**control** shows the current control value which will be either the configured value or the value last set by the management service.<br>**count** is the expected number of processes running in the task.  This will also be either the configured value or the value last set by the management service.<br>**processes** is a list of maps, describing the state of each process running for the task.<br>Each process map can include these tags:<br>**pid** is the process ID.  If the tag is present, the process is currently running.  For a task with *once* control, **pid** will only be present during startup.<br>**status** is the exit code, as per *wait(2)*, from the last time this process exited.<br>**exit** is the status code expressed in English.<br>**started** is the timestamp in ISO8601 format for when this instance of the process was started.<br>**started_t** is the same timestamp in Unix time_t format (seconds since Jan 1, 1970).<br>Similarly **exited** and **exited_t** indicate when this process last exited.  Exit values will only be present if the task exited some time is the past.
+/manage/control?*taskname*=*control*| Yes | text/plain | Sets the **control** field for *taskname* to the specified value ('off', 'wait', etc).  This can be used to temporarily disable or enable a task.  Note that the next reconfiguration event will cause this value to revert to the configured value.
+/manage/count?*taskname*=*count*| Yes | text/plain | Sets the **count** field for *taskname* to the specified value.  This can be used to temporarily increase or decrease the number of processes running for the specified task.  The value is also reset by a configuration event.
+/manage/reload | Yes | text/plain | Causes the configuration to be reloaded.  This has the effect of reverting any changes made with the management service to the configured value.
+/manage/stop | Yes | text/plain | Stops the running legion.  This stops all taskforce processing until some outside agent restarts the legion.
+/manage/reset | Yes | text/plain | Resets the running legion so all managed tasks are stopped and restarted.
+
+A "configuration event" is anything that causes the configuration file to be reprocessed.  They include a change to the configuration file, a change to the roles file, a taskforce reload, a taskforce reset, or a change to Python modules used by taskforce.
 
 ### Application ###
 Also included is **bin/taskforce** which provides an operational harness for running a taskforce legion.  It also serves as an example of how the `taskforce.task.legion()` class should be called.
