@@ -429,7 +429,7 @@ def server(service, log=None):
 		try:
 			ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
 		except AttributeError:
-			log.warning("Implementation does not offer ssl.SSLContext() which may allow less secure connections")
+			log.warning("No ssl.SSLContext(), less secure connections may be allowed")
 			pass
 		if ctx:
 			#  If ssl supports contexts, provide some tigher controls on the ssl negotiation
