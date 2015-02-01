@@ -75,10 +75,27 @@ class HttpService(object):
 
 	def __str__(self):
 		return "[%s]%s%s" % (
-				self.listen,
+				self.listen if self.listen else ':default:',
 				' controlling' if self.allow_control else '',
 				' cert='+self.certfile if self.certfile else ''
 		)
+
+	def cmp(self, other_service):
+		"""
+		Compare with an instance of this object.  Returns None if the object
+		is not comparable, False is relevant attributes don't match and True
+		if they do.
+	"""
+		if not isinstance(other_service, HttpService):
+			return None
+		for att in dir(self):
+			if att == 'cmp' or att.startswith('_'):
+				continue
+			if not hasattr(other_service, att):
+				return None
+			if getattr(self, att) != getattr(other_service, att):
+				return False
+		return True
 
 class HTTP_handler(http_server.BaseHTTPRequestHandler):
 	server_version = 'taskforce/' + taskforce_version
