@@ -60,6 +60,10 @@ idle_starvation = def_long_cycle*3
 #
 context_prefix = 'Task_'
 
+#  Attempt service reconnects only this often
+#
+service_retry_limit = 5
+
 #  Issue repetitive messages only this frequently (in seconds).
 #
 repetition_limit = 60
@@ -742,6 +746,14 @@ Params are:
 		#
 		self._config_running = None
 
+		#  Currently running http servers, empty list if none.
+		#
+		self._http_servers = []
+
+		#  The poll.poll() instance used by the event loop
+		#
+		self._pset = None
+
 		try: self.host = socket.gethostname()
 		except: self.host = None
 		try: self.fqdn = socket.getfqdn()
@@ -880,7 +892,7 @@ Params are:
 			log.warning("%s No legion config available for defines", my(self)) 
 		return context
 
-	def _get_http_services(self):
+	def _get_http_services(self, http_list):
 		"""
 		Returns a list of httpd.HttpService instances which describe the HTTP
 		services that should be started.
@@ -891,17 +903,12 @@ Params are:
 		missing but parameters are present, an httpd.HttpService instance will
 		built using just the parameters and the returned list will contain
 		just that entry.
-
 	"""
 		log = self._params.get('log', self._discard)
-
-		if not self._config_running:
-			raise Exception('Attempt to create HTTP services before config loaded')
-		conf = self._config_running
 		listen_param = self._params.get('http')
 		services = []
-		if 'settings' in conf and 'http' in conf['settings'] and len(conf['settings']['http']) > 0:
-			for service in conf['settings']['http']:
+		if len(http_list) > 0:
+			for service in http_list:
 				s = httpd.HttpService()
 				for att in ['listen', 'allow_control', 'certfile', 'timeout']:
 					val = service.get(att)
@@ -912,17 +919,101 @@ Params are:
 			services.append(httpd.HttpService())
 		if services:
 			if listen_param is not None:
-				log.debug("%s Service 0 listen from args: %s", listen_param)
+				log.debug("%s Service 0 listen from args: %s", my(self), listen_param)
 				services[0].listen = listen_param
 			val = self._params.get('control')
 			if val is not None:
-				log.debug("%s Service 0 control from args: %s", val)
+				log.debug("%s Service 0 control from args: %s", my(self), val)
 				services[0].allow_control = val
 			val = self._params.get('certfile')
 			if val is not None:
-				log.debug("%s Service 0 certfile from args: %s", val)
+				log.debug("%s Service 0 certfile from args: %s", my(self), val)
 				services[0].certfile = val
 		return services
+
+	def _manage_http_servers(self):
+		"""
+		Compares the running services with the current settings configuration
+		and adjusts the running services to match it if different.
+
+		The services are identified only by their postion in the server list,
+		so a change than only involves a position move will cause a shuffle
+		in multiple services.  They don't change often so this isn't much
+		of a problem.
+
+		The method attempts to create all services.  If any service
+		creation fails, the slot is set to None, the error is logged and
+		a self._http_retry is set to when another attempt should be made.
+		The method should be called whenever self._http_retry has expired.
+		The presumption is that the error was transient (already in use, etc)
+		and a retry might bring the service up.
+	"""
+		log = self._params.get('log', self._discard)
+
+		if not self._config_running:
+			raise Exception('Attempt to create HTTP services before config loaded')
+		conf = self._config_running
+		need = self._get_http_services(conf['settings']['http']
+						if 'settings' in conf and 'http' in conf['settings'] else [])
+
+		#  If the service count has changed, close all servers and rebuild from scratch.
+		#
+		if len(self._http_servers) != len(need):
+			log.info("%s HTTP services count changed from %d to %d, reconfiguring all services",
+						my(self), len(self._http_servers), len(need))
+			pos = 0
+			for server in self._http_servers:
+				if server:
+					if self._pset:
+						try: self._pset.unregister(server)
+						except: pass
+					try: server.close()
+					except: pass
+					log.debug("%s Slot %d service closed", my(self), pos)
+				pos += 1
+			self._http_servers = []
+
+		self._http_retry = None
+		for pos in range(len(need)):
+			if len(self._http_servers) > pos:
+				if self._http_servers[pos]:
+					if need[pos].cmp(self._http_servers[pos]._http_service):
+						log.debug("%s No change in service slot %d: %s", my(self), pos, str(need[pos]))
+						continue
+					else:
+						log.debug("%s Slot %d service changing from %s",
+									my(self), pos, str(self._http_servers[pos]._http_service))
+						if self._pset:
+							try: self._pset.unregister(self._http_servers[pos])
+							except: pass
+						try: self._http_servers[pos].close()
+						except: pass
+						self._http_servers[pos] = None
+				else:
+					log.debug("%s No existing service in slot %d", my(self), pos)
+			else:
+				log.debug("%s Increasing services list for slot %d", my(self), pos)
+				self._http_servers.append(None)
+
+			#  At this point the service slot exists and is empty.  We'll attempt to fill it.
+			try:
+				server = httpd.server(need[pos], log=log)
+
+				#  Add our own attribute to retain the service information
+				#
+				server._http_service = need[pos]
+
+				manage.http(self, server, log=log)
+				status.http(self, server, log=log)
+				if self._pset:
+					self._pset.register(server, poll.POLLIN)
+				self._http_servers[pos] = server
+				log.info("%s Slot %d service is now %s", my(self), pos, str(server._http_service))
+			except Exception as e:
+				log.error("%s Failed to create server slot %d on %s -- %s",
+									my(self), pos, str(need[pos]), str(e))
+				if not self._http_retry:
+					self._http_retry = time.time() + service_retry_limit
 
 	def _load_roles(self):
 		"""
@@ -1021,7 +1112,9 @@ Params are:
 		else:
 			log.error("%s Invalid config file", my(self))
 			return False
+
 		self._config_running = new_config
+
 		for name in self._tasknames:
 			if name not in new_config['tasks']:
 				self._tasknames[name][0].terminate()
@@ -1263,6 +1356,9 @@ Params are:
 	def _apply(self):
 		log = self._params.get('log', self._discard)
 		self._context = self._context_build()
+
+		self._manage_http_servers()
+
 		target_tasks = self.task_list()
 		for t in set(self._tasks_scoped):
 			if t not in target_tasks:
@@ -1290,21 +1386,17 @@ Params are:
 		last_idle_run = time.time()
 		timeout = 0.0
 		exit_report = 0
-		pset = poll.poll()
+		self._pset = poll.poll()
 		log.info("%s File event polling via %s from %s available",
-						my(self), pset.get_mode_name(), pset.get_available_mode_names())
-		pset.register(self._watch_child, poll.POLLIN)
-		pset.register(self._watch_modules, poll.POLLIN)
-		pset.register(self._watch_files, poll.POLLIN)
+						my(self), self._pset.get_mode_name(), self._pset.get_available_mode_names())
+		self._pset.register(self._watch_child, poll.POLLIN)
+		self._pset.register(self._watch_modules, poll.POLLIN)
+		self._pset.register(self._watch_files, poll.POLLIN)
 
-		#http_listen = self._params.get('http')
-		http_servers = set()
-		for service in self._get_http_services():
-			server = httpd.server(service, log=log)
-			manage.http(self, server, log=log)
-			status.http(self, server, log=log)
-			pset.register(server, poll.POLLIN)
-			http_servers.add(server)
+		for server in self._http_servers:
+			if server:
+				self._pset.register(server, poll.POLLIN)
+
 		try:
 			while True:
 				now = time.time()
@@ -1329,7 +1421,7 @@ Params are:
 					log.debug("%s select() timeout is now %s", my(self), deltafmt(timeout))
 					last_timeout = timeout
 				try:
-					evlist = pset.poll(timeout*1000)
+					evlist = self._pset.poll(timeout*1000)
 				except OSError as e:
 					if e.errno != errno.EINTR:
 						raise e
@@ -1348,6 +1440,9 @@ Params are:
 
 					if self._reap() and timeout > timeout_short_cycle:
 						timeout = timeout_short_cycle
+
+					if self._http_retry and self._http_retry < now:
+						self._manage_http_servers()
 
 					#  Manage tasks.  The tasks themselves figure out what might need to
 					#  happen.
@@ -1375,7 +1470,7 @@ Params are:
 
 				else:
 					for item, mask in evlist:
-						if item in http_servers:
+						if item in self._http_servers:
 							item.handle_request()
 							continue
 						if item == self._watch_child:
@@ -1434,8 +1529,13 @@ Params are:
 					self.stop_all()
 				except Exception as ee:
 					log.error("%s Failsafe attempt to stop tasks failed -- %s", my(self), str(ee))
-			for server in http_servers:
-				server.close()
+			for server in self._http_servers:
+				if server:
+					try: self._pset.unregister(server)
+					except: pass
+					try: server.server.close()
+					except: pass
+			self._http_servers = []
 			#  Reset all signal handlers to their entry states
 			log.debug("%s reseting signals", my(self))
 			for sig, state in self._signal_prior.items():
