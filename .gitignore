@@ -22,7 +22,6 @@ var/
 .installed.cfg
 *.egg
 MANIFEST
-.gitchangelog.rc
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
