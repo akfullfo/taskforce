@@ -1,8 +1,10 @@
 Changelog
 =========
 
-0.3.4 (2015-02-04)
+0.3.4 (2015-02-05)
 ------------------
+
+- Release 0.3.4. [Andrew Fullford]
 
 - Simple unreleased version string that pypi_push can fix. [Andrew
   Fullford]
@@ -191,9 +193,9 @@ Changelog
   Specific case is with simfs used with OpenVZ (containers), which
   happens to be used by Travis-CI. [Andrew Fullford]
 
-- #7. Test simfs inotify work-around. [Andrew Fullford]
+- Issue 7. Test simfs inotify work-around. [Andrew Fullford]
 
-- #7. Attempt to manually catch rename events by recording inode number.
+- Issue 7. Attempt to manually catch rename events by recording inode number.
   These missing rename events appear to be related to this Travis CI
   issue, wherein the OpenVZ simfs filesystem isn't sending inotify file
   move/delete events: travis-ci/travis-ci#2342. [Andrew Fullford]
@@ -204,7 +206,7 @@ Changelog
 - Change exit codes to seventies because taskforce uses codes in the
   eighties. [Andrew Fullford]
 
-- #7. force polling with inotifyx.  successfully reproduced the problem,
+- Issue 7. force polling with inotifyx.  successfully reproduced the problem,
   but only on travis-ci. [Andrew Fullford]
 
 - Add variable polling rate so test goes quicker with polling mode.
@@ -282,7 +284,7 @@ Changelog
 
 - Move status to beta now python 3 seems to work. [Andrew Fullford]
 
-- #6.  declare preliminary support for python 3.  it passes regression,
+- Issue 6.  declare preliminary support for python 3.  it passes regression,
   anyway. [Andrew Fullford]
 
 - Skip installation attempt for inotifyx with python 3 -- it doesn't
@@ -290,10 +292,10 @@ Changelog
 
 - Enable testing of python 3.3 and 3.4. [Andrew Fullford]
 
-- #6. handle difference between py2 and py3 reading from nonblocking fd.
+- Issue 6. handle difference between py2 and py3 reading from nonblocking fd.
   [Andrew Fullford]
 
-- #6. removed __del__().  This class holds no resources and we can
+- Issue 6. removed __del__().  This class holds no resources and we can
   depend on the underlying object that do to clean up.  Otherwise there
   is a race in python3 between the task cleanup and thw watch_files
   cleanup. [Andrew Fullford]
@@ -309,7 +311,7 @@ Changelog
 
 - Fix for generalized EINTR catching. [Andrew Fullford]
 
-- #6.  more changes from .keys() to list() for py3. [Andrew Fullford]
+- Issue 6.  more changes from .keys() to list() for py3. [Andrew Fullford]
 
 - Change log level to debug timeout. [Andrew Fullford]
 
@@ -319,29 +321,29 @@ Changelog
 - Needs more lax iolimit when log level is warning or higher. [Andrew
   Fullford]
 
-- #6: use list() instead of .keys() to ensure list is a snapshot in py2
+- Issue 6: use list() instead of .keys() to ensure list is a snapshot in py2
   and py3. [Andrew Fullford]
 
 - Remove main section.  use nosetests instead. [Andrew Fullford]
 
-- #6: use list() instead of .keys() building set. [Andrew Fullford]
+- Issue 6: use list() instead of .keys() building set. [Andrew Fullford]
 
-- #6.  Improved inline description of last change. [Andrew Fullford]
+- Issue 6.  Improved inline description of last change. [Andrew Fullford]
 
-- #6.  Coercing EINTR errors to always appear as OSError is fairly
+- Issue 6.  Coercing EINTR errors to always appear as OSError is fairly
   convoluted when trying to handle py2 and py3.  py3 adds
   InterruptedError which is unknown in py2.  Anyway this should cover it
   and it hides the complexity from above. [Andrew Fullford]
 
-- #6. Move known_fds() to support.  Force garbage collection is a couple
+- Issue 6. Move known_fds() to support.  Force garbage collection is a couple
   of places.  python3 delays gc causing a race condition with nosetests
   test cleanup code on file descriptor closes. [Andrew Fullford]
 
-- #6.  register previous change -- Use list() instead of .keys() to
+- Issue 6.  register previous change -- Use list() instead of .keys() to
   snapshot dict key list against python3 issue.  Also added ses() call.
   [Andrew Fullford]
 
-- #5.  Use list() instead of .keys() to snapshot dict key list. [Andrew
+- Issue 5.  Use list() instead of .keys() to snapshot dict key list. [Andrew
   Fullford]
 
 - Better tracking of fd use. [Andrew Fullford]
