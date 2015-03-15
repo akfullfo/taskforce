@@ -40,6 +40,7 @@ class Test(object):
 	tcp_host = '127.0.0.1'
 	tcp_port = 34567
 	tcp_address = tcp_host + ':' + str(tcp_port)
+	unx_address = os.path.join('/tmp', 's.' + __module__)
 	http_test_map = {
 		u'English': u'hello, world',
 		u'français': u'bonjour le monde',
@@ -101,29 +102,10 @@ class Test(object):
 			text += "'%s' sent '%s' received '%s'\n" % (tag, self.http_test_map.get(tag), p.get(tag))
 		return (409, 'bad\n' + text, 'text/plain')
 
-	def Test_A_open_close(self):
-		self.log.info("Starting %s", my(self))
-		http_service = taskforce.httpd.HttpService()
-		http_service.listen = self.tcp_address
-		http_service.certfile = env.cert_file
-		httpd = taskforce.httpd.server(http_service, log=self.log)
-		l = support.listeners(log=self.log)
-		self.log.info("Service active, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
-		assert self.tcp_port in l
-		del httpd
-		l = support.listeners(log=self.log)
-		self.log.info("Service deleted, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
-		assert self.tcp_port not in l
-
-	def Test_B_get(self):
-		self.log.info("Starting %s", my(self))
-		http_service = taskforce.httpd.HttpService()
-		http_service.listen = self.tcp_address
-		httpd = taskforce.httpd.server(http_service, log=self.log)
+	def do_get(self, httpc, httpd, path='/test/json'):
 		httpd.register_get(r'/test/.*', self.getter)
 
-		httpc = taskforce.http.Client(address=self.tcp_address)
-		httpc.request('GET', '/test/json')
+		httpc.request('GET', path)
 
 		pset = taskforce.poll.poll()
 		pset.register(httpd, taskforce.poll.POLLIN)
@@ -145,7 +127,7 @@ class Test(object):
 				if e.errno != errno.EINTR:
 					raise e
 				else:
-					self.log.info("Interrupted poll()")
+					self.log.info("%s Interrupted poll()", my(self))
 					continue
 			if not evlist:
 				raise Exception("Event loop timed out")
@@ -154,12 +136,12 @@ class Test(object):
 					try:
 						item.handle_request()
 					except Exception as e:
-						self.log.warning("HTTP error -- %s", str(e))
+						self.log.warning("%s HTTP error -- %s", my(self), str(e))
 				elif item == httpr:
 					assert item.getheader('Content-Type') == 'application/json'
 					text = httpr.read().decode('utf-8')
-					self.log.info('%d byte response received', len(text))
-					self.log.debug('Answer ...')
+					self.log.info('%s %d byte response received', my(self), len(text))
+					self.log.debug('%s Answer ...', my(self))
 					for line in text.splitlines():
 						self.log.debug('%s', line)
 					ans = json.loads(text)
@@ -171,12 +153,77 @@ class Test(object):
 			if not handled:
 				httpr = httpc.getresponse()
 				pset.register(httpr, taskforce.poll.POLLIN)
-				self.log.info("HTTP response object successfully registered")
+				self.log.info("%s HTTP response object successfully registered", my(self))
 				handled = True
+
+	def Test_A_tcp_https_connect(self):
+		self.log.info("Starting %s", my(self))
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		http_service.certfile = env.cert_file
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		l = support.listeners(log=self.log)
+		self.log.info("Service active, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
+		assert self.tcp_port in l
+		del httpd
+		l = support.listeners(log=self.log)
+		self.log.info("Service deleted, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
+		assert self.tcp_port not in l
+
+	def Test_B_unx_https_connect(self):
+		self.log.info("Starting %s", my(self))
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.unx_address
+		http_service.certfile = env.cert_file
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		l = support.listeners(log=self.log)
+		self.log.info("Service active, listening on %s", l.get(self.unx_address))
+		assert self.unx_address in l
+		del httpd
+		l = support.listeners(log=self.log)
+		self.log.info("Service deleted, listening on %s", l.get(self.unx_address))
+		assert self.tcp_port not in l
+
+	def Test_C_tcp_get(self):
+		self.log.info("Starting %s", my(self))
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		httpc = taskforce.http.Client(address=self.tcp_address, log=self.log)
+		self.do_get(httpc, httpd)
+		httpd.close()
 		del httpd
 		time.sleep(1)
 
-	def Test_C_post(self):
+	def Test_D_unx_get(self):
+		self.log.info("Starting %s", my(self))
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.unx_address
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		httpc = taskforce.http.Client(address=self.unx_address, log=self.log)
+		self.do_get(httpc, httpd)
+		httpd.close()
+		del httpd
+		time.sleep(1)
+
+	def Test_E_get_error(self):
+		self.log.info("Starting %s", my(self))
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		httpc = taskforce.http.Client(address=self.tcp_address, log=self.log)
+		expected_error_occurred = False
+		try:
+			self.do_get(httpc, httpd, path='/invalid/path')
+		except taskforce.http.HttpError as e:
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		httpd.close()
+		del httpd
+		assert expected_error_occurred
+		time.sleep(1)
+
+	def Test_F_post(self):
 		self.log.info("Starting %s", my(self))
 		http_service = taskforce.httpd.HttpService()
 		http_service.listen = self.tcp_address
