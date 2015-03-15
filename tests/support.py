@@ -570,7 +570,7 @@ def listeners(log=None):
 				line = re.sub(r'\s+\]', ']', line)
 				is_linux = True
 			else:
-				is_linux = True
+				is_linux = False
 			f = line.split()
 			if is_linux and f[4] != 'LISTENING':
 				if log: log.debug("Not linux listen: %s", line)
