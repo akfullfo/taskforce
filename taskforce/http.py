@@ -20,9 +20,11 @@ import os, sys, socket, re, logging
 from .httpd import def_address, def_port, def_sslport
 try:
 	from http.client import HTTPConnection, HTTPSConnection
-	from urllib.parse import parse_qs, urlparse, urlencode
 except:
 	from httplib import HTTPConnection, HTTPSConnection
+try:
+	from urllib.parse import parse_qs, urlparse, urlencode
+except:
 	from urlparse import parse_qs, urlparse
 	from urllib import urlencode
 
@@ -38,7 +40,7 @@ class udomHTTPConnection(HTTPConnection, object):
 		self.sock = sock
 		if self.timeout:
 			self.sock.settimeout(self.timeout)
-
+ 
 class udomHTTPSConnection(HTTPSConnection, object):
 	def __init__(self, path, timeout):
 		self.path = path
@@ -61,12 +63,14 @@ class HttpError(Exception):
 	def __str__(self):
 		message = ''
 		if self.content_type == 'text/plain':
-			message = content.splitlines()
-			if len(message) > 0:
-				message = message[0]
+			for line in self.content.splitlines():
+				text = line.strip()
+				if len(text) > 0:
+					message = text
+					break
 		else:
 			message = 'Error content %s, length %d' % (self.content_type, len(self.content))
-		return "%d %s" % (self.code, message)
+		return ("%d %s" % (self.code, message))
 
 class Client(object):
 	"""
@@ -82,6 +86,7 @@ class Client(object):
 			  as "path" to select a Udom service (path must contain
 			  at least one "/" character).
 	  ssl		- If True, SSL will be used to make the connection.
+	  		  Ignored for Udom connections.
 	  timeout	- The timeout in seconds (float) for query I/O.
 	  log		- A 'logging' object to log errors and activity.
 """
@@ -92,7 +97,9 @@ class Client(object):
 			self.log = logging.getLogger(__name__)
 			self.log.addHandler(logging.NullHandler())
 
-		if not address:
+		if address:
+			self.address = address
+		else:
 			self.address = def_address
 
 		if address.find('/') >=0 :
@@ -100,6 +107,7 @@ class Client(object):
 				self.http = udomHTTPSConnection(self.address, timeout)
 			else:
 				self.http = udomHTTPConnection(self.address, timeout)
+
 		else:
 			port = None
 			m = re.match(r'^(.*):(.*)$', address)
@@ -125,7 +133,7 @@ class Client(object):
 		self.sock = self.http.sock
 		self.lastpath = None
 		self.log.info("HTTP connected via %s", self.http.sock)
-		if ssl:
+		if ssl and hasattr(self.http.sock, 'cipher'):
 			self.log.debug("Cipher: %s", self.http.sock.cipher())
 
 	def get(self, path, query=None):
@@ -220,4 +228,11 @@ class Client(object):
 		"""
 		Pass-thru method to make this class behave a little like HTTPConnection
 	"""
-		return self.http.getresponse()
+		resp = self.http.getresponse()
+		self.log.info("resp is %s", str(resp))
+		if resp.status < 400:
+			return resp
+		else:
+			errtext = resp.read()
+			content_type = resp.getheader('Content-Type', 'text/plain')
+			raise HttpError(code=resp.status, content_type=content_type, content=errtext)
