@@ -514,7 +514,8 @@ def listeners(log=None):
 				stderr=subprocess.STDOUT,
 				close_fds=True,
 				universal_newlines=True)
-	choose = re.compile(r'\bLISTEN$')
+	tcp_choose = re.compile(r'\bLISTEN$')
+	unx_choose = re.compile(r'\s/[\S]+$')
 	portsep = re.compile(r'^(.*)[:\.](\d+)$')
 	ports = {}
 
@@ -524,47 +525,73 @@ def listeners(log=None):
 		line = proc.stdout.readline().strip()
 		if not line:
 			break
-		if not choose.search(line):
-			continue
-		f = line.split()
-		if len(f) != 6:
-			if log: log.warning("Ignoring unexpected '%s' LISTEN line: %s", ' '.join(cmd), line)
-			continue
-		protocol = f[0]
-		if protocol == 'tcp':
-			protocol = 'tcp4'
-		netaddr = f[3]
-		m = portsep.match(netaddr)
-		if m:
-			addr = m.group(1)
-			port = m.group(2)
-		else:
-			if log: log.warning("Ignoring unexpected '%s' listen address in line: %s", ' '.join(cmd), line)
-			continue
-		if addr == '*':
-			if protocol == 'tcp6':
-				addr = '::'
+		if tcp_choose.search(line):
+			f = line.split()
+			if len(f) != 6:
+				if log: log.warning("Ignoring unexpected '%s' LISTEN line: %s", ' '.join(cmd), line)
+				continue
+			protocol = f[0]
+			if protocol == 'tcp':
+				protocol = 'tcp4'
+			netaddr = f[3]
+			m = portsep.match(netaddr)
+			if m:
+				addr = m.group(1)
+				port = m.group(2)
 			else:
-				addr = '0.0.0.0'
-		try:
-			port = int(port)
-		except Exception as e:
-			if log: log.warning("Ignoring '%s' non-integer port in line: %s", ' '.join(cmd), line)
-			continue
-		if port not in ports:
-			ports[port] = set()
-		if protocol == 'tcp46':
-			ports[port].add(('tcp4', addr))
-			ports[port].add(('tcp6', addr))
-		else:
-			ports[port].add((protocol, addr))
+				if log: log.warning("Ignoring unexpected '%s' listen address in line: %s", ' '.join(cmd), line)
+				continue
+			if addr == '*':
+				if protocol == 'tcp6':
+					addr = '::'
+				else:
+					addr = '0.0.0.0'
+			try:
+				port = int(port)
+			except Exception as e:
+				if log: log.warning("Ignoring '%s' non-integer port in line: %s", ' '.join(cmd), line)
+				continue
+			if port not in ports:
+				ports[port] = set()
+			if protocol == 'tcp46':
+				ports[port].add(('tcp4', addr))
+				ports[port].add(('tcp6', addr))
+			else:
+				ports[port].add((protocol, addr))
+		elif unx_choose.search(line):
+			if line.lower().find(' stream ') < 0:
+				continue
+			if line.startswith('unix '):
+				#  This handles the Linux '[ xxx ]' flags field.
+				#  I wish people writing these cli tools would build
+				#  output that can be parsed as space-separated fields.
+				#
+				line = re.sub(r'\[\s+', '[', line)
+				line = re.sub(r'\s+\]', ']', line)
+				is_linux = True
+			else:
+				is_linux = True
+			f = line.split()
+			if is_linux and f[4] != 'LISTENING':
+				if log: log.debug("Not linux listen: %s", line)
+				continue
+			elif not is_linux and f[4] == '0':
+				if log: log.debug("Not MacOS/BSD listen: %s", line)
+				continue
+			path = f.pop()
+			if path in ports:
+				if log: log.debug("Path %s already recorded: %s", path, line)
+			else:
+				ports[path] = set([('unix', path)])
 
 	#  Now convert the sets of tuples into lists of tuples ordered by
 	#  (protocol, address)
 	#
 	def tup_order(key):
 		p, a = key
-		if a.find(':') >= 0:
+		if a.find('/') >= 0:
+			r = a
+		elif a.find(':') >= 0:
 			f = list(reversed(a.split(':')))
 			r = []
 			for i in range(8):
@@ -606,8 +633,7 @@ if __name__ == "__main__":
 	pprint.pprint(l, indent=4)
 
 	e = env(base='.')
-	print("Command line: %s" % (taskforce.command_line(e),))
-	print("Command line: %s" % (taskforce.command_line(e),))
+	print("Command line: %s" % (taskforce.command_line(e, []),))
 
 	procs = proctree()
 	seen = {}
