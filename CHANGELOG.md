@@ -1,6 +1,26 @@
 Changelog
 =========
 
+0.3.5 (2015-03-15)
+------------------
+
+- Python3 needs judicious use of gc to ensure previous tests are cleaned
+  up. [Andrew Fullford]
+
+- Improve test coverage. [Andrew Fullford]
+
+- Not handling udom client correctly, handle case where http cipher is
+  not available, improve test coverage. [Andrew Fullford]
+
+- Fix in non-linux system. [Andrew Fullford]
+
+- Merge branch 'master' of github.com:akfullfo/taskforce. [Andrew
+  Fullford]
+
+- Md format fix. [Andrew Fullford]
+
+- Listeners includes udom. [Andrew Fullford]
+
 0.3.4 (2015-02-05)
 ------------------
 
