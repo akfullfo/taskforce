@@ -117,13 +117,13 @@ class Test(object):
 			#  Mask the log message as we expect a failure
 			self.log.setLevel(logging.CRITICAL)
 			snoop.add('/tmp/file/is/missing/really', missing=False)
-			self.log.setLevel(log_level)
 			self.log.error("Add of missing file was successful when it should fail")
 			added = True
 		except Exception as e:
-			self.log.setLevel(log_level)
 			self.log.info("Received missing exception ok -- %s", str(e))
 			added = False
+		finally:
+			self.log.setLevel(log_level)
 		self.log.debug("paths after missing: %s", support.known_fds(snoop, log=self.log))
 
 		# Force garbage collection.  Otherwise in python3, the object cleanup may be delayed

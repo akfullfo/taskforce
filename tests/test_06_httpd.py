@@ -18,7 +18,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, time, json, gc
+import os, sys, logging, time, json, gc
 import support
 import taskforce.poll
 import taskforce.httpd
@@ -216,12 +216,17 @@ class Test(object):
 		http_service.listen = self.tcp_address
 		httpd = taskforce.httpd.server(http_service, log=self.log)
 		httpc = taskforce.http.Client(address=self.tcp_address, log=self.log)
-		expected_error_occurred = False
+		log_level = self.log.getEffectiveLevel()
 		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
 			self.do_get(httpc, httpd, path='/invalid/path')
+			expected_error_occurred = False
 		except taskforce.http.HttpError as e:
 			self.log.info("%s Received expected error -- %s", my(self), str(e))
 			expected_error_occurred = True
+		finally:
+			self.log.setLevel(log_level)
 		httpd.close()
 		del httpd
 		assert expected_error_occurred
