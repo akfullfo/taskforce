@@ -18,7 +18,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, time, json
+import os, sys, time, json, gc
 import support
 import taskforce.poll
 import taskforce.httpd
@@ -61,6 +61,7 @@ class Test(object):
 
 	@classmethod
 	def tearDownAll(self):
+		gc.collect()
 		self.log.info("%s ended", self.__module__)
 
 	def getter(self, path):
@@ -158,6 +159,7 @@ class Test(object):
 
 	def Test_A_tcp_https_connect(self):
 		self.log.info("Starting %s", my(self))
+		gc.collect()
 		http_service = taskforce.httpd.HttpService()
 		http_service.listen = self.tcp_address
 		http_service.certfile = env.cert_file
@@ -172,6 +174,7 @@ class Test(object):
 
 	def Test_B_unx_https_connect(self):
 		self.log.info("Starting %s", my(self))
+		gc.collect()
 		http_service = taskforce.httpd.HttpService()
 		http_service.listen = self.unx_address
 		http_service.certfile = env.cert_file
@@ -186,6 +189,7 @@ class Test(object):
 
 	def Test_C_tcp_get(self):
 		self.log.info("Starting %s", my(self))
+		gc.collect()
 		http_service = taskforce.httpd.HttpService()
 		http_service.listen = self.tcp_address
 		httpd = taskforce.httpd.server(http_service, log=self.log)
@@ -193,10 +197,10 @@ class Test(object):
 		self.do_get(httpc, httpd)
 		httpd.close()
 		del httpd
-		time.sleep(1)
 
 	def Test_D_unx_get(self):
 		self.log.info("Starting %s", my(self))
+		gc.collect()
 		http_service = taskforce.httpd.HttpService()
 		http_service.listen = self.unx_address
 		httpd = taskforce.httpd.server(http_service, log=self.log)
@@ -204,10 +208,10 @@ class Test(object):
 		self.do_get(httpc, httpd)
 		httpd.close()
 		del httpd
-		time.sleep(1)
 
 	def Test_E_get_error(self):
 		self.log.info("Starting %s", my(self))
+		gc.collect()
 		http_service = taskforce.httpd.HttpService()
 		http_service.listen = self.tcp_address
 		httpd = taskforce.httpd.server(http_service, log=self.log)
@@ -221,10 +225,10 @@ class Test(object):
 		httpd.close()
 		del httpd
 		assert expected_error_occurred
-		time.sleep(1)
 
 	def Test_F_post(self):
 		self.log.info("Starting %s", my(self))
+		gc.collect()
 		http_service = taskforce.httpd.HttpService()
 		http_service.listen = self.tcp_address
 		httpd = taskforce.httpd.server(http_service, log=self.log)
@@ -278,4 +282,3 @@ class Test(object):
 				self.log.info("HTTP response object successfully registered")
 				handled = True
 		del httpd
-		time.sleep(1)
