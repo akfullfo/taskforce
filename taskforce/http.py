@@ -123,11 +123,13 @@ class Client(object):
 				self.log.debug("No match, proceding with host '%s'", host)
 			if ssl:
 				if not port:
-					port = self.def_sslport
+					port = def_sslport
+				self.log.debug("Connecting via ssl to host '%s', port '%s'", host, port)
 				self.http = HTTPSConnection(host, port, timeout=timeout)
 			else:
 				if not port:
-					port = self.def_port
+					port = def_port
+				self.log.debug("Connecting to host '%s', port '%s'", host, port)
 				self.http = HTTPConnection(host, port, timeout=timeout)
 		self.http.connect()
 		self.sock = self.http.sock
