@@ -231,7 +231,41 @@ class Test(object):
 		del httpd
 		assert expected_error_occurred
 
-	def Test_F_post(self):
+	def Test_F_getmap_non_text_error(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		httpc = taskforce.http.Client(address='mmm.fullford.com:80', log=self.log)
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpc.getmap('/invalid/path', {'with': 'invalid query'})
+			expected_error_occurred = False
+		except taskforce.http.HttpError as e:
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		finally:
+			self.log.setLevel(log_level)
+		assert expected_error_occurred
+
+	def Test_G_getmap_non_json_error(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		httpc = taskforce.http.Client(address='mmm.fullford.com:80', log=self.log)
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpc.getmap('/', {'with': 'invalid query'})
+			expected_error_occurred = False
+		except taskforce.http.HttpError as e:
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		finally:
+			self.log.setLevel(log_level)
+		assert expected_error_occurred
+
+	def Test_H_post(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
 		http_service = taskforce.httpd.HttpService()
