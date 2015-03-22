@@ -16,7 +16,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, socket, re, logging
+import os, sys, socket, json, re, logging
 from .httpd import def_address, def_port, def_sslport
 try:
 	from http.client import HTTPConnection, HTTPSConnection
