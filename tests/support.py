@@ -125,9 +125,10 @@ def known_fds(fwatch, log=None, exclude=set()):
 class python_subprocess(object):
 	"""
 	Start a python process via subproccess().  It is started with logging to stderr
-	and stdout and stderr collected.  The log level can be set witht the 'verbose'
-	param (default True means debug level).  The follow() method can be used to
-	read the log output in a non-blocking manner.
+	and stdout and stderr collected, unless the 'forget' param is specified.  The
+	log level can be set with the 'verbose' param (default True means debug level).
+	The follow() method can be used to read the log output in a non-blocking manner.
+	It will always return '' (EOF) if the 'forget' param is True.
 
 	The version of python can be specified with the 'python' param.  The default is
 	to attempt to find the executable used to run the current process and use that.
@@ -177,18 +178,24 @@ class python_subprocess(object):
 	def __init__(self, e, args, **params):
 		self.log = params.get('log')
 		cmd = self.command_line(e, args, **params)
-		with open(os.devnull, 'r') as dev_null:
+		with open(os.devnull, 'r') as read_null, open(os.devnull, 'w') as write_null:
+			if params.get('forget'):
+				output = write_null
+			else:
+				output = subprocess.PIPE
 			self.proc = subprocess.Popen(cmd,
 					bufsize=1,
-					stdin=dev_null,
-					stdout=subprocess.PIPE,
+					stdin=read_null,
+					stdout=output,
 					stderr=subprocess.STDOUT,
 					close_fds=True,
 					cwd=e.working_dir,
 					universal_newlines=True)
 		self.pid = self.proc.pid
-		fl = fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_GETFL)
-		fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
+		self.piping_hot = not params.get('forget')
+		if self.piping_hot:
+			fl = fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_GETFL)
+			fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
 	def __del__(self):
 		self.close(warn=False)
@@ -222,6 +229,8 @@ class python_subprocess(object):
 	def follow(self):
 		if self.proc is None:
 			raise Exception("Attempt to follow() a closed process")
+		if not self.piping_hot:
+			return ''
 		try:
 			ret = self.proc.stdout.readline()
 			if ret == '':
@@ -623,6 +632,35 @@ def listeners(log=None):
 	for port in ports:
 		ports[port] = sorted(list(ports[port]), key=tup_order)
 	return ports
+
+def check_procsim_errors(module_name, env, log=None):
+	try:
+		err_files = []
+		for fname in os.listdir(env.examples_run):
+			path = os.path.join(env.examples_run, fname)
+			if os.path.isfile(path) and path.endswith('.err'):
+				err_files.append(path)
+	except Exception as e:
+		if log: log.warning("%s teardown error during err file scan -- %s", module_name, str(e))
+	err_file_cnt = len(err_files)
+	if err_file_cnt > 0:
+		if log: log.warning("Found %d error file%s from process simulator",
+							err_file_cnt, '' if err_file_cnt==1 else 's')
+		for path in sorted(err_files):
+			try:
+				with open(path, 'rt') as f:
+					while True:
+						t = str(f.readline())
+						if t:
+							if log: log.warning("   %s: %s", os.path.basename(path), t.rstrip())
+						else:
+							break
+				os.unlink(path)
+			except Exception as e:
+				if log: log.warning("%s teardown error on err file '%s' -- %s", module_name, path, str(e))
+	else:
+		if log: log.info("No err files found")
+	assert err_file_cnt == 0
 
 if __name__ == "__main__":
 
