@@ -216,6 +216,8 @@ p.add_argument('-R', '--reset', action='store_true', dest='reset',
 				All unadoptable tasks will be stopped and the program will restart itself."""%(program,))
 p.add_argument('-S', '--stop', action='store_true', dest='stop',
 			help='Cause the background %s to exit.  All unadoptable tasks will be stopped.'%(program,))
+p.add_argument('--expires', action='store', dest='expires', type=float, metavar='SECS',
+			help='Runs normally but exits after SECS seconds.  Normally only used during testing')
 p.add_argument('--sanity', action='store_true', dest='sanity',
 			help='Perform a basic sanity check and exit.  This is effectively "-C -e" with a simple config')
 
@@ -317,7 +319,13 @@ while True:
 			l = task.legion(log=log)
 			sys.exit(sanity_test(l))
 
-		l = task.legion(log=log, http=args.http_listen, certfile=args.certfile, control=args.allow_control)
+		l = task.legion(
+			log=log,
+			http=args.http_listen,
+			certfile=args.certfile,
+		 	control=args.allow_control,
+			expires=args.expires
+		)
 		if not args.check:
 			l.set_own_module(cmd_at_startup[0])
 		if args.roles_file:

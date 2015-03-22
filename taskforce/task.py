@@ -680,6 +680,11 @@ Params are:
 			  state such as change task control, resetting or
 			  stopping the legion.
 	certfile	- Enable SSL using this certificate file.
+	expires		- Gives number of seconds before instance should
+			  expire and shut itself down.  This is typically
+			  only used for testing to ensure an instance does
+			  not run forever in the case where the testing
+			  sequence fails shut it down.
 """
 	all_controls = frozenset(['off', 'once', 'wait', 'nowait', 'adopt'])
 	run_controls = frozenset(set(list(all_controls)) - set(['off', 'once']))
@@ -690,6 +695,16 @@ Params are:
 		self._discard.addHandler(logging.NullHandler())
 
 		log = self._params.get('log', self._discard)
+
+		self.expires = None
+		time_to_die = self._params.get('expires')
+		if time_to_die:
+			try:
+				time_to_die = float(time_to_die)
+				self.expires = time.time() + time_to_die
+				log.info("%s Expire time set to %s from now", my(self), deltafmt(time_to_die))
+			except Exception as e:
+				log.warn("%s Bad 'expires' param value '%s' ignored", my(self), time_to_die)
 
 		#  Set to the program name (as delivered by set_own_module).
 		#  This is used to successfully dispatch legion events.
@@ -1416,6 +1431,18 @@ Params are:
 						exit_report = now
 					if timeout > timeout_short_cycle:
 						timeout = timeout_short_cycle
+				if self.expires:
+					if self.expires < now:
+						if self._exiting:
+							log.debug("%s Legion expiration reached %s ago, still exiting",
+											my(self), deltafmt(now - self.expires))
+						else:
+							log.warning("%s Legion expiration reached %s ago",
+											my(self), deltafmt(now - self.expires))
+						self.stop_all()
+						self._exiting = now
+					else:
+						log.debug("%s expires in %s", my(self), deltafmt(self.expires - now))
 
 				if last_timeout != timeout:
 					log.debug("%s select() timeout is now %s", my(self), deltafmt(timeout))
