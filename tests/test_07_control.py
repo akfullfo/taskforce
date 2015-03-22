@@ -101,10 +101,24 @@ class Test(object):
 		self.log.info("Will run: %s", ' '.join(support.taskforce.command_line(env, self.std_args)))
 		tf = support.taskforce(env, self.std_args, log=self.log, forget=True, verbose=False)
 
-		#  Allow time for taskforce process to start
-		time.sleep(2)
+		start = time.time()
+		give_up = start + 10
+		last_exc = None
+		while time.time() < give_up:
+			try:
+				httpc = taskforce.http.Client(address=self.ctrl_address, ssl=True, log=self.log)
+				last_exc = None
+				break
+			except Exception as e:
+				last_exc = e
+				self.log.debug("%s Connection attempt failed after %s -- %s",
+								my(self), deltafmt(time.time() - start), str(e))
+			time.sleep(0.5)
+		if last_exc:
+			raise last_exc
 
-		httpc = taskforce.http.Client(address=self.ctrl_address, ssl=True, log=self.log)
+		#  Allow time for full process function
+		time.sleep(1)
 
 		give_up = time.time() + 30
 		toi = 'db_server'
