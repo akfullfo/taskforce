@@ -16,7 +16,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, socket, json, re, logging
+import os, sys, socket, ssl, json, re, logging
 from .httpd import def_address, def_port, def_sslport
 try:
 	from http.client import HTTPConnection, HTTPSConnection
@@ -42,14 +42,16 @@ class udomHTTPConnection(HTTPConnection, object):
 			self.sock.settimeout(self.timeout)
  
 class udomHTTPSConnection(HTTPSConnection, object):
-	def __init__(self, path, timeout):
+	def __init__(self, path, **params):
 		self.path = path
-		self.timeout = timeout
-		super(udomHTTPSConnection, self).__init__('localhost', port=None, timeout=timeout)
+		self.timeout = params.get('timeout')
+		self.context = params.get('context')
+		super(udomHTTPSConnection, self).__init__('localhost', port=None, timeout=self.timeout)
 
 	def connect(self):
 		sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 		sock.connect(self.path)
+		#  Whoa, this is missing the ssl_wrap
 		self.sock = sock
 		if self.timeout:
 			self.sock.settimeout(self.timeout)
@@ -85,12 +87,16 @@ class Client(object):
 	  		  This may be specified as "[host][:port]" for TCP, or
 			  as "path" to select a Udom service (path must contain
 			  at least one "/" character).
-	  ssl		- If True, SSL will be used to make the connection.
-	  		  Ignored for Udom connections.
+	  use_ssl	- If None (default) the connection will not use SSL.
+	  		  If False, SSL will be used but the certificate will
+			  not be verified.
+			  If True, SSL will be used and the server must have a
+			  valid certificate (assumes python >= 2.7.9)
 	  timeout	- The timeout in seconds (float) for query I/O.
 	  log		- A 'logging' object to log errors and activity.
 """
-	def __init__(self, address=None, ssl=False, timeout=5, log=None):
+
+	def __init__(self, address=None, use_ssl=None, timeout=5, log=None):
 		if log:
 			self.log = log
 		else:
@@ -103,10 +109,11 @@ class Client(object):
 			self.address = def_address
 
 		if address.find('/') >=0 :
-			if ssl:
-				self.http = udomHTTPSConnection(self.address, timeout)
-			else:
+			if use_ssl is None:
 				self.http = udomHTTPConnection(self.address, timeout)
+			else:
+				ssl_params = self._build_params(use_ssl, timeout)
+				self.http = udomHTTPSConnection(host, port, **ssl_params)
 
 		else:
 			port = None
@@ -121,22 +128,43 @@ class Client(object):
 			else:
 				host = address
 				self.log.debug("No match, proceding with host '%s'", host)
-			if ssl:
-				if not port:
-					port = def_sslport
-				self.log.debug("Connecting via ssl to host '%s', port '%s'", host, port)
-				self.http = HTTPSConnection(host, port, timeout=timeout)
-			else:
+			if use_ssl is None:
 				if not port:
 					port = def_port
 				self.log.debug("Connecting to host '%s', port '%s'", host, port)
 				self.http = HTTPConnection(host, port, timeout=timeout)
+			else:
+				if not port:
+					port = def_sslport
+				ssl_params = self._build_params(use_ssl, timeout)
+				self.http = HTTPSConnection(host, port, **ssl_params)
+				self.log.debug("Connecting via ssl to host '%s', port '%s'", host, port)
 		self.http.connect()
 		self.sock = self.http.sock
 		self.lastpath = None
 		self.log.info("HTTP connected via %s", self.http.sock)
-		if ssl and hasattr(self.http.sock, 'cipher'):
+		if use_ssl and hasattr(self.http.sock, 'cipher'):
 			self.log.debug("Cipher: %s", self.http.sock.cipher())
+
+	def _build_params(self, use_ssl, timeout):
+		ssl_params = {'timeout': timeout}
+		try:
+			ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+		except AttributeError:
+			self.log.info("No ssl.SSLContext(), assuming older python")
+			return ssl_params
+		if use_ssl is False:
+			ctx.verify = False
+		if 'OP_NO_SSLv2' in ssl.__dict__:
+			ctx.options |= ssl.OP_NO_SSLv2
+		else:
+			self.log.info("Implementation does not offer ssl.OP_NO_SSLv2 which may allow less secure connections")
+		if 'OP_NO_SSLv3' in ssl.__dict__:
+			ctx.options |= ssl.OP_NO_SSLv3
+		else:
+			self.log.info("Implementation does not offer ssl.OP_NO_SSLv3 which may allow less secure connections")
+		ssl_params['context'] = ctx
+		return ssl_params
 
 	def get(self, path, query=None):
 		"""

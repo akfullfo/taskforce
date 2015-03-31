@@ -91,11 +91,6 @@ class Test(object):
 		os.rename(fname, env.roles_file)
 
 	def Test_A_get_status(self):
-		#  Disable this test until I have time to figure out
-		#  a)  why 2.7.9 doesn't like the ssl cert 3.3/3.4 are ok with it
-		#  b)  why getmap() doesn't like non-ssl connections.
-		return
-
 		self.set_path('PATH', env.examples_bin)
 		self.log.info("PATH: %s", os.environ['PATH'])
 		os.environ['EXAMPLES_BASE'] = env.examples_dir
@@ -110,7 +105,7 @@ class Test(object):
 		last_exc = None
 		while time.time() < give_up:
 			try:
-				httpc = taskforce.http.Client(address=self.ctrl_address, ssl=True, log=self.log)
+				httpc = taskforce.http.Client(address=self.ctrl_address, use_ssl=True, log=self.log)
 				last_exc = None
 				break
 			except Exception as e:
