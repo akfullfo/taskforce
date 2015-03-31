@@ -13,6 +13,14 @@ def final(code, fmt=None, *fargs):
 	global pidfile, procname
 
 	if code < 10:
+		#  Exit with a random delay.  This is typically
+		#  less than a second but every now and then
+		#  much longer.  Exercises the kill-code a little.
+		#
+		random_delay = random.uniform(0.0, 1.0)
+		if random_delay > 0.95:
+			random_delay += random.uniform(0.0, 5.0)
+		time.sleep(random_delay)
 		sys.exit(code)
 	msg = fmt.rstrip() % fargs
 	if 'NOSE_LOG_LEVEL' not in os.environ or not pidfile:
