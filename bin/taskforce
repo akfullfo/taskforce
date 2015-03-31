@@ -295,7 +295,8 @@ if args.roles_file is None:
 if args.daemonize:
 	daemonize()
 
-log.info("Starting, config '%s', roles '%s'", str(args.config_file), str(args.roles_file))
+log.info("Starting python v%s, config '%s', roles '%s'",
+			'.'.join(str(x) for x in sys.version_info[:3]), str(args.config_file), str(args.roles_file))
 
 if pidfile is not None:
 	try:
