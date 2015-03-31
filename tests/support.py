@@ -144,26 +144,8 @@ class python_subprocess(object):
 			raise Exception("No 'exe' params, maybe the superclass was called directly")
 		if 'python' in params:
 			python = params['python']
-		elif self.python_exec:
-			python = self.python_exec
 		else:
-			procs = proctree()
-			mypid = os.getpid()
-			if mypid in procs.processes:
-				myproc = procs.processes[mypid]
-				cmd = myproc.command.split(' ')[0].rstrip(':')
-				if cmd.find('python') >= 0:
-					if cmd.startswith('/'):
-						self.python_exec = cmd
-					else:
-						self.python_exec = os.path.basename(cmd)
-				else:
-					#  python not mentioned in the command, punt
-					self.python_exec = 'python'
-			else:
-				#  Hmm, that's weird, we'll punt
-				self.python_exec = 'python'
-			python = self.python_exec
+			python = 'python'
 		cmd = [
 			python,
 			params['exe'],
