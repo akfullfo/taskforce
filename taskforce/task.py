@@ -829,6 +829,9 @@ Params are:
 			self._exiting = now
 			if sig == signal.SIGHUP:
 				self._resetting = now
+			elif self._resetting:
+				log.warn("%s Terminating signal arrived while resetting, coercing to exit", my(self))
+				self._resetting = None
 			self.stop_all()
 		else:
 			log.info("%s Relaying %s to all registered tasks", my(self), utils.signame(sig))
