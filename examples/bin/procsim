@@ -10,17 +10,18 @@ except:
 	has_setproctitle = False
 
 def final(code, fmt=None, *fargs):
-	global pidfile, procname
+	global pidfile, procname, args
 
 	if code < 10:
-		#  Exit with a random delay.  This is typically
-		#  less than a second but every now and then
-		#  much longer.  Exercises the kill-code a little.
-		#
-		random_delay = random.uniform(0.0, 1.0)
-		if random_delay > 0.95:
-			random_delay += random.uniform(0.0, 5.0)
-		time.sleep(random_delay)
+		if args.exit_delay:
+			#  Exit with a random delay.  This is typically
+			#  less than a second but every now and then
+			#  much longer.  Exercises the kill-code a little.
+			#
+			random_delay = random.uniform(0.0, 1.0)
+			if random_delay > 0.95:
+				random_delay += random.uniform(0.0, 5.0)
+			time.sleep(random_delay)
 		sys.exit(code)
 	msg = fmt.rstrip() % fargs
 	if 'NOSE_LOG_LEVEL' not in os.environ or not pidfile:
@@ -102,6 +103,7 @@ p.add_argument('--sleep-range', action='store', dest='sleep_range', type=float, 
 p.add_argument('-b', '--background', action='store_true', dest='daemonize', help='Run in the background')
 p.add_argument('-p', '--pidfile', action='store', dest='pidfile', help='Pidfile path, default '+def_pidfile+', "-" means none')
 p.add_argument('-q', '--quit', action='store_true', dest='quit', help='ntpd simulation, same as "--sleep-range 3"')
+p.add_argument('-d', '--exit-delay', action='store_true', dest='exit_delay', help='Add random exit delay to exercise shutdown code')
 p.add_argument('-g', '--dont-panic', action='store_true', dest='dont_panic', help='ntpd simulation, no simulated action')
 p.add_argument('-n', '--dont-fork', action='store_true', dest='dont_fork', help='ntpd simulation, no simulated action')
 p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='general simulation, no simulated action')
