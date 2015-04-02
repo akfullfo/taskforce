@@ -243,7 +243,7 @@ Each key in the <a name="tasks"></a>`tasks` map describes a single task.  A task
 Key | Type | Decription
 :---|------|:----------
 `commands`| map | A map of commands used to start and manage a task.  See [`tasks.commands`](#the-taskscommands-tag).
-<a name="control"></a>`control`| string | Describes how taskforce manages this task.<br>**once** indicates the task should be run when `legion.manage()` is first executed but the task will not be restarted.<br>**wait** indicates task processes once started  will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<p>Two additional controls are planned:<br>**nowait** handles processes that will always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
+<a name="control"></a>`control`| string | Describes how taskforce manages this task.<br><br>**once** indicates the task should be run when `legion.manage()` is first executed but the task will not be restarted automatically after it exits.  Any events listed for a **once** task are executed normally except `stop` is ignored.<br>**wait** indicates task processes once started  will be waited on as with *wait(2)* and will be restarted whenever a process exits to maintain the required process count.<br><br>Two additional controls are planned:<br>**nowait** handles processes that will always run in the background and uses probes to detect when a restart is needed.<br>**adopt** is similar to **nowait** but the process is not stopped when taskforce shuts down and is not restarted if found running when taskforce starts.<p>If not specified, **wait** is assumed.
 <a name="count"></a>`count`| integer | An integer specifying the number of processes to be started for this task.  If not specified, one process will be started.  Each process will have exactly the same configuration except that the context items [`Task_pid`](#Task_pid) and [`Task_instance`](#Task_instance) will be specific to each process, and any context items derived from these values will be different.  This is particularly useful when defining the pidfile and procname values.
 <a name="cwd"></a>`cwd`| string | Specifies the current directory for the process being run.
 `defaults`| map | Similar to the top-level [`defaults`](#defaults) but applies only to this task.
@@ -443,6 +443,7 @@ The example itself is documented with comments so that it can be read separately
         #  if present but will be overridden by task-specific defines.
         #
         "piddir": "{EXAMPLES_BASE}/var/run",
+        "firewall_conf": "{EXAMPLES_BASE}/etc/ipfw.conf",
         "ntpd_conf": "/etc/ntp.conf",
         "confdir": "/usr/local/etc",
         "wsurl": "wss://localhost:9000/"
@@ -554,6 +555,17 @@ The example itself is documented with comments so that it can be read separately
             "<a href="#onexit">onexit</a>": [
                 { "type": "start", "task": "timeset" }
             ]
+        },
+        "firewall": {
+            #  This task is run once when "taskforce" first starts and again
+            #  whenever the event fires.  In this case, the idea is to refresh
+            #  firewall rules whenever the firewall configuration changes.
+            #
+            "<a href="#control">control</a>": "once",
+            "<a href="#commands">commands</a>": { "start": ["service", "{<a href="#Task_name">Task_name</a>}", "start"] },
+            "<a href="#events">events</a>": [
+                { "type": "file_change", "path": [ "{firewall_conf}" ], "command": "start" }
+            ],
         },
         "haproxy": {
             #  This task has "<a href="#roles">roles</a>" specified.  That means the task will only

@@ -687,7 +687,7 @@ Params are:
 			  sequence fails shut it down.
 """
 	all_controls = frozenset(['off', 'once', 'wait', 'nowait', 'adopt'])
-	run_controls = frozenset(set(list(all_controls)) - set(['off', 'once']))
+	run_controls = frozenset(set(list(all_controls)) - set(['off']))
 
 	def __init__(self, **params):
 		self._params = dict(params)
@@ -1857,13 +1857,16 @@ Params are:
 		log.debug("%s Excluding task '%s' -- no role matches %s", my(self), self._name, str(active_roles))
 		return False
 
-	def _make_event_target(self, event):
+	def _make_event_target(self, event, control):
 		log = self._params.get('log', self._discard)
 		handler = None
 		arg = None
 		for h in ['command', 'signal']:
 			val = self._get(event.get(h))
 			if val:
+				if control == 'once' and h == 'command' and val == 'stop':
+					log.warning("%s Ignoring '%s' %s event for %s task", my(self), val, h, control)
+					return None
 				handler = h
 				arg = val
 				break
@@ -1871,7 +1874,7 @@ Params are:
 			raise TaskError(self._name, "Event type '%s' has no handler defined" % (str(event.get('type')),))
 		return event_target(self, handler, arg=arg, key=self._name, log=log)
 
-	def _event_register(self):
+	def _event_register(self, control):
 		"""
 		Do all necessary event registration with the legion for
 		events listed in the pending config.  The default event
@@ -1886,7 +1889,9 @@ Params are:
 			if not ev_type:
 				log.error("%s Ignoring event in task '%s' with no type", my(self), self._name)
 				continue
-			ev = self._make_event_target(event)
+			ev = self._make_event_target(event, control)
+			if ev is None:
+				continue
 			log.debug("%s Adding event type '%s' for task '%s'", my(self), ev_type, self._name)
 			if ev_type == 'self':
 				self._legion.file_add(ev, self.get_path())
@@ -2343,7 +2348,7 @@ Params are:
 		self._context = self._context_build()
 
 		if control in self._legion.run_controls:
-			self._event_register()
+			self._event_register(control)
 		return self.manage()
 
 	def manage(self):

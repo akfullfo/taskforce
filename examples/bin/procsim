@@ -78,6 +78,7 @@ def daemonize(**params):
 	utils.closeall(exclude = [0,1,2])
 
 procname = utils.appname()
+appname = procname
 
 if 'Task_name' in os.environ:
 	procname = os.environ['Task_name']
@@ -110,6 +111,7 @@ p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='gen
 p.add_argument('-f', '--file', action='store', dest='file', help='general simulation, no simulated action')
 p.add_argument('-c', '--config', action='store', dest='config', help='general simulation, no simulated action')
 p.add_argument('-l', '--listen-url', action='store', dest='listen_url', help='general simulation, no simulated action')
+p.add_argument('cmd_args', nargs='*', action='store', metavar='arg', help='Arg available to the particular simulation')
 
 args = p.parse_args()
 
@@ -130,6 +132,11 @@ elif args.sleep_range is None:
 	sleep_period = args.min_sleep
 else:
 	sleep_period = random.uniform(args.min_sleep, args.min_sleep+args.sleep_range)
+
+if appname == 'service':
+	#  Apply a configuration that looks a little like a 'service facility operation'
+	#  command.  It will just sleep briefly and exit.
+	sleep_period = sleep_period = random.uniform(0, 1.0)
 
 if args.daemonize:
 	daemonize()
