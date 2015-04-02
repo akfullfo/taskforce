@@ -1,8 +1,18 @@
 Changelog
 =========
 
+0.3.7 (2015-04-02)
+------------------
+
+- Describe "event" control. [Andrew Fullford]
+
+- Add "event" control, similar to "once" but only runns on events.
+  [Andrew Fullford]
+
 0.3.6 (2015-04-02)
 ------------------
+
+- Release 0.3.6. [Andrew Fullford]
 
 - Allow events for "once" tasks.  "stop" commands are explicitly
   ignored. [Andrew Fullford]
