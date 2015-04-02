@@ -686,8 +686,9 @@ Params are:
 			  not run forever in the case where the testing
 			  sequence fails shut it down.
 """
-	all_controls = frozenset(['off', 'once', 'wait', 'nowait', 'adopt'])
+	all_controls = frozenset(['off', 'once', 'event', 'wait', 'nowait', 'adopt'])
 	run_controls = frozenset(set(list(all_controls)) - set(['off']))
+	once_controls = frozenset(['once', 'event'])
 
 	def __init__(self, **params):
 		self._params = dict(params)
@@ -1864,7 +1865,7 @@ Params are:
 		for h in ['command', 'signal']:
 			val = self._get(event.get(h))
 			if val:
-				if control == 'once' and h == 'command' and val == 'stop':
+				if control in self._legion.once_controls and h == 'command' and val == 'stop':
 					log.warning("%s Ignoring '%s' %s event for %s task", my(self), val, h, control)
 					return None
 				handler = h
@@ -2040,7 +2041,7 @@ Params are:
 					log.error("%s Task %s 'onexit' item %d type '%s' task '%s' exists but is out of scope",
 										my(self), self._name, item, op_type, taskname)
 					continue
-				if task._config_running.get('control') != 'once':
+				if task._config_running.get('control') not in self._legion.once_controls:
 					log.error("%s Task %s 'onexit' item %d type '%s' task '%s' may only start 'once' tasks",
 										my(self), self._name, item, op_type, taskname)
 					continue
@@ -2111,15 +2112,23 @@ Params are:
 			return True
 		now = time.time()
 		conf = self._config_running
-		once = (self._get(conf.get('control')) == 'once')
+		control = self._get(conf.get('control'))
+		once = (control in self._legion.once_controls)
+
+		#  Tasks with "event" control are immediately marked stopped as if they
+		#  ran at start.  This is the only difference between "event" and "once"
+		#  controls.
+		#
+		if control == 'event' and not self._stopped:
+			self._stopped = now
 		if self._stopped:
 			if self._dnr:
 				log.info("%s Task %s stopped and will now be deleted", my(self), self._name)
 				self.close()
 				return False
 			elif once:
-				log.debug("%s 'once' task %s exited %s ago",
-							my(self), self._name, deltafmt(time.time() - self._stopped))
+				log.debug("%s '%s' task %s exited %s ago",
+							my(self), control, self._name, deltafmt(time.time() - self._stopped))
 				return False
 			else:
 				log.debug("%s Restarting %s, task was stopped %s ago",
@@ -2269,10 +2278,11 @@ Params are:
 			self._killed = None
 			self._stopped = now
 			return False
+		control = self._config_running.get('control')
 		if self._stopping:
-			if not self._legion.is_exiting() and self._config_running.get('control') == 'once':
-				log.debug("%s %d '%s' 'once' process%s still running %s",
-					my(self), running, self._name, ses(running, 'es'), deltafmt(now - self._stopping))
+			if not self._legion.is_exiting() and control in self._legion.once_controls:
+				log.debug("%s %d '%s' '%s' process%s still running %s",
+					my(self), running, self._name, control, ses(running, 'es'), deltafmt(now - self._stopping))
 				return False
 			elif self._killed:
 				log.warning("%s %d '%s' process%s still running %s after SIGKILL escalation",

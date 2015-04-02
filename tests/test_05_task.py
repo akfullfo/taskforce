@@ -125,7 +125,7 @@ class Test(object):
 
 		new_roles = env.test_roles
 		self.log.info("Checking startup of %s roles", new_roles)
-		db_started = tf.search([r"Task 'db_server' already started", r"task 'firewall' pid"], log=self.log)
+		db_started = tf.search([r"Task 'db_server' already started"], log=self.log)
 		assert db_started
 		kids = len(support.proctree().processes[tf.pid].children) 
 		assert self.find_children(tf, roles=new_roles) == expected_frontback_process_count

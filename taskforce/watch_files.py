@@ -621,7 +621,7 @@ class watch(object):
 					file_move_del = False
 					try:
 						s = os.stat(path)
-						if s.st_ino != self.xxx[path]:
+						if s.st_ino != self._inx_inode[path]:
 							file_move_del = True
 							log.info("%s 'simfs' (used with containers) bug detected -- '%s' moved",
 													my(self), path)
