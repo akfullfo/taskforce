@@ -1,8 +1,56 @@
 Changelog
 =========
 
-0.3.5 (2015-03-15)
+0.3.6 (2015-04-02)
 ------------------
+
+- Allow events for "once" tasks.  "stop" commands are explicitly
+  ignored. [Andrew Fullford]
+
+- Hide MacOS .DS_Store desktop info. [Andrew Fullford]
+
+- Make random exit delay optional. [Andrew Fullford]
+
+- Add random delay on exit to exercise the shutdown code. [Andrew
+  Fullford]
+
+- Resolve race condition where a SIGTERM arrives while a SIGHUP or code-
+  change reset is being processed. [Andrew Fullford]
+
+- Re-enable test 7 with fixes to allow unverified ssl connections.
+  [Andrew Fullford]
+
+- Log the python version at startup. [Andrew Fullford]
+
+- Remove old stuff for hunting down the best executable as it breaks
+  virtualenv. [Andrew Fullford]
+
+- Disable this test until figure out why 2.7.9 doesn't like the self-
+  signed cert. [Andrew Fullford]
+
+- Better method to wait for control access. [Andrew Fullford]
+
+- Added initial testing of control path. [Andrew Fullford]
+
+- Centralized check_procsim_errors() [Andrew Fullford]
+
+- Added subprocess mode where output goes to devnull, centralized
+  check_procsim_errors() [Andrew Fullford]
+
+- Added json module needed for getmap() processing. [Andrew Fullford]
+
+- Added --expires flag, mostly useful in testing. [Andrew Fullford]
+
+- Extended test coverage. [Andrew Fullford]
+
+- Incorrect reference to default ports. [Andrew Fullford]
+
+- Mask the error we expect from get test. [Andrew Fullford]
+
+0.3.5 (2015-03-16)
+------------------
+
+- Release 0.3.5. [Andrew Fullford]
 
 - Python3 needs judicious use of gc to ensure previous tests are cleaned
   up. [Andrew Fullford]
