@@ -2278,7 +2278,10 @@ Params are:
 			self._killed = None
 			self._stopped = now
 			return False
-		control = self._config_running.get('control')
+		if self._config_running:
+			control = self._config_running.get('control')
+		else:
+			control = None
 		if self._stopping:
 			if not self._legion.is_exiting() and control in self._legion.once_controls:
 				log.debug("%s %d '%s' '%s' process%s still running %s",
