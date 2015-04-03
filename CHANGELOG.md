@@ -1,8 +1,18 @@
 Changelog
 =========
 
+0.3.8 (2015-04-03)
+------------------
+
+- Release 0.3.8. [Andrew Fullford]
+
+- During shutdown, need to handle has where there is no running config.
+  [Andrew Fullford]
+
 0.3.7 (2015-04-02)
 ------------------
+
+- Release 0.3.7. [Andrew Fullford]
 
 - Describe "event" control. [Andrew Fullford]
 
