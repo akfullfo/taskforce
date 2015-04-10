@@ -490,8 +490,8 @@ access must be done with blocking activity fed through the legion event loop.
 			self._parent.onexit()
 		else:
 			log.debug("%s task '%s' still has %d process%s running", my(self), self._name, extant, ses(extant, 'es'))
-		if exit_code:
-			log.warning("%s task '%s' pid %d %s", my(self), self._name, pid, why)
+		if exit_code and not self._parent._terminated:
+			log.warning("%s Task '%s' pid %d %s -- unexpected error exit", my(self), self._name, pid, why)
 		else:
 			log.info("%s task '%s' pid %d %s", my(self), self._name, pid, why)
 
@@ -615,7 +615,7 @@ class Context(object):
 		"""
 		Similar to _get_list() except that the return value is required
 		to be a str.  This calls _get_list() to retrieve the value,
-		but raises an exception unless the return is None of a
+		but raises an exception unless the return is None or a
 		single-valued list when that value will be returned.
 
 		If a default value is provided, it will be returned if the
@@ -1677,19 +1677,27 @@ Params are:
 				signal to shutdown, and during legion configuration changes where it
 				is determined that the process characteristics might have changed
 				(command line, environment, etc).
+		terminated    - Indicates the task default stop mechanism has been triggered.  Tasks
+				that are "stopping" but not "terminated" are generally "once" tasks.
+				This also softens the log message when the process actually exits.
+				Unexpected process exits will be flagged with a warning message
+				instead of the usual info message.
 		killed        - Indicates the task default stop mechanism has not terminated all
 				processes in the task, and the mechanism has been escalated to kill.
 		stopped       - Indicates that all processes in the task have terminated and the
 				task is now completely stopped.  Only valid if "starting" is set.
 		dnr           - Indicates that this task is scheduled for destruction.  Once all
 				processes have stopped, it should delete itself.
+		limit         - Time after which this task should be stopped.
 	"""
 		self._starting = None
 		self._started = None
 		self._stopping = None
+		self._terminated = None
 		self._killed = None
 		self._stopped = None
 		self._dnr = None
+		self._limit = None
 
 	def get_name(self):
 		return self._name
@@ -2078,6 +2086,27 @@ Params are:
 						my(self), proc.instance, proc.pid, self._name)
 		log.info("%s %d process%s signalled", my(self), signalled, ses(signalled, 'es'))
 
+	def _mark_started(self):
+		"""
+		Set the state information for a task once it has completely started.
+		In particular, the time limit is applied as of this time (ie after
+		and start delay has been taking.
+	"""
+		log = self._params.get('log', self._discard)
+
+		now = time.time()
+		self._started = now
+
+		limit = self._config_running.get('timelimit')
+		try:
+			limit = float(self._get(limit, default='0'))
+			if limit > 0:
+				log.debug("%s Applying task '%s' time limit of %s", my(self), self._name, deltafmt(limit))
+				self._limit = now + limit
+		except Exception as e:
+			log.warn("%s Task '%s' timelimit value '%s' invalid -- %s",
+				my(self), self._name, limit, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
+
 	def _start(self):
 		"""
 		Start a task, which may involve starting more than one process.
@@ -2148,7 +2177,7 @@ Params are:
 			if now > self._starting + start_delay:
 				log.info("%s %s task marked started after %s",
 						my(self), self._name, deltafmt(now - self._starting))
-				self._started = now
+				self._mark_started()
 				return False
 			log.debug("%s %s task has been starting for %s of %s",
 				my(self), self._name, deltafmt(now - self._starting), deltafmt(start_delay))
@@ -2179,10 +2208,10 @@ Params are:
 
 		self._last_message = 0
 		if once:
-			#  "once" processes are immediately marked as stopping.  May need a time limit on these
-			#  but for now, we depend on these exiting by themselves.
+			#  "once" processes are immediately marked as stopping.
 			#
 			self._stopping = now
+
 		try:
 			start_command = None
 			if 'commands' in conf:
@@ -2203,7 +2232,7 @@ Params are:
 
 			self._starting = now
 			if not start_delay:
-				self._started = now
+				self._mark_started()
 
 			log.debug("Found %d running, %d needed, starting %d", running, needed, needed-running)
 			started = 0
@@ -2244,7 +2273,9 @@ Params are:
 				proc.started = now
 				started += 1
 
-			log.info("%s Task %s: %d process%s scheduled to start", my(self), self._name, started, ses(started, 'es'))
+			log.info("%s Task %s: %d process%s scheduled to start%s",
+				my(self), self._name, started, ses(started, 'es'),
+				(' with time limit %s' % (deltafmt(self._limit - now),)) if self._limit else '')
 		except Exception as e:
 			log.error("%s Failed to start task '%s' -- %s",
 							my(self), self._name, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
@@ -2274,54 +2305,67 @@ Params are:
 		running = len(self.get_pids())
 		if self._stopping and running == 0:
 			log.debug("%s All '%s' processes are now stopped", my(self), self._name)
-			self._stopping = None
-			self._killed = None
+			self._reset_state()
 			self._stopped = now
 			return False
 		if self._config_running:
 			control = self._config_running.get('control')
 		else:
 			control = None
-		if self._stopping:
-			if not self._legion.is_exiting() and control in self._legion.once_controls:
-				log.debug("%s %d '%s' '%s' process%s still running %s",
-					my(self), running, self._name, control, ses(running, 'es'), deltafmt(now - self._stopping))
-				return False
-			elif self._killed:
+		if self._terminated:
+			#  These are tasks that have been explicitly terminated but have not yet stopped
+			#
+			if self._killed:
 				log.warning("%s %d '%s' process%s still running %s after SIGKILL escalation",
 					my(self), running, self._name, ses(running, 'es'), deltafmt(now - self._killed))
-				return True
-			elif self._stopping + sigkill_escalation < now:
+			elif self._terminated + sigkill_escalation < now:
 				log.warning("%s Excalating to SIGKILL with %d '%s' process%s still running",
 								my(self), running, self._name, ses(running, 'es'))
 				self._signal(signal.SIGKILL)
+				self._killed = now
 			else:
-				log.debug("%s %d '%s' process%s still running %s after SIGTERM",
-					my(self), running, self._name, ses(running, 'es'), deltafmt(now - self._stopping))
-		else:
+				log.debug("%s %d '%s' process%s still running %s after being terminated",
+					my(self), running, self._name, ses(running, 'es'), deltafmt(now - self._terminated))
+			return True
+		if self._limit and now > self._limit:
+			#  These are tasks that have a time limit set and it has expired.
+			#  This case falls through to the stop code.
+			log.info("%s Stopping task '%s', time limit exceeded %s ago",
+								my(self), self._name, deltafmt(now - self._limit))
+		elif self._stopping and not self._legion.is_exiting():
+			#  These are tasks that are expected to stop soon but have not been explicitly
+			#  terminated.  These are typically tasks with 'once' or 'event' controls.
+			#  Unless there is a time limit set, they are allowed to run indefinitely
+			#
+			log.debug("%s %d '%s' '%s' process%s still running %s",
+					my(self), running, self._name, control, ses(running, 'es'), deltafmt(now - self._stopping))
+			return False
+
+		if not self._stopping:
 			self._stopping = now
-			restart_target = None
-			stop_target = None
-			resetting = self._legion.is_resetting() or task_is_resetting
-			if self._config_running:
-				for event in self._config_running.get('events', []):
-					ev_type = self._get(event.get('type'))
-					if resetting and ev_type == 'restart':
-						restart_target = self._make_event_target(event)
-					elif ev_type == 'stop':
-						stop_target = self._make_event_target(event)
-			if restart_target:
-				log.debug("%s Restart event on %d '%s' process%s",
-						my(self), running, self._name, ses(running, 'es'))
-				restart_target.handle()
-			elif stop_target:
-				log.debug("%s Stop event on %d '%s' process%s",
-						my(self), running, self._name, ses(running, 'es'))
-				stop_target.handle()
-			else:
-				log.debug("%s Stopping %d '%s' process%s with SIGTERM",
-						my(self), running, self._name, ses(running, 'es'))
-				self._signal(signal.SIGTERM)
+		self._terminated = now
+		restart_target = None
+		stop_target = None
+		resetting = self._legion.is_resetting() or task_is_resetting
+		if self._config_running:
+			for event in self._config_running.get('events', []):
+				ev_type = self._get(event.get('type'))
+				if resetting and ev_type == 'restart':
+					restart_target = self._make_event_target(event)
+				elif ev_type == 'stop':
+					stop_target = self._make_event_target(event)
+		if restart_target:
+			log.debug("%s Restart event on %d '%s' process%s",
+					my(self), running, self._name, ses(running, 'es'))
+			restart_target.handle()
+		elif stop_target:
+			log.debug("%s Stop event on %d '%s' process%s",
+					my(self), running, self._name, ses(running, 'es'))
+			stop_target.handle()
+		else:
+			log.debug("%s Stopping %d '%s' process%s with SIGTERM",
+					my(self), running, self._name, ses(running, 'es'))
+			self._signal(signal.SIGTERM)
 		return True
 
 	def terminate(self):
@@ -2375,6 +2419,15 @@ Params are:
 		if self._stopping:
 			log.debug("%s Task '%s', stopping, retrying stop()", my(self), self._name)
 			return self.stop()
+		now = time.time()
+		if self._started and self._limit:
+			if now > self._limit:
+				log.debug("%s Task '%s', time limit exceeded by %s, stopping",
+									my(self), self._name, deltafmt(now - self._limit))
+				return self.stop()
+			else:
+				log.debug("%s Task '%s', time limit remaining %s",
+								my(self), self._name, deltafmt(self._limit - now))
 		if self._legion.is_exiting():
 			log.debug("%s Not managing '%s', legion is exiting", my(self), self._name)
 			return False
