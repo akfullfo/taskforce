@@ -38,7 +38,11 @@ env = support.env(base='.')
 class Test(object):
 
 	tcp_host = '127.0.0.1'
-	tcp_port = 34567
+	tcp_port = os.environ.get('NOSE_HTTPD_PORT')
+	if tcp_port:
+		tcp_port = int(tcp_port)
+	else:
+		tcp_port = 34567
 	tcp_address = tcp_host + ':' + str(tcp_port)
 	unx_address = os.path.join('/tmp', 's.' + __module__)
 	http_test_map = {
