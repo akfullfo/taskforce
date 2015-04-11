@@ -1,6 +1,27 @@
 Changelog
 =========
 
+0.3.10 (2015-04-11)
+-------------------
+
+- Document new "time_limit" tasks tag. [Andrew Fullford]
+
+- Changed "timelimit" to "time_limit" for consistency. [Andrew Fullford]
+
+- Task timelimit was not going through context substitution. [Andrew
+  Fullford]
+
+- Fixed #9, task now correctly freed and removed. [Andrew Fullford]
+
+- Implemented time limit on process execution.  mostly useful for "once"
+  controlled processes, but can be used for a command that has to be
+  restarted periodically. [Andrew Fullford]
+
+0.3.9 (2015-04-03)
+------------------
+
+- Release 0.3.9. [Andrew Fullford]
+
 0.3.8 (2015-04-03)
 ------------------
 
