@@ -2113,7 +2113,7 @@ Params are:
 
 		limit = self._config_running.get('timelimit')
 		try:
-			limit = float(self._get(limit, default='0'))
+			limit = float(_fmt_context(self._get(limit, default='0'), self._context))
 			if limit > 0:
 				log.debug("%s Applying task '%s' time limit of %s", my(self), self._name, deltafmt(limit))
 				self._limit = now + limit
