@@ -81,11 +81,11 @@ class http(object):
 			'python': '.'.join(str(x) for x in sys.version_info[:3]),
 		}
 		ans['platform'] = {
-			'release': platform.release()
+			'system': platform.system(),
 		}
 		if self._open_kimono:
 			ans['platform']['platform'] = platform.platform()
-			ans['platform']['system'] = platform.system()
+			ans['platform']['release'] = platform.release()
 
 		if fmt == 'json':
 			return (200, json.dumps(ans, **params)+'\n', 'application/json')
