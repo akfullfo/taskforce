@@ -1,8 +1,15 @@
 Changelog
 =========
 
+0.3.11 (2015-04-11)
+-------------------
+
+- Minor changes to command help, updated example. [Andrew Fullford]
+
 0.3.10 (2015-04-11)
 -------------------
+
+- Release 0.3.10. [Andrew Fullford]
 
 - Document new "time_limit" tasks tag. [Andrew Fullford]
 
