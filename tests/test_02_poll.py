@@ -72,7 +72,7 @@ class Test(object):
 	def Test_E_timeout(self):
 		import time
 		timeout_delay = 500
-		max_timeout_slop = 30
+		max_timeout_slop = 50
 
 		start = time.time()
 		evlist = self.pset.poll(timeout_delay)
