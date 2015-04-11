@@ -16,9 +16,10 @@
 # ________________________________________________________________________
 #
 
-import time, json
+import sys, platform, time, json
 from . import httpd
 from . import utils
+from .__init__ import __version__ as taskforce_version
 
 """
 Implement status interfaces.  Currently supports http,
@@ -38,19 +39,58 @@ class http(object):
 	is performed, or the configuration file is changed
 	which causes a normal reconfiguration.
 """
-	def __init__(self, legion, httpd, log=None):
-		if log:
-			self._log = log
-		else:
+	def __init__(self, legion, httpd, **params):
+		self._log = params.get('log')
+		if not self._log:
 			self._log = logging.getLogger(__name__)
 			self._log.addHandler(logging.NullHandler())
+
+		self._open_kimono = params.get('kimono')
 		self._legion = legion
 		self._httpd = httpd
 
+		self._httpd.register_get(r'/status/version', self.version)
+		self._httpd.register_post(r'/status/version', self.version)
 		self._httpd.register_get(r'/status/tasks', self.tasks)
 		self._httpd.register_post(r'/status/tasks', self.tasks)
 		self._httpd.register_get(r'/status/config', self.config)
 		self._httpd.register_post(r'/status/config', self.config)
+
+	def version(self, path, postmap=None):
+		"""
+		Return the taskforce version.
+
+		Options:
+		  fmt		-  Placeholder for other content formatting (eg XML).
+		  		   Currently only "json" is supported.
+		  indent	-  Indent to make formatted output more human-readable.
+		  		   Default is no indent which removes unnecessary padding.
+	"""
+		q = httpd.merge_query(path, postmap)
+		if 'fmt' in q:
+			fmt = q['fmt']
+		else:
+			fmt = 'json'
+
+		params = {}
+		try: params['indent'] = int(q.get('indent')[0])
+		except: pass
+
+		ans = {
+			'taskforce': taskforce_version,
+			'python': '.'.join(str(x) for x in sys.version_info[:3]),
+		}
+		ans['platform'] = {
+			'release': platform.release()
+		}
+		if self._open_kimono:
+			ans['platform']['platform'] = platform.platform()
+			ans['platform']['system'] = platform.system()
+
+		if fmt == 'json':
+			return (200, json.dumps(ans, **params)+'\n', 'application/json')
+		else:
+			return (415, 'Invalid "fmt" request, supported formats are: json\n', 'text/plain')
 
 	def config(self, path, postmap=None):
 		"""
@@ -67,6 +107,8 @@ class http(object):
 		  		   Currently only "json" is supported.
 		  pending	-  If set to "1", return the pending config instead of
 		  		   the running config.
+		  indent	-  Indent to make formatted output more human-readable.
+		  		   Default is no indent which removes unnecessary padding.
 	"""
 
 		q = httpd.merge_query(path, postmap)
@@ -78,7 +120,6 @@ class http(object):
 		params = {}
 		try: params['indent'] = int(q.get('indent')[0])
 		except: pass
-		print(params)
 
 		pending = httpd.truthy(q.get('pending'))
 		if pending:
