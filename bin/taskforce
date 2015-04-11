@@ -188,38 +188,39 @@ def sanity_test(l):
 
 p = argparse.ArgumentParser(description="Manage tasks and process pools")
 
-p.add_argument('-V', '--version', action='store_true', dest='version', help='Report version of package and exit')
-p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
-p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Quiet logging, warnings and errors only')
-p.add_argument('-e', '--log-stderr', action='store_true', dest='log_stderr', help='Log to stderr instead of syslog')
+p.add_argument('-V', '--version', action='store_true', dest='version', help='Report version of package and exit.')
+p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging.')
+p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Quiet logging, warnings and errors only.')
+p.add_argument('-e', '--log-stderr', action='store_true', dest='log_stderr', help='Log to stderr instead of syslog.')
 p.add_argument('-L', '--logging-name', action='store', dest='logging_name', default=def_logging_name, metavar='NAME',
-			help='Use NAME instead of the default "%s" when logging to syslog' % (def_logging_name, ))
-p.add_argument('-b', '--background', action='store_true', dest='daemonize', help='Run in the background')
-p.add_argument('-p', '--pidfile', action='store', dest='pidfile', help='Pidfile path, default '+def_pidfile+', "-" means none')
-p.add_argument('-f', '--config-file', action='store', dest='config_file', default=def_config_file,
-			help='Configuration.  File will be watched for changes.  Default '+def_config_file)
-p.add_argument('-r', '--roles-file', action='store', dest='roles_file',
-			help='File to load roles from.  File will be watched for changes.  Default is selected from: ' +
+			help='Use NAME instead of the default "%s" when logging to syslog.' % (def_logging_name, ))
+p.add_argument('-b', '--background', action='store_true', dest='daemonize', help='Run in the background.')
+p.add_argument('-p', '--pidfile', action='store', dest='pidfile', metavar='FILE',
+			help='Pidfile path, default "%s", "-" means none.' %(def_pidfile,))
+p.add_argument('-f', '--config-file', action='store', dest='config_file', metavar='FILE', default=def_config_file,
+			help='Configuration file.  FILE will be watched for changes.  Default "%s".' % (def_config_file,))
+p.add_argument('-r', '--roles-file', action='store', dest='roles_file', metavar='FILE',
+			help='File to load roles from.  FILE will be watched for changes.  Default is selected from: ' +
 			', '.join(def_roles_filelist))
 p.add_argument('-w', '--http', action='store', dest='http_listen', metavar='LISTEN',
 			help='''Offer an HTTP service for statistics and management with listen address.
-			        Default is "%s"''' % (httpd.def_address,))
+			        Default is "%s".''' % (httpd.def_address,))
 p.add_argument('-c', '--certfile', action='store', dest='certfile', metavar='FILE',
 			help='''PEM-formatted certificate file.  If specified, the HTTP service will be offered over TLS.
 				Ignored if -w is not specified.''')
 p.add_argument('-A', '--allow-control', action='store_true', dest='allow_control',
 			help='''Allow HTTP operations that can change the task state.
-				Without this flag, only status operations are allowed''')
-p.add_argument('-C', '--check-config', action='store_true', dest='check', help='Check the config and exit')
+				Without this flag, only status operations are allowed.''')
+p.add_argument('-C', '--check-config', action='store_true', dest='check', help='Check the config and exit.')
 p.add_argument('-R', '--reset', action='store_true', dest='reset',
 			help="""Cause the background %s to reset.
 				All unadoptable tasks will be stopped and the program will restart itself."""%(program,))
 p.add_argument('-S', '--stop', action='store_true', dest='stop',
 			help='Cause the background %s to exit.  All unadoptable tasks will be stopped.'%(program,))
 p.add_argument('--expires', action='store', dest='expires', type=float, metavar='SECS',
-			help='Runs normally but exits after SECS seconds.  Normally only used during testing')
+			help='Runs normally but exits after SECS seconds.  Normally only used during testing.')
 p.add_argument('--sanity', action='store_true', dest='sanity',
-			help='Perform a basic sanity check and exit.  This is effectively "-C -e" with a simple config')
+			help='Perform a basic sanity check and exit.  This is effectively "-C -e" with a simple config.')
 
 args = p.parse_args()
 

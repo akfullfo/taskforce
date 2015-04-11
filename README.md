@@ -360,50 +360,53 @@ Also included is **bin/taskforce** which provides an operational harness for run
 Here is the help message:
 ```
 
-usage: taskforce [-h] [-V] [-v] [-q] [-e] [-L NAME] [-b] [-p PIDFILE]
-                 [-f CONFIG_FILE] [-r ROLES_FILE] [-w LISTEN] [-c FILE] [-A]
-                 [-C] [-R] [-S] [--sanity]
+usage: taskforce [-h] [-V] [-v] [-q] [-e] [-L NAME] [-b] [-p FILE] [-f FILE]
+                 [-r FILE] [-w LISTEN] [-c FILE] [-A] [-C] [-R] [-S]
+                 [--expires SECS] [--sanity]
 
 Manage tasks and process pools
 
 optional arguments:
   -h, --help            show this help message and exit
-  -V, --version         Report version of package and exit
-  -v, --verbose         Verbose logging for debugging
-  -q, --quiet           Quiet logging, warnings and errors only
-  -e, --log-stderr      Log to stderr instead of syslog
+  -V, --version         Report version of package and exit.
+  -v, --verbose         Verbose logging for debugging.
+  -q, --quiet           Quiet logging, warnings and errors only.
+  -e, --log-stderr      Log to stderr instead of syslog.
   -L NAME, --logging-name NAME
                         Use NAME instead of the default "taskforce" when
-                        logging to syslog
-  -b, --background      Run in the background
-  -p PIDFILE, --pidfile PIDFILE
-                        Pidfile path, default /var/run/taskforce.pid, "-"
-                        means none
-  -f CONFIG_FILE, --config-file CONFIG_FILE
-                        Configuration. File will be watched for changes.
-                        Default /usr/local/etc/taskforce.conf
-  -r ROLES_FILE, --roles-file ROLES_FILE
-                        File to load roles from. File will be watched for
+                        logging to syslog.
+  -b, --background      Run in the background.
+  -p FILE, --pidfile FILE
+                        Pidfile path, default "/var/run/taskforce.pid", "-"
+                        means none.
+  -f FILE, --config-file FILE
+                        Configuration file. FILE will be watched for changes.
+                        Default "/usr/local/etc/taskforce.conf".
+  -r FILE, --roles-file FILE
+                        File to load roles from. FILE will be watched for
                         changes. Default is selected from:
                         /var/local/etc/tf_roles.conf,
                         /usr/local/etc/tf_roles.conf
   -w LISTEN, --http LISTEN
                         Offer an HTTP service for statistics and management
-                        with listen address. Default is "localhost:8080"
+                        with listen address. Default is
+                        "/var/run/s.taskforce".
   -c FILE, --certfile FILE
                         PEM-formatted certificate file. If specified, the HTTP
                         service will be offered over TLS. Ignored if -w is not
                         specified.
   -A, --allow-control   Allow HTTP operations that can change the task state.
-                        Without this flag, only status operations are allowed
-  -C, --check-config    Check the config and exit
+                        Without this flag, only status operations are allowed.
+  -C, --check-config    Check the config and exit.
   -R, --reset           Cause the background taskforce to reset. All
                         unadoptable tasks will be stopped and the program will
                         restart itself.
   -S, --stop            Cause the background taskforce to exit. All
                         unadoptable tasks will be stopped.
+  --expires SECS        Runs normally but exits after SECS seconds. Normally
+                        only used during testing.
   --sanity              Perform a basic sanity check and exit. This is
-                        effectively "-C -e" with a simple config
+                        effectively "-C -e" with a simple config.
 ```
 
 ### Example ###
@@ -493,6 +496,7 @@ The example itself is documented with comments so that it can be read separately
             #  possible commands.
             #
             "<a href="#commands">commands</a>": { "start": ["ntpd", "-c", "{ntpd_conf}", "-n", "-g", "-q"] },
+            "<a href="#time_limit">time_limit</a>": 5.0,
         },
         "ntpd": {
             #  The "ntpd" task is started when the "timeset" command has completed,
