@@ -2111,14 +2111,14 @@ Params are:
 		now = time.time()
 		self._started = now
 
-		limit = self._config_running.get('timelimit')
+		limit = self._config_running.get('time_limit')
 		try:
 			limit = float(_fmt_context(self._get(limit, default='0'), self._context))
 			if limit > 0:
 				log.debug("%s Applying task '%s' time limit of %s", my(self), self._name, deltafmt(limit))
 				self._limit = now + limit
 		except Exception as e:
-			log.warn("%s Task '%s' timelimit value '%s' invalid -- %s",
+			log.warn("%s Task '%s' time_limit value '%s' invalid -- %s",
 				my(self), self._name, limit, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 
 	def _start(self):
