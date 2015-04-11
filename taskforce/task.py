@@ -1205,12 +1205,14 @@ Params are:
 		if name in self._tasknames:
 			del self._tasknames[name]
 		self._tasks.discard(t)
+		self._tasks_scoped.discard(t)
 		try:
 			t.stop()
 		except:
 			log = self._params.get('log', self._discard)
-			log.error("%s Failed to stop processes for task '%s' -- %s", my(self), name)
-		for pid in t.get_procs():
+			log.error("%s Failed to stop processes for task '%s' -- %s",
+							my(self), name, exc_info=log.isEnabledFor(logging.DEBUG))
+		for pid in t.get_pids():
 			self.proc_del(pid)
 
 	def task_get(self, taskname):
@@ -1272,6 +1274,9 @@ Params are:
 	"""
 		if pid in self._procs:
 			del self._procs[pid]
+		else:
+			log = self._params.get('log', self._discard)
+			log.warning("%s Process %d missing from proc list during deletion", my(self), pid)
 
 	def module_add(self, ev, path=None):
 		"""
@@ -1478,7 +1483,7 @@ Params are:
 					#  Manage tasks.  The tasks themselves figure out what might need to
 					#  happen.
 					#
-					for t in self._tasks_scoped:
+					for t in set(self._tasks_scoped):
 						if t.manage() and timeout > timeout_short_cycle:
 							timeout = timeout_short_cycle
 
@@ -1654,11 +1659,20 @@ Params are:
 		self._legion.task_add(self, periodic=self._task_periodic)
 
 	def close(self):
+		log = self._params.get('log', self._discard)
 		if self._legion:
-			try: self._event_deregister()
-			except: pass
-			try: self._legion.task_del(self._name)
-			except: pass
+			try:
+				self._event_deregister()
+			except Exception as e:
+				log.warning("%s Task '%s' event deregister failed -- %s",
+							my(self), self._name, str(e), exc_info=log.isEnabledFor(logging.INFO))
+			try:
+				self._legion.task_del(self)
+			except Exception as e:
+				log.warning("%s Task '%s' legion delete -- %s",
+							my(self), self._name, str(e), exc_info=log.isEnabledFor(logging.INFO))
+		else:
+			log.warning("%s Task '%s' has no associated legion -- close skipped", my(self), self._name)
 
 	def _reset_state(self):
 		"""
@@ -2152,7 +2166,7 @@ Params are:
 			self._stopped = now
 		if self._stopped:
 			if self._dnr:
-				log.info("%s Task %s stopped and will now be deleted", my(self), self._name)
+				log.info("%s Task '%s' stopped and will now be deleted", my(self), self._name)
 				self.close()
 				return False
 			elif once:
