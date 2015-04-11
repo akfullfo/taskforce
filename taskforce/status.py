@@ -45,7 +45,6 @@ class http(object):
 			self._log = logging.getLogger(__name__)
 			self._log.addHandler(logging.NullHandler())
 
-		self._open_kimono = params.get('kimono')
 		self._legion = legion
 		self._httpd = httpd
 
@@ -83,7 +82,12 @@ class http(object):
 		ans['platform'] = {
 			'system': platform.system(),
 		}
-		if self._open_kimono:
+
+		#  Add in some extra details if this is a control path.
+		#  These might give away too many details on a public
+		#  path.
+		#
+		if self._httpd.allow_control:
 			ans['platform']['platform'] = platform.platform()
 			ans['platform']['release'] = platform.release()
 
