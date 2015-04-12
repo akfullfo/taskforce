@@ -38,10 +38,19 @@ class http(object):
 	The change will persist until another control operation
 	is performed, or the configuration file is changed
 	which causes a normal reconfiguration.
+
+	These are the standard options for the class methods:
+
+		  fmt		-  Placeholder for other content formatting (eg XML).
+		  		   Currently only "json" is supported.
+		  indent	-  Indent to make formatted output more human-readable.
+		  		   Default is no indent which removes unnecessary padding.
+
+	Standard options are supported in the format routines.
 """
 	def __init__(self, legion, httpd, **params):
 		self._log = params.get('log')
-		if not self._log:
+		if not self._log:						# pragma: no cover
 			self._log = logging.getLogger(__name__)
 			self._log.addHandler(logging.NullHandler())
 
@@ -55,25 +64,52 @@ class http(object):
 		self._httpd.register_get(r'/status/config', self.config)
 		self._httpd.register_post(r'/status/config', self.config)
 
+		self._formatters = {}
+		for attr in dir(self):
+			if attr.startswith('_format_'):
+				func = getattr(self, attr)
+				if callable(func):
+					name = attr.replace('_format_', '', 1) 
+					self._formatters[name] = func
+
+	def _format_json(self, ans, q):
+		"""
+		Generate a json response string.
+	"""
+		params = {}
+		try: params['indent'] = int(q.get('indent')[0])
+		except: pass
+
+		return json.dumps(ans, **params)+'\n'
+
+	def _format(self, ans, q):
+		"""
+		Returns the response tuple according to the selected format.
+		A format is available if the method "_format_xxx" is callable.
+		The default format is json.
+	"""
+		if 'fmt' in q:
+			fmt = q['fmt'][0]
+		else:
+			fmt = 'json'
+
+		fmt = fmt.lower()
+
+		if fmt in self._formatters:
+			return (200, self._formatters[fmt](ans, q), 'application/json')
+		else:
+			return (415,
+				'Invalid fmt request "%s", supported formats are: %s\n'%
+					(fmt, ' '.join(self._formatters.keys()),),
+				'text/plain')
+
 	def version(self, path, postmap=None):
 		"""
 		Return the taskforce version.
 
-		Options:
-		  fmt		-  Placeholder for other content formatting (eg XML).
-		  		   Currently only "json" is supported.
-		  indent	-  Indent to make formatted output more human-readable.
-		  		   Default is no indent which removes unnecessary padding.
+		Supports standard options.
 	"""
 		q = httpd.merge_query(path, postmap)
-		if 'fmt' in q:
-			fmt = q['fmt']
-		else:
-			fmt = 'json'
-
-		params = {}
-		try: params['indent'] = int(q.get('indent')[0])
-		except: pass
 
 		ans = {
 			'taskforce': taskforce_version,
@@ -91,10 +127,7 @@ class http(object):
 			ans['platform']['platform'] = platform.platform()
 			ans['platform']['release'] = platform.release()
 
-		if fmt == 'json':
-			return (200, json.dumps(ans, **params)+'\n', 'application/json')
-		else:
-			return (415, 'Invalid "fmt" request, supported formats are: json\n', 'text/plain')
+		return self._format(ans, q)
 
 	def config(self, path, postmap=None):
 		"""
@@ -106,35 +139,15 @@ class http(object):
 		exited and not yet restarted, or because a task control has been
 		changed via the management interface.
 
-		Options:
-		  fmt		-  Placeholder for other content formatting (eg XML).
-		  		   Currently only "json" is supported.
-		  pending	-  If set to "1", return the pending config instead of
-		  		   the running config.
-		  indent	-  Indent to make formatted output more human-readable.
-		  		   Default is no indent which removes unnecessary padding.
+		Supports standard options.
 	"""
 
 		q = httpd.merge_query(path, postmap)
-		if 'fmt' in q:
-			fmt = q['fmt']
-		else:
-			fmt = 'json'
 
-		params = {}
-		try: params['indent'] = int(q.get('indent')[0])
-		except: pass
+		ans = self._legion._config_running
+		if not ans: ans = {}
 
-		pending = httpd.truthy(q.get('pending'))
-		if pending:
-			ans = self._legion._config_pending
-		else:
-			ans = self._legion._config_running
-
-		if fmt == 'json':
-			return (200, json.dumps(ans, **params)+'\n', 'application/json')
-		else:
-			return (415, 'Invalid "fmt" request, supported formats are: json\n', 'text/plain')
+		return self._format(ans, q)
 
 	def tasks(self, path, postmap=None):
 		"""
@@ -168,20 +181,9 @@ class http(object):
 		Not that the status and exit values are not cleared if the process
 		has successfully restarted.
 
-		Options:
-		  fmt		-  Placeholder for other content formatting (eg XML).
-		  		   Currently only "json" is supported.
-		  indent	-  Indent to make formatted output more human-readable.
-		  		   Default is no indent which removes unnecessary padding.
+		Supports standard options.
 	"""
 		q = httpd.merge_query(path, postmap)
-		if 'fmt' in q:
-			fmt = q['fmt']
-		else:
-			fmt = 'json'
-		params = {}
-		try: params['indent'] = int(q.get('indent')[0])
-		except: pass
 
 		ans = {}
 		for name, tinfo in self._legion._tasknames.items():
@@ -206,12 +208,9 @@ class http(object):
 					if p.exited is not None:
 						proc['exited_t'] = p.exited
 						proc['exited'] = utils.time2iso(p.exited)
-					if p.pending_sig is not None:
+					if p.pending_sig is not None:				# pragma: no cover
 						proc['exit_pending'] = True
 					info['processes'].append(proc)
 			ans[name] = info
 
-		if fmt == 'json':
-			return (200, json.dumps(ans, **params)+'\n', 'application/json')
-		else:
-			return (415, 'Invalid "fmt" request, supported formats are: json\n', 'text/plain')
+		return self._format(ans, q)

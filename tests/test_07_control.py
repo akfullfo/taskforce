@@ -60,11 +60,11 @@ class Test(object):
 		self.log.info("%s ended", self.__module__)
 
 	def setUp(self):
-		self.log.info("setup: cd %s", env.examples_dir)
+		self.log.info("setup")
 		self.reset_env()
 
 	def tearDown(self):
-		self.log.info("teardown: cd %s", env.base_dir)
+		self.log.info("teardown")
 		self.reset_env()
 
 	def set_path(self, tag, val):
@@ -117,6 +117,18 @@ class Test(object):
 		#  Allow time for full process function
 		time.sleep(1)
 
+		#  Check the version info is sane
+		resp = httpc.getmap('/status/version')
+		self.log.info("Version info: %s", str(resp))
+		assert 'taskforce' in resp
+
+		#  Try a bogus format
+		try:
+			resp = httpc.getmap('/status/version?indent=4&fmt=xml')
+			assert "No 'version' exception on bad 'fmt'" is False
+		except Exception as e:
+			self.log.info("%s Expected 'version' exception on bad format: %s", my(self), str(e))
+
 		give_up = time.time() + 30
 		toi = 'db_server'
 		toi_started = None
@@ -135,6 +147,24 @@ class Test(object):
 				else:
 					self.log.info("%s Task of interest '%s' is known", my(self), toi)
 			time.sleep(9)
+
+		#  Try a bogus format
+		try:
+			resp = httpc.getmap('/status/tasks?indent=4&fmt=xml')
+			assert "No 'tasks' exception on bad 'fmt'" is False
+		except Exception as e:
+			self.log.info("%s Expected 'tasks' exception on bad format: %s", my(self), str(e))
+
+		#  Check the config info is sane
+		resp = httpc.getmap('/status/config?pending=0')
+		assert 'tasks' in resp
+
+		#  Try a bogus format
+		try:
+			resp = httpc.getmap('/status/config?indent=4&fmt=xml')
+			assert "No 'config' exception on bad 'fmt'" is False
+		except Exception as e:
+			self.log.info("%s Expected 'config' exception on bad format: %s", my(self), str(e))
 
 		support.check_procsim_errors(self.__module__, env, log=self.log)
 		tf.close()
