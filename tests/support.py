@@ -142,15 +142,11 @@ class python_subprocess(object):
 	def command_line(self, e, args, **params):
 		if 'exe' not in params:
 			raise Exception("No 'exe' params, maybe the superclass was called directly")
-		if 'python' in params:
-			python = params['python']
+		if 'NOSE_WITH_COVERAGE' in os.environ:
+			cmd = ['coverage', 'run']
 		else:
-			python = 'python'
-		cmd = [
-			python,
-			params['exe'],
-			'--log-stderr'
-		]
+			cmd = ['python']
+		cmd.extend([params['exe'], '--log-stderr'])
 		if 'verbose' not in params or params.get('verbose'):
 			cmd.append('--verbose')
 		if args:
@@ -159,6 +155,12 @@ class python_subprocess(object):
 
 	def __init__(self, e, args, **params):
 		self.log = params.get('log')
+		if self.log:
+			tags = []
+			for tag in sorted(os.environ.keys()):
+				if tag in ['PATH', 'PYTHONPATH'] or tag.startswith('EXAMPLE'):
+					tags.append((tag, os.environ[tag]))
+			self.log.debug("ENV %s", ' '.join(("%s='%s'" % (tag, val)) for tag, val in tags))
 		cmd = self.command_line(e, args, **params)
 		with open(os.devnull, 'r') as read_null, open(os.devnull, 'w') as write_null:
 			if params.get('forget'):
@@ -171,7 +173,6 @@ class python_subprocess(object):
 					stdout=output,
 					stderr=subprocess.STDOUT,
 					close_fds=True,
-					cwd=e.working_dir,
 					universal_newlines=True)
 		self.pid = self.proc.pid
 		self.piping_hot = not params.get('forget')

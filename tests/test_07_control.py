@@ -62,12 +62,10 @@ class Test(object):
 	def setUp(self):
 		self.log.info("setup: cd %s", env.examples_dir)
 		self.reset_env()
-		os.chdir(env.examples_dir)
 
 	def tearDown(self):
 		self.log.info("teardown: cd %s", env.base_dir)
 		self.reset_env()
-		os.chdir(env.base_dir)
 
 	def set_path(self, tag, val):
 		if tag in self.startenv:

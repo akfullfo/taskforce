@@ -1,0 +1,7 @@
+[run]
+data_file = .covdata
+parallel = True
+include = */taskforce/*
+omit =
+    */tests/*
+    */bin/taskforce
