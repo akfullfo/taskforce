@@ -2365,9 +2365,9 @@ Params are:
 			for event in self._config_running.get('events', []):
 				ev_type = self._get(event.get('type'))
 				if resetting and ev_type == 'restart':
-					restart_target = self._make_event_target(event)
+					restart_target = self._make_event_target(event, control)
 				elif ev_type == 'stop':
-					stop_target = self._make_event_target(event)
+					stop_target = self._make_event_target(event, control)
 		if restart_target:
 			log.debug("%s Restart event on %d '%s' process%s",
 					my(self), running, self._name, ses(running, 'es'))
