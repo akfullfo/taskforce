@@ -16,9 +16,9 @@
 # ________________________________________________________________________
 #
 
-import os, sys, time, logging, errno, re, json
+import os, sys, time, logging, errno, re, json, tempfile
 import support
-from taskforce.utils import get_caller as my, deltafmt
+from taskforce.utils import get_caller as my, deltafmt, statusfmt
 import taskforce.poll as poll
 import taskforce.task as task
 import taskforce.http
@@ -27,13 +27,8 @@ env = support.env(base='.')
 
 class Test(object):
 
-	#ctrl_address = os.path.join('/tmp', 's.' + __module__)
-	ctrl_address = '127.0.0.1:3210'
-	std_args = [
-		'--http', ctrl_address,
-		'--certfile', env.cert_file,
-		'--expires', '60'
-	]
+	unx_address = os.path.join('/tmp', 's.' + __module__)
+	tcp_address = '127.0.0.1:3210'
 
 	@classmethod
 	def setUpAll(self):
@@ -61,10 +56,13 @@ class Test(object):
 
 	def setUp(self):
 		self.log.info("setup")
+		self.tf = None
 		self.reset_env()
 
 	def tearDown(self):
 		self.log.info("teardown")
+		if self.tf:
+			self.stop_tf()
 		self.reset_env()
 
 	def set_path(self, tag, val):
@@ -88,22 +86,43 @@ class Test(object):
 			f.write('\n'.join(roles) + '\n')
 		os.rename(fname, env.roles_file)
 
-	def Test_A_get_status(self):
+	def start_tf(self, address, use_ssl=None, allow_control=False):
+		"""
+		Start a taskforce "examples" run with control set to the specified
+		address.
+
+		This starts the background process, then probes the control channel
+		to make sure it is up and running.
+
+		It returns the http client instance.  The process instance is recorded
+		in the "tf" attribute.
+	"""
 		self.set_path('PATH', env.examples_bin)
 		self.log.info("PATH: %s", os.environ['PATH'])
 		os.environ['EXAMPLES_BASE'] = env.examples_dir
 		self.set_roles(env.test_roles)
 		self.log.info("Base dir '%s', tmp dir '%s'", env.base_dir, env.temp_dir)
 		self.log.info("Set roles %s", env.test_roles)
-		self.log.info("Will run: %s", ' '.join(support.taskforce.command_line(env, self.std_args)))
-		tf = support.taskforce(env, self.std_args, log=self.log, forget=True, verbose=False)
+
+		cargs = ['--expires', '60']
+		cargs.extend(['--certfile', '' if use_ssl is None else env.cert_file])
+		cargs.extend(['--http', address])
+		if allow_control:
+			cargs.append('--allow-control')
+
+		tf_out = tempfile.NamedTemporaryFile(delete=False)
+		self.tf_path = tf_out.name
+		self.log.info("With output to '%s', will run: %s",
+					self.tf_path, ' '.join(support.taskforce.command_line(env, cargs)))
+
+		self.tf = support.taskforce(env, cargs, log=self.log, save=tf_out, verbose=True)
 
 		start = time.time()
 		give_up = start + 10
 		last_exc = None
 		while time.time() < give_up:
 			try:
-				httpc = taskforce.http.Client(address=self.ctrl_address, use_ssl=True, log=self.log)
+				httpc = taskforce.http.Client(address=address, use_ssl=use_ssl, log=self.log)
 				last_exc = None
 				break
 			except Exception as e:
@@ -112,10 +131,56 @@ class Test(object):
 								my(self), deltafmt(time.time() - start), str(e))
 			time.sleep(0.5)
 		if last_exc:
+			self.log.error("%s Connection attempt failed after %s -- %s",
+							my(self), deltafmt(time.time() - start), str(e), exc_info=True)
 			raise last_exc
 
 		#  Allow time for full process function
-		time.sleep(1)
+		#time.sleep(1)
+
+		return httpc
+
+	def stop_tf(self):
+		if not self.tf:
+			self.log.info("Taskforce child already closed")
+			return
+		ret = self.tf.close()
+		self.tf = None
+		status = statusfmt(ret)
+
+		output = None
+		if self.tf_path:
+			try:
+				with open(self.tf_path, 'r') as f:
+					output = f.readlines()
+			except Exception as e:
+				self.log.warning("Could not open taskforce child output '%s' -- %s", self.tf_path, str(e))
+			try:
+				os.unlink(self.tf_path)
+			except Exception as e:
+				self.log.warning("Could not remove taskforce child output '%s' -- %s", self.tf_path, str(e))
+			self.tf_path = None
+		else:
+			self.log.warning("Taskforce child output path was not set")
+		if ret == 0:
+			if output:
+				self.log.debug("Taskforce child exited %s, output follows ...", status)
+				for line in output:
+					self.log.debug("    ]  %s", line.rstrip())
+			else:
+				self.log.debug("Taskforce child exited %s with no output", status)
+		else:
+			if output:
+				self.log.warning("Taskforce child exited %s, output follows ...", status)
+				for line in output:
+					self.log.warning("    ]  %s", line.rstrip())
+			else:
+				self.log.warning("Taskforce child exited %s with no output", status)
+
+
+	def Test_A_https_tcp_status(self):
+
+		httpc = self.start_tf(self.tcp_address, use_ssl=False)
 
 		#  Check the version info is sane
 		resp = httpc.getmap('/status/version')
@@ -167,6 +232,72 @@ class Test(object):
 			self.log.info("%s Expected 'config' exception on bad format: %s", my(self), str(e))
 
 		support.check_procsim_errors(self.__module__, env, log=self.log)
-		tf.close()
+		self.stop_tf()
 
 		assert toi_started is not None
+
+	def Test_B_http_unx_status(self):
+
+		httpc = self.start_tf(self.unx_address, use_ssl=None)
+
+		#  Check the version info is sane
+		resp = httpc.getmap('/status/version')
+		self.log.info("Version info: %s", str(resp))
+		assert 'taskforce' in resp
+
+		#  Try a control operation that should be disabled on this path
+		try:
+			resp = httpc.post('/manage/control?db_server=off')
+			assert "No exception on unauthorized control" is False
+		except Exception as e:
+			self.log.info("%s Expected exception on bad url: %s", my(self), str(e))
+
+		#  Again but with different arg layout
+		try:
+			resp = httpc.post('/manage/control', query={'db_server': 'off'})
+			assert "No exception on unauthorized control" is False
+		except Exception as e:
+			self.log.info("%s Expected exception on bad url: %s", my(self), str(e))
+
+		#  Try an illegal URL
+		try:
+			resp = httpc.getmap('/')
+			assert "No exception on bad url" is False
+		except Exception as e:
+			self.log.info("%s Expected exception on bad url: %s", my(self), str(e))
+
+		support.check_procsim_errors(self.__module__, env, log=self.log)
+		self.stop_tf()
+
+	def Test_C_https_unx_status(self):
+
+		httpc = self.start_tf(self.unx_address, use_ssl=False, allow_control=True)
+
+		#  Check the version info is sane
+		resp = httpc.getmap('/status/version')
+		self.log.info("Version info: %s", str(resp))
+		assert 'taskforce' in resp
+
+		#  Check the version info is sane via postmap
+		resp = httpc.postmap('/status/version')
+		assert 'taskforce' in resp
+
+		#  Send a now-valid command but have it expect a JSON return, which doesn't happen
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			resp = httpc.postmap('/manage/control', valuemap={'db_server': 'off'})
+			assert "No exception on bad JSON return" is False
+		except Exception as e:
+			self.log.info("%s Expected exception on bad url: %s", my(self), str(e))
+		finally:
+			self.log.setLevel(log_level)
+
+		#  Turn task back on.
+		(code, content, content_type) = httpc.post('/manage/control', valuemap={'db_server': 'wait'})
+
+		assert code < 300
+
+		support.check_procsim_errors(self.__module__, env, log=self.log)
+		self.stop_tf()
