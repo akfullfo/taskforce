@@ -124,20 +124,23 @@ def known_fds(fwatch, log=None, exclude=set()):
 
 class python_subprocess(object):
 	"""
-	Start a python process via subproccess().  It is started with logging to stderr
-	and stdout and stderr collected, unless the 'forget' param is specified.  The
-	log level can be set with the 'verbose' param (default True means debug level).
-	The follow() method can be used to read the log output in a non-blocking manner.
-	It will always return '' (EOF) if the 'forget' param is True.
+	Start a python process via subproccess().
 
-	The version of python can be specified with the 'python' param.  The default is
-	to attempt to find the executable used to run the current process and use that.
+	Normally, it is started with logging to stderr and stdout and stderr collected.
+	If the "save" param is False, the combined output will be directed to os.devnull.
 
-	The process will be destroyed when the object is removed, or when the
-	close() method is called.
+	If "save" is a file object with a write() method, output will be written to
+	it, otherwise is is expected to be a file path and is opened for writing.
+	In either case, the file will be closed in the parent once the child process
+	has been started.
+
+	The log level can be set with the 'verbose' param (default True means debug
+	level).  The follow() method can be used to read the log output in a non-blocking
+	manner.  It will always return '' (EOF) if the 'forget' param is True.
+
+	The process will be destroyed when the object is removed, or when the close()
+	method is called.
 """
-	python_exec = None
-
 	@classmethod
 	def command_line(self, e, args, **params):
 		if 'exe' not in params:
@@ -162,11 +165,30 @@ class python_subprocess(object):
 					tags.append((tag, os.environ[tag]))
 			self.log.debug("ENV %s", ' '.join(("%s='%s'" % (tag, val)) for tag, val in tags))
 		cmd = self.command_line(e, args, **params)
-		with open(os.devnull, 'r') as read_null, open(os.devnull, 'w') as write_null:
-			if params.get('forget'):
-				output = write_null
-			else:
-				output = subprocess.PIPE
+		save = params.get('save')
+
+		#  Set up output as a subprocess file object if immediately possible.
+		#  If not, set to None, and set outpath to the file to be opened.
+		#  In some cases we burn an open os.devnull file.
+		#
+		self.piping_hot = False
+		if save is False:
+			outpath = os.devnull
+			output = None
+		elif save is None:
+			outpath = os.devnull
+			output = subprocess.PIPE
+			self.piping_hot = True
+		elif hasattr(save, 'write') and callable(save.write):
+			outpath = os.devnull
+			output = save
+		else:
+			outpath = save
+			output = None
+
+		with open(os.devnull, 'r') as read_null, open(outpath, 'w') as write_file:
+			if output is None:
+				output = write_file
 			self.proc = subprocess.Popen(cmd,
 					bufsize=1,
 					stdin=read_null,
@@ -175,7 +197,6 @@ class python_subprocess(object):
 					close_fds=True,
 					universal_newlines=True)
 		self.pid = self.proc.pid
-		self.piping_hot = not params.get('forget')
 		if self.piping_hot:
 			fl = fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_GETFL)
 			fcntl.fcntl(self.proc.stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
