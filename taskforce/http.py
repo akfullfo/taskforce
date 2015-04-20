@@ -34,6 +34,10 @@ class udomHTTPConnection(HTTPConnection, object):
 		self.timeout = timeout
 		super(udomHTTPConnection, self).__init__('localhost', port=None, timeout=timeout)
 
+		# We don't actually want the IP-based socket.
+		try: self.sock.close()
+		except: pass
+
 	def connect(self):
 		sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 		sock.connect(self.path)
@@ -41,18 +45,35 @@ class udomHTTPConnection(HTTPConnection, object):
 		if self.timeout:
 			self.sock.settimeout(self.timeout)
  
-class udomHTTPSConnection(HTTPSConnection, object):
+class udomHTTPSConnection(HTTPConnection, object):
 	def __init__(self, path, **params):
 		self.path = path
 		self.timeout = params.get('timeout')
 		self.context = params.get('context')
+		self.log = params.get('log')
 		super(udomHTTPSConnection, self).__init__('localhost', port=None, timeout=self.timeout)
+
+		# We don't actually want the IP-based socket.
+		try: self.sock.close()
+		except: pass
 
 	def connect(self):
 		sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 		sock.connect(self.path)
-		#  Whoa, this is missing the ssl_wrap
-		self.sock = sock
+		ctx = None
+		if self.context:
+			ctx = self.context
+		else:
+			try:
+				ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+			except AttributeError:
+				pass
+		if ctx:
+			sslsock = ctx.wrap_socket(sock, server_side=False)
+		else:
+			if self.log: self.log.warning("No ssl.SSLContext(), less secure connections may be allowed")
+			sslsock = ssl.wrap_socket(sock, server_side=False)
+		self.sock = sslsock
 		if self.timeout:
 			self.sock.settimeout(self.timeout)
 
@@ -70,7 +91,7 @@ class HttpError(Exception):
 				if len(text) > 0:
 					message = text
 					break
-		else:
+		else:							# pragma: no cover
 			message = 'Error content %s, length %d' % (self.content_type, len(self.content))
 		return ("%d %s" % (self.code, message))
 
@@ -113,8 +134,7 @@ class Client(object):
 				self.http = udomHTTPConnection(self.address, timeout)
 			else:
 				ssl_params = self._build_params(use_ssl, timeout)
-				self.http = udomHTTPSConnection(host, port, **ssl_params)
-
+				self.http = udomHTTPSConnection(self.address, **ssl_params)
 		else:
 			port = None
 			m = re.match(r'^(.*):(.*)$', address)
@@ -150,11 +170,13 @@ class Client(object):
 		ssl_params = {'timeout': timeout}
 		try:
 			ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-		except AttributeError:
+		except AttributeError:					# pragma: no cover
 			self.log.info("No ssl.SSLContext(), assuming older python")
 			return ssl_params
 		if use_ssl is False:
-			ctx.verify = False
+			ctx.verify_mode = ssl.CERT_NONE
+		else:
+			ctx.verify_mode = ssl.CERT_REQUIRED
 		if 'OP_NO_SSLv2' in ssl.__dict__:
 			ctx.options |= ssl.OP_NO_SSLv2
 		else:
@@ -205,7 +227,7 @@ class Client(object):
 			raise HttpError(code=400, content_type='text/plain', content='Remote returned invalid content type: '+ctype)
 		try:
 			result = json.loads(data)
-		except Exception as e:
+		except Exception as e:						# pragma: no cover
 			self.log.error("Could not load JSON content from GET '%s' -- %s", self.lastpath, str(e))
 			raise HttpError(code=400, content_type='text/plain', content='Could not load JSON content')
 		return result
@@ -243,7 +265,7 @@ class Client(object):
 			raise HttpError(code=400, content_type='text/plain', content='Remote returned invalid content type: '+ctype)
 		try:
 			result = json.loads(data)
-		except Exception as e:
+		except Exception as e:						# pragma: no cover
 			self.log.error("Could not load JSON content from POST '%s' -- %s", self.lastpath, str(e))
 			raise HttpError(code=400, content_type='text/plain', content='Could not load JSON content')
 		return result
