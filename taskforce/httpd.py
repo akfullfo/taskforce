@@ -137,18 +137,19 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 		self.wfile.write(content)
 
 	def do_POST(self):
-		try:
-			ctype, pdict = parse_header(self.headers['content-type'])
-			if ctype == 'multipart/form-data':
-				postmap = parse_multipart(self.rfile, pdict)
-			elif ctype == 'application/x-www-form-urlencoded':
-				length = int(self.headers['content-length'])
-				postmap = parse_qs(self.rfile.read(length), keep_blank_values=1)
-			else:
-				postmap = {}
-		except Exception as e:
-			self.fault(400, "Parse error -- " + str(e))
-			return
+		content_type = self.headers.get('content-type')
+		postmap = {}
+		if content_type:
+			try:
+				ctype, pdict = parse_header(content_type)
+				if ctype == 'multipart/form-data':
+					postmap = parse_multipart(self.rfile, pdict)
+				elif ctype == 'application/x-www-form-urlencoded':
+					length = int(self.headers['content-length'])
+					postmap = parse_qs(self.rfile.read(length), keep_blank_values=1)
+			except Exception as e:
+				self.fault(400, "Parse error -- " + str(e))
+				return
 		try:
 			resp = self.server.serve_post(self.path, postmap)
 			if not resp:
@@ -196,9 +197,6 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 		self.server.log.info("%s>%s %s", raddr, saddr, msg)
 
 class BaseServer(object):
-	get_registrations = {}
-	post_registrations = {}
-	allow_control = False
 
 	def register_get(self, regex, callback):
 		"""
@@ -295,6 +293,9 @@ class TCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer, BaseServer)
 		self.port = port
 		self.timeout = timeout
 		self.log = log
+		self.get_registrations = {}
+		self.post_registrations = {}
+		self.allow_control = False
 		super(TCPServer, self).__init__((host, port), HTTP_handler)
 
 	def close(self):
@@ -314,6 +315,9 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 		self.path = path
 		self.timeout = timeout
 		self.log = log
+		self.get_registrations = {}
+		self.post_registrations = {}
+		self.allow_control = False
 		if os.path.exists(self.path):
 			try:
 				st = os.stat(self.path)
@@ -374,7 +378,7 @@ def server(service, log=None):
 	Creates a threaded http service based on the passed HttpService instance.
 
 	The returned object can be watched via taskforce.poll(), select.select(), etc.
-	When activiity is detected, the handle_request() method should be invoked.
+	When activity is detected, the handle_request() method should be invoked.
 	This starts a thread to handle the request.  URL paths are handled with callbacks
 	which need to be established before any activity might occur.  If no callback
 	is registered for a given path, the embedded handler will report a 404 error.
@@ -386,7 +390,7 @@ def server(service, log=None):
 	used.  To create a Udom service in the current directory, use './name'.
 	If TCP is selected and no port is provided using the ":" syntax, then
 	def_port or def_sslport  will be used as appropriate.
-	
+
 	The BaseServer provides the code for registering HTTP handler callbacks.
 
 	Parameters:
@@ -452,7 +456,7 @@ def server(service, log=None):
 				certfile=service.certfile, ssl_version=ssl.PROTOCOL_TLSv1, ciphers=ciphers)
 	if service.allow_control:
 		httpd.allow_control = True
-	log.info("HTTP%s service listening on %s", ' control' if httpd.allow_control else '', httpd.socket)
+	log.info("HTTP service %s", str(service))
 	return httpd
 
 def _unicode(p):
