@@ -329,9 +329,9 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 						self.log.warning("Could not unlink existing udom socket '%s' -- %s",
 													self.path, str(e))
 				else:
-					raise Exception("Existing path '%s' is not a socket", self.path)
+					raise Exception("Existing path '%s' is not a socket" % (self.path,))
 			except Exception as e:
-				self.log.warning("Could not stat existing udom socket '%s' -- ignoring %s", self.path, str(e))
+				self.log.warning("Could not stat existing udom socket '%s', ignoring: %s", self.path, str(e))
 		super(UnixStreamServer, self).__init__(path, HTTP_handler)
 
 	def close(self):
@@ -510,6 +510,7 @@ def merge_query(path, postmap, force_unicode=True):
 		p = _unicode(p)
 	return p
 
+truthy_true_yes = re.compile(r'^[tTyY]')
 def truthy(value):
 	"""
 	Evaluates True if "value" looks like it is intended to be true.  This translates
@@ -520,11 +521,7 @@ def truthy(value):
 		return False
 	value = str(value)
 	try:
-		return (int(value) > 0)
+		return (int(value) != 0)
 	except:
 		pass
-	try:
-		return (re.match(r'^[tTyY]', value) is not None)
-	except:
-		pass
-	return False
+	return (truthy_true_yes.match(value) is not None)
