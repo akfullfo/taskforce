@@ -107,9 +107,13 @@ class Test(object):
 			text += "'%s' sent '%s' received '%s'\n" % (tag, self.http_test_map.get(tag), p.get(tag))
 		return (409, 'bad\n' + text, 'text/plain')
 
-	def do_get(self, httpc, httpd, path='/test/json'):
-		httpd.register_get(r'/test/.*', self.getter)
+	def bad_request(self, path, postdict=None):
+		"""
+		Trigger an exception at depth to excerise error response.
+	"""
+		raise Exception("bad_request doing what bad_requesters do")
 
+	def do_get(self, httpc, httpd, path='/test/json'):
 		httpc.request('GET', path)
 
 		pset = taskforce.poll.poll()
@@ -161,125 +165,8 @@ class Test(object):
 				self.log.info("%s HTTP response object successfully registered", my(self))
 				handled = True
 
-	def Test_A_tcp_https_connect(self):
-		self.log.info("Starting %s", my(self))
-		gc.collect()
-		http_service = taskforce.httpd.HttpService()
-		http_service.listen = self.tcp_address
-		http_service.certfile = env.cert_file
-		httpd = taskforce.httpd.server(http_service, log=self.log)
-		l = support.listeners(log=self.log)
-		self.log.info("Service active, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
-		assert self.tcp_port in l
-		del httpd
-		l = support.listeners(log=self.log)
-		self.log.info("Service deleted, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
-		assert self.tcp_port not in l
-
-	def Test_B_unx_https_connect(self):
-		self.log.info("Starting %s", my(self))
-		gc.collect()
-		http_service = taskforce.httpd.HttpService()
-		http_service.listen = self.unx_address
-		http_service.certfile = env.cert_file
-		httpd = taskforce.httpd.server(http_service, log=self.log)
-		l = support.listeners(log=self.log)
-		self.log.info("Service active, listening on %s", l.get(self.unx_address))
-		assert self.unx_address in l
-		del httpd
-		l = support.listeners(log=self.log)
-		self.log.info("Service deleted, listening on %s", l.get(self.unx_address))
-		assert self.tcp_port not in l
-
-	def Test_C_tcp_get(self):
-		self.log.info("Starting %s", my(self))
-		gc.collect()
-		http_service = taskforce.httpd.HttpService()
-		http_service.listen = self.tcp_address
-		httpd = taskforce.httpd.server(http_service, log=self.log)
-		httpc = taskforce.http.Client(address=self.tcp_address, log=self.log)
-		self.do_get(httpc, httpd)
-		httpd.close()
-		del httpd
-
-	def Test_D_unx_get(self):
-		self.log.info("Starting %s", my(self))
-		gc.collect()
-		http_service = taskforce.httpd.HttpService()
-		http_service.listen = self.unx_address
-		httpd = taskforce.httpd.server(http_service, log=self.log)
-		httpc = taskforce.http.Client(address=self.unx_address, log=self.log)
-		self.do_get(httpc, httpd)
-		httpd.close()
-		del httpd
-
-	def Test_E_get_error(self):
-		self.log.info("Starting %s", my(self))
-		gc.collect()
-		http_service = taskforce.httpd.HttpService()
-		http_service.listen = self.tcp_address
-		httpd = taskforce.httpd.server(http_service, log=self.log)
-		httpc = taskforce.http.Client(address=self.tcp_address, log=self.log)
-		log_level = self.log.getEffectiveLevel()
-		try:
-			#  Mask the log message as we expect a failure
-			self.log.setLevel(logging.CRITICAL)
-			self.do_get(httpc, httpd, path='/invalid/path')
-			expected_error_occurred = False
-		except taskforce.http.HttpError as e:
-			self.log.info("%s Received expected error -- %s", my(self), str(e))
-			expected_error_occurred = True
-		finally:
-			self.log.setLevel(log_level)
-		httpd.close()
-		del httpd
-		assert expected_error_occurred
-
-	def Test_F_getmap_non_text_error(self):
-		self.log.info("Starting %s", my(self))
-		gc.collect()
-		httpc = taskforce.http.Client(address='mmm.fullford.com:80', log=self.log)
-		log_level = self.log.getEffectiveLevel()
-		try:
-			#  Mask the log message as we expect a failure
-			self.log.setLevel(logging.CRITICAL)
-			httpc.getmap('/invalid/path', {'with': 'invalid query'})
-			expected_error_occurred = False
-		except taskforce.http.HttpError as e:
-			self.log.info("%s Received expected error -- %s", my(self), str(e))
-			expected_error_occurred = True
-		finally:
-			self.log.setLevel(log_level)
-		assert expected_error_occurred
-
-	def Test_G_getmap_non_json_error(self):
-		self.log.info("Starting %s", my(self))
-		gc.collect()
-		httpc = taskforce.http.Client(address='mmm.fullford.com:80', log=self.log)
-		log_level = self.log.getEffectiveLevel()
-		try:
-			#  Mask the log message as we expect a failure
-			self.log.setLevel(logging.CRITICAL)
-			httpc.getmap('/', {'with': 'invalid query'})
-			expected_error_occurred = False
-		except taskforce.http.HttpError as e:
-			self.log.info("%s Received expected error -- %s", my(self), str(e))
-			expected_error_occurred = True
-		finally:
-			self.log.setLevel(log_level)
-		assert expected_error_occurred
-
-	def Test_H_post(self):
-		self.log.info("Starting %s", my(self))
-		gc.collect()
-		http_service = taskforce.httpd.HttpService()
-		http_service.listen = self.tcp_address
-		httpd = taskforce.httpd.server(http_service, log=self.log)
-		httpd.register_post(r'/test/.*', self.poster)
-
-		body = urlencode({'data': json.dumps(self.http_test_map, indent=4)+'\n'})
-		httpc = taskforce.http.Client(address=self.tcp_address)
-		httpc.request('POST', '/test/json?hello=world', body, {"Content-type": "application/x-www-form-urlencoded"})
+	def do_post(self, httpc, httpd, body, path='/test/json'):
+		httpc.request('POST', path, body, {"Content-type": "application/x-www-form-urlencoded"})
 
 		pset = taskforce.poll.poll()
 		pset.register(httpd, taskforce.poll.POLLIN)
@@ -324,4 +211,209 @@ class Test(object):
 				pset.register(httpr, taskforce.poll.POLLIN)
 				self.log.info("HTTP response object successfully registered")
 				handled = True
+
+	def Test_A_tcp_https_connect(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		http_service.certfile = env.cert_file
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		l = support.listeners(log=self.log)
+		self.log.info("Service active, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
+		assert self.tcp_port in l
 		del httpd
+		l = support.listeners(log=self.log)
+		self.log.info("Service deleted, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
+		assert self.tcp_port not in l
+
+	def Test_B_unx_https_connect(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.unx_address
+		http_service.certfile = env.cert_file
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		l = support.listeners(log=self.log)
+		self.log.info("Service active, listening on %s", l.get(self.unx_address))
+		assert self.unx_address in l
+		del httpd
+		l = support.listeners(log=self.log)
+		self.log.info("Service deleted, listening on %s", l.get(self.unx_address))
+		assert self.tcp_port not in l
+
+	def Test_C_tcp_get(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		httpc = taskforce.http.Client(address=self.tcp_address, log=self.log)
+		httpd.register_get(r'/test/.*', self.getter)
+		self.do_get(httpc, httpd)
+		httpd.close()
+		del httpd
+
+	def Test_D_unx_get(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.unx_address
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		httpc = taskforce.http.Client(address=self.unx_address, log=self.log)
+		httpd.register_get(r'/test/.*', self.getter)
+		self.do_get(httpc, httpd)
+
+		httpd.register_get(r'/bad/.*', self.bad_request)
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			self.do_get(httpc, httpd, path='/bad/path')
+			self.log.setLevel(log_level)
+			expected_get_error_occurred = False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected GET error -- %s", my(self), str(e))
+			expected_get_error_occurred = True
+
+		httpd.register_post(r'/bad/.*', self.bad_request)
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			self.do_post(httpc, httpd, '', path='/bad/path')
+			self.log.setLevel(log_level)
+			expected_post_error_occurred = False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected POST error -- %s", my(self), str(e))
+			expected_post_error_occurred = True
+
+		httpd.close()
+		del httpd
+		assert expected_get_error_occurred
+		assert expected_post_error_occurred
+
+	def Test_E_get_error(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		httpc = taskforce.http.Client(address=self.tcp_address, log=self.log)
+		log_level = self.log.getEffectiveLevel()
+		httpd.register_get(r'/test/.*', self.getter)
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			self.do_get(httpc, httpd, path='/invalid/path')
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		httpd.close()
+		del httpd
+		assert expected_error_occurred
+
+	def Test_F_getmap_non_text_error(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		httpc = taskforce.http.Client(address='mmm.fullford.com:80', log=self.log)
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpc.getmap('/invalid/path', {'with': 'invalid query'})
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		assert expected_error_occurred
+
+	def Test_G_getmap_non_json_error(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		httpc = taskforce.http.Client(address='mmm.fullford.com:80', log=self.log)
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpc.getmap('/', {'with': 'invalid query'})
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		assert expected_error_occurred
+
+	def Test_H_post(self):
+		self.log.info("Starting %s", my(self))
+		gc.collect()
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+		httpd.register_post(r'/test/.*', self.poster)
+
+		body = urlencode({'data': json.dumps(self.http_test_map, indent=4)+'\n'})
+		httpc = taskforce.http.Client(address=self.tcp_address)
+		self.do_post(httpc, httpd, body, path='/test/json?hello=world')
+		httpd.close()
+		del httpd
+
+	def Test_I_cmp(self):
+		http_service = taskforce.httpd.HttpService()
+		should_give_none = http_service.cmp(self)
+		self.log.info("Compare of %s to self gave %s", str(http_service), str(should_give_none))
+		assert should_give_none is None
+
+		other_service = taskforce.httpd.HttpService()
+		other_service.non_std_att = True
+		should_give_none = other_service.cmp(http_service)
+		self.log.info("Compare of %s to non-std %s gave %s", str(http_service), str(other_service), str(should_give_none))
+		assert should_give_none is None
+
+	def Test_J_cmp(self):
+		"""
+		Test that system won't attempt to unlink an existing unx path that is not a socket
+		and won't successfully create a socket anyway.
+	"""
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = '/tmp'
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpd = taskforce.httpd.server(http_service, log=self.log)
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except Exception as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		assert expected_error_occurred
+
+	def Test_K_cmp(self):
+		"""
+		Test remaining convenience functions.
+	"""
+		assert taskforce.httpd.truthy('y') is True
+		assert taskforce.httpd.truthy('Y') is True
+		assert taskforce.httpd.truthy('t') is True
+		assert taskforce.httpd.truthy('True') is True
+		assert taskforce.httpd.truthy('Yes') is True
+		assert taskforce.httpd.truthy('1') is True
+		assert taskforce.httpd.truthy('99') is True
+		assert taskforce.httpd.truthy(99) is True
+		assert taskforce.httpd.truthy(-1) is True
+		assert taskforce.httpd.truthy(True) is True
+		assert taskforce.httpd.truthy(None) is False
+		assert taskforce.httpd.truthy('') is False
+		assert taskforce.httpd.truthy('False') is False
+		assert taskforce.httpd.truthy(self) is False
+		assert taskforce.httpd.truthy('NeitherTrueNorYesNorFalseNorNo') is False
