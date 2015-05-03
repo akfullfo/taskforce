@@ -18,6 +18,8 @@
 
 import os, time, subprocess, fcntl, errno, logging, re
 
+import taskforce.utils as utils
+
 class env(object):
 	"""
 	Set up some generally useful parameters and manage the creation
@@ -220,7 +222,7 @@ class python_subprocess(object):
 				if self.log: self.log.info("%s() terminated %d after %.1fs",
 									self.__class__.__name__, ret, time.time()-start)
 				break
-			time.sleep(0.1)
+			time.sleep(0.2)
 		if self.proc.returncode is None:
 			if self.log: self.log.info("%s() did not terminate, killing", self.__class__.__name__)
 			self.proc.kill()
@@ -229,6 +231,18 @@ class python_subprocess(object):
 			if self.log: self.log.info("%s() killed after %.1fs", self.__class__.__name__, time.time()-start)
 		self.proc = None
 		return ret
+
+	def statusfmt(self, ret):
+		"""
+		Human readable exit code from a subprocess() return.
+	"""
+		if ret < 0:
+			msg = 'died on '+utils.signame(-ret)
+		elif ret == 0:
+			msg = 'exited ok'
+		else:
+			msg = 'exited '+str(ret)
+		return msg
 
 	def follow(self):
 		if self.proc is None:
