@@ -66,18 +66,17 @@ class HttpService(object):
 	impelementation without callers needing to change until they want to make use
 	of the new feature.
 """
-	listen = ''
-	allow_control = False
-	certfile = None
-	timeout = 3.0
-
-	def __init__(self): pass
+	def __init__(self):
+		self.listen = ''
+		self.allow_control = False
+		self.certfile = None
+		self.timeout = 3.0
 
 	def __str__(self):
 		return "[%s]%s%s" % (
-				self.listen if self.listen else ':default:',
-				' controlling' if self.allow_control else '',
-				' cert='+self.certfile if self.certfile else ''
+				self.listen if hasattr(self, 'listen') and self.listen else ':default:',
+				' controlling' if hasattr(self, 'allow_control') and self.allow_control else '',
+				' cert='+self.certfile if hasattr(self, 'certfile') and self.certfile else ''
 		)
 
 	def cmp(self, other_service):
