@@ -34,10 +34,9 @@ class http(object):
 	is performed, or the configuration file is changed
 	which causes a normal reconfiguration.
 """
-	def __init__(self, legion, httpd, log=None):
-		if log:
-			self._log = log
-		else:
+	def __init__(self, legion, httpd, **params):
+		self._log = params.get('log')
+		if not self._log:						# pragma: no cover
 			self._log = logging.getLogger(__name__)
 			self._log.addHandler(logging.NullHandler())
 		self._legion = legion
@@ -64,10 +63,10 @@ class http(object):
 				elif control not in self._legion.all_controls:
 					results[taskname] = "bad control '%s'" % (control,)
 					error_detected = True
-				elif not task._config_pending or 'control' not in task._config_pending:
+				elif not task._config_pending or 'control' not in task._config_pending:		# pragma no cover
 					results[taskname] = "no pending config"
 					error_detected = True
-				elif not task._config_running or 'control' not in task._config_running:
+				elif not task._config_running or 'control' not in task._config_running:		# pragma no cover
 					results[taskname] = "no running config"
 					error_detected = True
 				elif task._config_running['control'] == control:
@@ -127,6 +126,7 @@ class http(object):
 				for taskname in postmap:
 					self._legion.task_get(taskname)._config_pending['count'] = counts[taskname]
 				self._legion._apply()
+				self._legion.next_timeout()
 				return (202, text, 'text/plain')
 			else:
 				return (200, text, 'text/plain')
@@ -134,13 +134,10 @@ class http(object):
 			self._legion._reload_config = time.time()
 			return (202, 'Taskforce config reload initiated\n', 'text/plain')
 		elif path.startswith('/manage/stop'):
-			self._legion._exiting = time.time()
-			self._legion.stop_all()
+			self._legion.schedule_exit()
 			return (202, 'Taskforce exit initiated\n', 'text/plain')
 		elif path.startswith('/manage/reset'):
-			self._legion._exiting = time.time()
-			self._legion._resetting = self._legion._exiting
-			self._legion.stop_all()
+			self._legion.schedule_reset()
 			return (202, 'Taskforce reset initiated\n', 'text/plain')
 		else:
 			return (404, 'Unknown control path -- %s\n' % (path, ), 'text/plain')
