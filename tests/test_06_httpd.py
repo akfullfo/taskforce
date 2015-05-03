@@ -66,6 +66,8 @@ class Test(object):
 	@classmethod
 	def tearDownAll(self):
 		gc.collect()
+		try: os.unlink(self.unx_address)
+		except: pass
 		self.log.info("%s ended", self.__module__)
 
 	def getter(self, path):
@@ -212,7 +214,51 @@ class Test(object):
 				self.log.info("HTTP response object successfully registered")
 				handled = True
 
-	def Test_A_tcp_https_connect(self):
+	def Test_A_http_basics(self):
+		#  Force the default address to one that we can create
+		#
+		taskforce.httpd.def_address = self.unx_address
+
+		#  Start a service of the default address we just set
+		#
+		http_service = taskforce.httpd.HttpService()
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+
+		#  Check operation with default address
+		#
+		httpc = taskforce.http.Client(log=self.log)
+		self.log.info("%s Default address is: %s", my(self), httpc.address)
+		assert isinstance(httpc, taskforce.http.Client)
+		del httpc
+		del httpd
+
+		#  Check operation with invalid tcp port
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpc = taskforce.http.Client(address='nohost:noport', log=self.log)
+			self.log.setLevel(log_level)
+			expected_http_error_occurred = False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected connect error -- %s", my(self), str(e))
+			expected_http_error_occurred = True
+		assert expected_http_error_occurred
+
+		#  Check operation with default non-ssl port
+		#
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = 'localhost'
+		httpd = taskforce.httpd.server(http_service, log=self.log)
+
+		httpc = taskforce.http.Client(address=http_service.listen, log=self.log)
+		self.log.info("%s Address with default port is: %s", my(self), httpc.address)
+		assert isinstance(httpc, taskforce.http.Client)
+		del httpc
+		del httpd
+
+	def Test_B_tcp_https_connect(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
 		http_service = taskforce.httpd.HttpService()
@@ -227,7 +273,7 @@ class Test(object):
 		self.log.info("Service deleted, listening on port %d: %s", self.tcp_port, l.get(self.tcp_port))
 		assert self.tcp_port not in l
 
-	def Test_B_unx_https_connect(self):
+	def Test_C_unx_https_connect(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
 		http_service = taskforce.httpd.HttpService()
@@ -242,7 +288,7 @@ class Test(object):
 		self.log.info("Service deleted, listening on %s", l.get(self.unx_address))
 		assert self.tcp_port not in l
 
-	def Test_C_tcp_get(self):
+	def Test_D_tcp_get(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
 		http_service = taskforce.httpd.HttpService()
@@ -254,7 +300,7 @@ class Test(object):
 		httpd.close()
 		del httpd
 
-	def Test_D_unx_get(self):
+	def Test_E_unx_get(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
 		http_service = taskforce.httpd.HttpService()
@@ -295,7 +341,7 @@ class Test(object):
 		assert expected_get_error_occurred
 		assert expected_post_error_occurred
 
-	def Test_E_get_error(self):
+	def Test_F_get_error(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
 		http_service = taskforce.httpd.HttpService()
@@ -318,7 +364,7 @@ class Test(object):
 		del httpd
 		assert expected_error_occurred
 
-	def Test_F_getmap_non_text_error(self):
+	def Test_H_getmap_non_text_error(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
 		httpc = taskforce.http.Client(address='mmm.fullford.com:80', log=self.log)
@@ -335,7 +381,7 @@ class Test(object):
 			expected_error_occurred = True
 		assert expected_error_occurred
 
-	def Test_G_getmap_non_json_error(self):
+	def Test_I_getmap_non_json_error(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
 		httpc = taskforce.http.Client(address='mmm.fullford.com:80', log=self.log)
@@ -352,7 +398,7 @@ class Test(object):
 			expected_error_occurred = True
 		assert expected_error_occurred
 
-	def Test_H_post(self):
+	def Test_J_post(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
 		http_service = taskforce.httpd.HttpService()
@@ -366,7 +412,7 @@ class Test(object):
 		httpd.close()
 		del httpd
 
-	def Test_I_cmp(self):
+	def Test_K_cmp(self):
 		http_service = taskforce.httpd.HttpService()
 		should_give_none = http_service.cmp(self)
 		self.log.info("Compare of %s to self gave %s", str(http_service), str(should_give_none))
@@ -378,7 +424,19 @@ class Test(object):
 		self.log.info("Compare of %s to non-std %s gave %s", str(http_service), str(other_service), str(should_give_none))
 		assert should_give_none is None
 
-	def Test_J_cmp(self):
+		other_service.allow_control = True
+		should_give_false = http_service.cmp(other_service)
+		self.log.info("Compare of %s to altered %s gave %s",
+						str(http_service), str(other_service), str(should_give_false))
+		assert should_give_false is False
+
+		other_service.allow_control = False
+		should_give_true = http_service.cmp(other_service)
+		self.log.info("Compare of %s to recovered %s gave %s",
+						str(http_service), str(other_service), str(should_give_true))
+		assert should_give_true is True
+
+	def Test_L_cmp(self):
 		"""
 		Test that system won't attempt to unlink an existing unx path that is not a socket
 		and won't successfully create a socket anyway.
@@ -398,7 +456,7 @@ class Test(object):
 			expected_error_occurred = True
 		assert expected_error_occurred
 
-	def Test_K_cmp(self):
+	def Test_M_truthy(self):
 		"""
 		Test remaining convenience functions.
 	"""

@@ -289,6 +289,11 @@ class Test(object):
 		self.log.info("Version info: %s", str(resp))
 		assert 'taskforce' in resp
 
+		#  Same, put use post
+		resp = httpc.postmap('/status/version')
+		self.log.info("Version info: %s", str(resp))
+		assert 'taskforce' in resp
+
 		#  Try a control operation that should be disabled on this path
 		try:
 			resp = httpc.post('/manage/control?db_server=off')
