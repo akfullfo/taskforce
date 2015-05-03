@@ -17,7 +17,7 @@
 #
 
 import os, sys, socket, ssl, json, re, logging
-from .httpd import def_address, def_port, def_sslport
+from . import httpd
 try:
 	from http.client import HTTPConnection, HTTPSConnection
 except:
@@ -127,9 +127,9 @@ class Client(object):
 		if address:
 			self.address = address
 		else:
-			self.address = def_address
+			self.address = httpd.def_address
 
-		if address.find('/') >=0 :
+		if self.address.find('/') >=0 :
 			if use_ssl is None:
 				self.http = udomHTTPConnection(self.address, timeout)
 			else:
@@ -137,28 +137,30 @@ class Client(object):
 				self.http = udomHTTPSConnection(self.address, **ssl_params)
 		else:
 			port = None
-			m = re.match(r'^(.*):(.*)$', address)
+			m = re.match(r'^(.*):(.*)$', self.address)
 			if m:
 				self.log.debug("Matched host '%s', port '%s'", m.group(1), m.group(2))
 				host = m.group(1)
 				try:
 					port = int(m.group(2))
 				except:
-					raise Exception("TCP listen port must be an integer")
+					raise HttpError(code=500, content_type='text/plain',
+								content="TCP listen port must be an integer")
 			else:
-				host = address
+				host = self.address
 				self.log.debug("No match, proceding with host '%s'", host)
 			if use_ssl is None:
 				if not port:
-					port = def_port
+					port = httpd.def_port
 				self.log.debug("Connecting to host '%s', port '%s'", host, port)
 				self.http = HTTPConnection(host, port, timeout=timeout)
 			else:
 				if not port:
-					port = def_sslport
+					port = httpd.def_sslport
 				ssl_params = self._build_params(use_ssl, timeout)
 				self.http = HTTPSConnection(host, port, **ssl_params)
 				self.log.debug("Connecting via ssl to host '%s', port '%s'", host, port)
+			self.address = "%s:%d" % (host, port)
 		self.http.connect()
 		self.sock = self.http.sock
 		self.lastpath = None
