@@ -721,6 +721,18 @@ Params are:
 		self._exiting = None
 		self._resetting = None
 
+		#  Flag to request all tasks be stopped on the next management
+		#  cycle.
+		#
+		self._do_stop_all = False
+
+		#  The timeout on the next event wait.  Events will cause an earlier
+		#  return, but idle processing can be accelerated by setting this
+		#  value low.  The next_timeout() method provides a convenient
+		#  method of managing the value.
+		#
+		self._timeout = 0.0
+
 		#  Flag that a config change is pending.  The change will then
 		#  be loaded as part of the idle processing in the event loop.
 		#
@@ -847,11 +859,30 @@ Params are:
 			else:
 				log.info("%s Prior signal handler %s returned", my(self), str(self._signal_prior[sig]))
 
+	def schedule_exit(self, now=None):
+		if not now:
+			now = time.time()
+		self._exiting = now
+		self._do_stop_all = True
+		self.next_timeout()
+
+	def schedule_reset(self, now=None):
+		if not now:
+			now = time.time()
+		self._resetting = now
+		self.schedule_exit(now)
+
 	def is_exiting(self):
-		return self._exiting
+		return self._exiting is not None
 
 	def is_resetting(self):
-		return (self._exiting and self._resetting)
+		return (self._exiting is not None and self._resetting is not None)
+
+	def next_timeout(self, timeout = def_short_cycle):
+		prev_timeout = self._timeout
+		if self._timeout > timeout:
+			self._timeout = timeout
+		return prev_timeout
 
 	def _set_handler(self, sig, ignore=False):
 		prior = signal.getsignal(sig)
@@ -1408,7 +1439,6 @@ Params are:
 
 		last_timeout = None
 		last_idle_run = time.time()
-		timeout = 0.0
 		exit_report = 0
 		self._pset = poll.poll()
 		log.info("%s File event polling via %s from %s available",
@@ -1424,6 +1454,10 @@ Params are:
 		try:
 			while True:
 				now = time.time()
+				if self._do_stop_all:
+					self._do_stop_all = False
+					self.stop_all()
+
 				if self._exiting:
 					if self._exiting + sigterm_limit < time.time():
 						log.warning("%s Limit waiting for all tasks to exit was exceeded", my(self))
@@ -1438,8 +1472,7 @@ Params are:
 						log.warning("%s Still waiting for %d process%s",
 								my(self), still_running, ses(still_running))
 						exit_report = now
-					if timeout > timeout_short_cycle:
-						timeout = timeout_short_cycle
+					self.next_timeout()
 				if self.expires:
 					if self.expires < now:
 						if self._exiting:
@@ -1448,23 +1481,23 @@ Params are:
 						else:
 							log.warning("%s Legion expiration reached %s ago",
 											my(self), deltafmt(now - self.expires))
+							self._exiting = now
 						self.stop_all()
-						self._exiting = now
 					else:
 						log.debug("%s expires in %s", my(self), deltafmt(self.expires - now))
 
-				if last_timeout != timeout:
-					log.debug("%s select() timeout is now %s", my(self), deltafmt(timeout))
-					last_timeout = timeout
+				if last_timeout != self._timeout:
+					log.debug("%s select() timeout is now %s", my(self), deltafmt(self._timeout))
+					last_timeout = self._timeout
 				try:
-					evlist = self._pset.poll(timeout*1000)
+					evlist = self._pset.poll(self._timeout*1000)
 				except OSError as e:
 					if e.errno != errno.EINTR:
 						raise e
 					else:
 						log.debug("%s Ignoring %s(%s) during poll", my(self), e.__class__.__name__, str(e))
 
-				timeout = timeout_long_cycle
+				self._timeout = timeout_long_cycle
 
 				idle_starving = (last_idle_run + idle_starvation < now)
 				if idle_starving:
@@ -1474,8 +1507,8 @@ Params are:
 					log.debug("%s idle", my(self))
 					last_idle_run = now
 
-					if self._reap() and timeout > timeout_short_cycle:
-						timeout = timeout_short_cycle
+					if self._reap():
+						self.next_timeout()
 
 					if self._http_retry and self._http_retry < now:
 						self._manage_http_servers()
@@ -1484,8 +1517,8 @@ Params are:
 					#  happen.
 					#
 					for t in set(self._tasks_scoped):
-						if t.manage() and timeout > timeout_short_cycle:
-							timeout = timeout_short_cycle
+						if t.manage():
+							self.next_timeout()
 
 					if self._reload_config:
 						try:
@@ -1510,8 +1543,8 @@ Params are:
 							item.handle_request()
 							continue
 						if item == self._watch_child:
-							if self._reap() and timeout > timeout_short_cycle:
-								timeout = timeout_short_cycle
+							if self._reap():
+								self.next_timeout()
 							continue
 
 						log.debug("%s Activity: %s", my(self), str(item))
