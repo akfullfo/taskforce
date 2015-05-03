@@ -18,7 +18,7 @@
 
 import os, sys, time, logging, errno, re, json, tempfile
 import support
-from taskforce.utils import get_caller as my, deltafmt, statusfmt
+from taskforce.utils import get_caller as my, deltafmt, ses
 import taskforce.poll as poll
 import taskforce.task as task
 import taskforce.http
@@ -29,6 +29,7 @@ class Test(object):
 
 	unx_address = os.path.join('/tmp', 's.' + __module__)
 	tcp_address = '127.0.0.1:3210'
+	expected_ws_server_count = 4
 
 	@classmethod
 	def setUpAll(self):
@@ -85,6 +86,7 @@ class Test(object):
 		with open(fname, 'w') as f:
 			f.write('\n'.join(roles) + '\n')
 		os.rename(fname, env.roles_file)
+		self.log.info("Set roles to: %s", roles)
 
 	def start_tf(self, address, use_ssl=None, allow_control=False):
 		"""
@@ -102,7 +104,6 @@ class Test(object):
 		os.environ['EXAMPLES_BASE'] = env.examples_dir
 		self.set_roles(env.test_roles)
 		self.log.info("Base dir '%s', tmp dir '%s'", env.base_dir, env.temp_dir)
-		self.log.info("Set roles %s", env.test_roles)
 
 		cargs = ['--expires', '60']
 		cargs.extend(['--certfile', '' if use_ssl is None else env.cert_file])
@@ -115,7 +116,7 @@ class Test(object):
 		self.log.info("With output to '%s', will run: %s",
 					self.tf_path, ' '.join(support.taskforce.command_line(env, cargs)))
 
-		self.tf = support.taskforce(env, cargs, log=self.log, save=tf_out, verbose=True)
+		self.tf = support.taskforce(env, cargs, log=self.log, save=tf_out, verbose=False)
 
 		start = time.time()
 		give_up = start + 10
@@ -134,10 +135,6 @@ class Test(object):
 			self.log.error("%s Connection attempt failed after %s -- %s",
 							my(self), deltafmt(time.time() - start), str(e), exc_info=True)
 			raise last_exc
-
-		#  Allow time for full process function
-		#time.sleep(1)
-
 		return httpc
 
 	def stop_tf(self):
@@ -145,8 +142,8 @@ class Test(object):
 			self.log.info("Taskforce child already closed")
 			return
 		ret = self.tf.close()
+		status = self.tf.statusfmt(ret)
 		self.tf = None
-		status = statusfmt(ret)
 
 		output = None
 		if self.tf_path:
@@ -164,19 +161,66 @@ class Test(object):
 			self.log.warning("Taskforce child output path was not set")
 		if ret == 0:
 			if output:
-				self.log.debug("Taskforce child exited %s, output follows ...", status)
+				self.log.debug("Taskforce child %s, output follows ...", status)
 				for line in output:
 					self.log.debug("    ]  %s", line.rstrip())
 			else:
-				self.log.debug("Taskforce child exited %s with no output", status)
+				self.log.debug("Taskforce child %s with no output", status)
 		else:
 			if output:
-				self.log.warning("Taskforce child exited %s, output follows ...", status)
+				self.log.warning("Taskforce child %s, output follows ...", status)
 				for line in output:
 					self.log.warning("    ]  %s", line.rstrip())
 			else:
-				self.log.warning("Taskforce child exited %s with no output", status)
+				self.log.warning("Taskforce child %s with no output", status)
 
+	def get_process_count(self, httpc, taskname, expect=None):
+		count = None
+		initial_delay = 0.5
+		backoff_delay = 3.0
+		max_delay = 8.0
+		max_attempts = 10
+		delay = initial_delay
+		for attempt in range(max_attempts):
+			self.log.debug("%s Attempt %d", my(self), attempt+1)
+			resp = httpc.getmap('/status/tasks')
+			if taskname in resp and 'processes' in resp[taskname]:
+				count = 0
+				for proc in resp[taskname]['processes']:
+					if proc.get('pid'):
+						count += 1
+				if attempt+1 < max_attempts:
+					self.log.info("%s Task '%s' has %d process%s, expecting %s, next attempt in %s",
+							my(self), taskname, count, ses(count, 'es'), expect, deltafmt(delay))
+				else:
+					self.log.error("%s Task '%s' has %d process%s, expecting %s, giving up",
+							my(self), taskname, count, ses(count, 'es'), expect)
+			else:
+				count = None
+				self.log.info("%s Task '%s' not found, expecting %s processes", my(self), taskname, expect)
+			if expect is None:
+				self.log.info("%s Task '%s' has %d process%s with no expectation",
+							my(self), taskname, count, ses(count, 'es'))
+				return count
+			elif count == expect:
+				self.log.info("%s Task '%s' has all %d expected process%s",
+							my(self), taskname, count, ses(count, 'es'))
+				return count
+			for tname in resp.keys():
+				count = 0
+				for proc in resp[tname]['processes']:
+					if proc.get('pid'):
+						count += 1
+				self.log.debug("While waiting, task '%s' has %d process%s", tname, count, ses(count, 'es'))
+			self.log.debug("%s Next attempt in %s", my(self), deltafmt(delay))
+			time.sleep(delay)
+			delay += backoff_delay
+			if delay > max_delay: delay = max_delay
+
+		if count is None:
+			raise Exception("No processes seen for task '%s', %d expected" % (taskname, expected))
+		else:
+			raise Exception("Task '%s' has %d process%s, %d expected" % (taskname, count, ses(count, 'es'), expect))
 
 	def Test_A_https_tcp_status(self):
 
@@ -278,9 +322,15 @@ class Test(object):
 		self.log.info("Version info: %s", str(resp))
 		assert 'taskforce' in resp
 
-		#  Check the version info is sane via postmap
-		resp = httpc.postmap('/status/version')
-		assert 'taskforce' in resp
+		#  Allow some process startup time
+		time.sleep(2)
+
+		taskname = 'ws_server'
+		initial_ws_server_count = self.get_process_count(httpc, taskname)
+		if initial_ws_server_count != self.expected_ws_server_count:
+			self.log.info("%s %d or %d expected %s processs at startup",
+					my(self), initial_ws_server_count, self.expected_ws_server_count, taskname)
+
 
 		#  Send a now-valid command but have it expect a JSON return, which doesn't happen
 		log_level = self.log.getEffectiveLevel()
@@ -295,9 +345,75 @@ class Test(object):
 			self.log.setLevel(log_level)
 
 		#  Turn task back on.
-		(code, content, content_type) = httpc.post('/manage/control', valuemap={'db_server': 'wait'})
+		(wait_code, content, content_type) = httpc.post('/manage/control', valuemap={'db_server': 'wait'})
+		assert wait_code < 300
 
-		assert code < 300
+		#  Send a control to an unknown task
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			resp = httpc.postmap('/manage/control', valuemap={'no_such_task': 'off'})
+			assert "No exception on bad task name" is False
+		except Exception as e:
+			self.log.info("%s Expected exception on bad task name: %s", my(self), str(e))
+		finally:
+			self.log.setLevel(log_level)
+
+		#  Send an invalid control to an known task
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			resp = httpc.postmap('/manage/control', valuemap={'db_server': 'no_such_control'})
+			assert "No exception on bad control name" is False
+		except Exception as e:
+			self.log.info("%s Expected exception on bad control name: %s", my(self), str(e))
+		finally:
+			self.log.setLevel(log_level)
+
+		prior_ws_server_count = self.get_process_count(httpc, taskname, self.expected_ws_server_count)
+		assert prior_ws_server_count == self.expected_ws_server_count
+
+		#  Change the count
+		#
+		new_count = 2
+		(count_code, content, content_type) = httpc.get('/manage/count?%s=%d' % (taskname, new_count))
+		self.log.info('%s count response info: %d %s "%s"', taskname, count_code, content_type, content.strip())
+		assert count_code < 300
+
+		ws_server_count = self.get_process_count(httpc, taskname, new_count)
+		assert ws_server_count == new_count
+
+		#  Reload config to put it back
+		(reload_code, content, content_type) = httpc.get('/manage/reload')
+		self.log.info('%s reload response info: %d %s "%s"', taskname, count_code, content_type, content.strip())
+		assert reload_code == 202
+		assert content.strip().endswith('reload initiated')
+
+		ws_server_count = self.get_process_count(httpc, taskname, self.expected_ws_server_count)
+		assert ws_server_count == self.expected_ws_server_count
+
+		(reset_code, content, content_type) = httpc.get('/manage/reset')
+		self.log.info('%s reset response info: %d %s "%s"', taskname, count_code, content_type, content.strip())
+		assert reset_code < 300
+		assert content.strip().endswith('reset initiated')
+
+		#  Allow some time to restart
+		time.sleep(3)
+
+		#  Check the version info is sane.
+		resp = httpc.getmap('/status/version')
+		self.log.info("Version info: %s", str(resp))
+		assert 'taskforce' in resp
+
+		try:
+			(stop_code, content, content_type) = httpc.get('/manage/stop')
+			self.log.info('%s stop response info: %d %s "%s"', taskname, count_code, content_type, content.strip())
+			assert stop_code < 300
+			assert content.strip().endswith('exit initiated')
+		except Exception as e:
+			self.log.info('%s Expected possible error from stop manage -- %s', my(self), str(e))
 
 		support.check_procsim_errors(self.__module__, env, log=self.log)
 		self.stop_tf()
