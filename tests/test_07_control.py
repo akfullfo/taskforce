@@ -88,6 +88,26 @@ class Test(object):
 		os.rename(fname, env.roles_file)
 		self.log.info("Set roles to: %s", roles)
 
+	def start_client(self, address, use_ssl=None):
+		start = time.time()
+		give_up = start + 10
+		last_exc = None
+		while time.time() < give_up:
+			try:
+				httpc = taskforce.http.Client(address=address, use_ssl=use_ssl, log=self.log)
+				last_exc = None
+				break
+			except Exception as e:
+				last_exc = e
+				self.log.debug("%s Connection attempt failed after %s -- %s",
+								my(self), deltafmt(time.time() - start), str(e))
+			time.sleep(0.5)
+		if last_exc:
+			self.log.error("%s Connection attempt failed after %s -- %s",
+							my(self), deltafmt(time.time() - start), str(e), exc_info=True)
+			raise last_exc
+		return httpc
+
 	def start_tf(self, address, use_ssl=None, allow_control=False):
 		"""
 		Start a taskforce "examples" run with control set to the specified
@@ -118,24 +138,7 @@ class Test(object):
 
 		self.tf = support.taskforce(env, cargs, log=self.log, save=tf_out, verbose=False)
 
-		start = time.time()
-		give_up = start + 10
-		last_exc = None
-		while time.time() < give_up:
-			try:
-				httpc = taskforce.http.Client(address=address, use_ssl=use_ssl, log=self.log)
-				last_exc = None
-				break
-			except Exception as e:
-				last_exc = e
-				self.log.debug("%s Connection attempt failed after %s -- %s",
-								my(self), deltafmt(time.time() - start), str(e))
-			time.sleep(0.5)
-		if last_exc:
-			self.log.error("%s Connection attempt failed after %s -- %s",
-							my(self), deltafmt(time.time() - start), str(e), exc_info=True)
-			raise last_exc
-		return httpc
+		return self.start_client(address, use_ssl=use_ssl)
 
 	def stop_tf(self):
 		if not self.tf:
@@ -481,11 +484,26 @@ class Test(object):
 		assert reset_code < 300
 		assert content.strip().endswith('reset initiated')
 
-		#  Allow some time to restart
-		time.sleep(3)
+		time.sleep(2)
 
-		#  Check the version info is sane.
-		resp = httpc.getmap('/status/version')
+		#  Reconnect to service and wait for the reset to complete then check that the version info is sane.
+		#
+		resp = None
+		httpc = None
+		for attempt in range(20):
+			try:
+				httpc = self.start_client(self.unx_address, use_ssl=False)
+				resp = httpc.getmap('/status/version')
+				break
+			except taskforce.http.HttpError as e:
+				self.log.error("%s HTTP exception while waiting for reset to complete on attempt %d -- %s",
+						my(self), attempt+1, str(e))
+				break
+			except Exception as e:
+				self.log.info("%s Error waiting or reset to complete on attempt %d -- %s",
+						my(self), attempt+1, str(e), exc_info=True)
+			time.sleep(0.5)
+
 		self.log.info("Version info: %s", str(resp))
 		assert 'taskforce' in resp
 
