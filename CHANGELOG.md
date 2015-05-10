@@ -1,8 +1,84 @@
 Changelog
 =========
 
+0.3.12 (2015-05-10)
+-------------------
+
+- Made consistent with example. [Andrew Fullford]
+
+- Better recovery of http client connection after reset. [Andrew
+  Fullford]
+
+- Fix incorrect return on count paths with errors. [Andrew Fullford]
+
+- Improve coverage. [Andrew Fullford]
+
+- Fixed errors when using default address. [Andrew Fullford]
+
+- More robust attribute formatting. [Andrew Fullford]
+
+- Extend http and httpd coverage. [Andrew Fullford]
+
+- Provide interface so that stops and resets are scheduled rather than
+  immediate.  This gives the management web service a chance to respond
+  to a query before it is terminated. [Andrew Fullford]
+
+- Provide interface so that stops and resets are scheduled rather than
+  immediate.  This gives the management web service a chance to respond
+  to a query before it is terminated. [Andrew Fullford]
+
+- Extend coverage for manage calls. [Andrew Fullford]
+
+- Statusfmt() that matches what subprocess() returncode yields. [Andrew
+  Fullford]
+
+- Fixed broken exception formatting, fixed logic in truthy() convenience
+  function, precompile truthy() re. [Andrew Fullford]
+
+- Increased coverage. [Andrew Fullford]
+
+- Improved taskforce.http coverage. [Andrew Fullford]
+
+- Python subprocesses can have output captured in a file. [Andrew
+  Fullford]
+
+- Fixed #10.  service instances were sharing base-class variables
+  causing callbacks to be overwritten during setup.  Also improved
+  handling POSTs with no content.  These are processed as for GETs.
+  [Andrew Fullford]
+
+- Fixes to support https over unix domain.  not really useful but
+  included for consistency. [Andrew Fullford]
+
+- Ignore selected .covdata files. [Andrew Fullford]
+
+- Incorrect calls to _make_event_target() in task stop. [Andrew
+  Fullford]
+
+- Centralize formatting code, eliminate invalid "pending" config option,
+  improve coverage. [Andrew Fullford]
+
+- Enable coverage in subproces if running in nodetests.  stop doing
+  chdirs as this messes with coverage collection. [Andrew Fullford]
+
+- Soften poll timeout test, allow spec of EXAMPLES listen address.
+  [Andrew Fullford]
+
+- Allow the httpd control port to be specified in the environment.
+  [Andrew Fullford]
+
+- /status/version only shows O/S details on a control path. [Andrew
+  Fullford]
+
+- /status/version should only report system() by default. [Andrew
+  Fullford]
+
+- Add /status/version url to management interface. [Andrew Fullford]
+
 0.3.11 (2015-04-11)
 -------------------
+
+- Release 0.3.11. [Andrew Fullford]
 
 - Minor changes to command help, updated example. [Andrew Fullford]
 
