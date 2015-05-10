@@ -235,7 +235,7 @@ class Test(object):
 		try:
 			resp = httpc.getmap('/status/version?indent=4&fmt=xml')
 			assert "No 'version' exception on bad 'fmt'" is False
-		except Exception as e:
+		except taskforce.http.HttpError as e:
 			self.log.info("%s Expected 'version' exception on bad format: %s", my(self), str(e))
 
 		give_up = time.time() + 30
@@ -261,7 +261,7 @@ class Test(object):
 		try:
 			resp = httpc.getmap('/status/tasks?indent=4&fmt=xml')
 			assert "No 'tasks' exception on bad 'fmt'" is False
-		except Exception as e:
+		except taskforce.http.HttpError as e:
 			self.log.info("%s Expected 'tasks' exception on bad format: %s", my(self), str(e))
 
 		#  Check the config info is sane
@@ -272,7 +272,7 @@ class Test(object):
 		try:
 			resp = httpc.getmap('/status/config?indent=4&fmt=xml')
 			assert "No 'config' exception on bad 'fmt'" is False
-		except Exception as e:
+		except taskforce.http.HttpError as e:
 			self.log.info("%s Expected 'config' exception on bad format: %s", my(self), str(e))
 
 		support.check_procsim_errors(self.__module__, env, log=self.log)
@@ -298,21 +298,21 @@ class Test(object):
 		try:
 			resp = httpc.post('/manage/control?db_server=off')
 			assert "No exception on unauthorized control" is False
-		except Exception as e:
+		except taskforce.http.HttpError as e:
 			self.log.info("%s Expected exception on bad url: %s", my(self), str(e))
 
 		#  Again but with different arg layout
 		try:
 			resp = httpc.post('/manage/control', query={'db_server': 'off'})
 			assert "No exception on unauthorized control" is False
-		except Exception as e:
+		except taskforce.http.HttpError as e:
 			self.log.info("%s Expected exception on bad url: %s", my(self), str(e))
 
 		#  Try an illegal URL
 		try:
 			resp = httpc.getmap('/')
 			assert "No exception on bad url" is False
-		except Exception as e:
+		except taskforce.http.HttpError as e:
 			self.log.info("%s Expected exception on bad url: %s", my(self), str(e))
 
 		support.check_procsim_errors(self.__module__, env, log=self.log)
@@ -337,21 +337,41 @@ class Test(object):
 					my(self), initial_ws_server_count, self.expected_ws_server_count, taskname)
 
 
+		#  Send an invalid management path
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			resp = httpc.get('/manage/nosuchpath')
+			self.log.setLevel(log_level)
+			assert "No exception on bad management path" is False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Expected exception on bad management path: %s", my(self), str(e))
+
 		#  Send a now-valid command but have it expect a JSON return, which doesn't happen
 		log_level = self.log.getEffectiveLevel()
 		try:
 			#  Mask the log message as we expect a failure
 			self.log.setLevel(logging.CRITICAL)
 			resp = httpc.postmap('/manage/control', valuemap={'db_server': 'off'})
-			assert "No exception on bad JSON return" is False
-		except Exception as e:
-			self.log.info("%s Expected exception on bad url: %s", my(self), str(e))
-		finally:
 			self.log.setLevel(log_level)
+			assert "No exception on bad JSON return" is False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Expected exception on bad url: %s", my(self), str(e))
+
+		#  Repeat the last change to test the no-change response
+		(off_code, content, content_type) = httpc.post('/manage/control', valuemap={'db_server': 'off'})
+		self.log.info('%s repeat-off response info: %d %s "%s"', taskname, off_code, content_type, content.strip())
+		assert off_code == 200
+		assert content.strip().endswith('no change')
 
 		#  Turn task back on.
 		(wait_code, content, content_type) = httpc.post('/manage/control', valuemap={'db_server': 'wait'})
-		assert wait_code < 300
+		self.log.info('%s restart response info: %d %s "%s"', taskname, wait_code, content_type, content.strip())
+		assert wait_code == 202
+		assert content.strip().endswith('ok')
 
 		#  Send a control to an unknown task
 		log_level = self.log.getEffectiveLevel()
@@ -359,11 +379,11 @@ class Test(object):
 			#  Mask the log message as we expect a failure
 			self.log.setLevel(logging.CRITICAL)
 			resp = httpc.postmap('/manage/control', valuemap={'no_such_task': 'off'})
-			assert "No exception on bad task name" is False
-		except Exception as e:
-			self.log.info("%s Expected exception on bad task name: %s", my(self), str(e))
-		finally:
 			self.log.setLevel(log_level)
+			assert "No exception on bad task name" is False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Expected exception on bad task name: %s", my(self), str(e))
 
 		#  Send an invalid control to an known task
 		log_level = self.log.getEffectiveLevel()
@@ -371,11 +391,11 @@ class Test(object):
 			#  Mask the log message as we expect a failure
 			self.log.setLevel(logging.CRITICAL)
 			resp = httpc.postmap('/manage/control', valuemap={'db_server': 'no_such_control'})
-			assert "No exception on bad control name" is False
-		except Exception as e:
-			self.log.info("%s Expected exception on bad control name: %s", my(self), str(e))
-		finally:
 			self.log.setLevel(log_level)
+			assert "No exception on bad control name" is False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Expected exception on bad control name: %s", my(self), str(e))
 
 		prior_ws_server_count = self.get_process_count(httpc, taskname, self.expected_ws_server_count)
 		assert prior_ws_server_count == self.expected_ws_server_count
@@ -389,6 +409,63 @@ class Test(object):
 
 		ws_server_count = self.get_process_count(httpc, taskname, new_count)
 		assert ws_server_count == new_count
+
+		#  Repeat the last change to test the no-change response
+		(count_code, content, content_type) = httpc.get('/manage/count?%s=%d' % (taskname, new_count))
+		self.log.info('%s repeat-count response info: %d %s "%s"', taskname, off_code, content_type, content.strip())
+		assert off_code == 200
+		assert content.strip().endswith('no change')
+
+		#  Send a count to an unknown task
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			resp = httpc.postmap('/manage/count', valuemap={'no_such_task': '1'})
+			self.log.setLevel(log_level)
+			assert "No exception on bad task name for count" is False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Expected exception on bad task name for count: %s", my(self), str(e))
+
+		#  Send an invalid count
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			resp = httpc.get('/manage/count?%s=nonumberhere' % (taskname, ))
+			self.log.setLevel(log_level)
+			self.log.error("%s Invalid bad count response: %s", my(self), str(resp))
+			assert "No exception on bad count" is False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Expected exception on bad count value: %s", my(self), str(e))
+
+		#  Send a zero count
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			resp = httpc.post('/manage/count?%s=%d' % (taskname, 0, ))
+			self.log.setLevel(log_level)
+			self.log.error("%s Invalid zero count response: %s", my(self), str(resp))
+			assert "No exception on zero count" is False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Expected exception on zero count: %s", my(self), str(e))
+
+		#  Send a negative count
+		log_level = self.log.getEffectiveLevel()
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			resp = httpc.post('/manage/count', valuemap={taskname: '-42'})
+			self.log.setLevel(log_level)
+			self.log.error("%s Invalid negative count response: %s", my(self), str(resp))
+			assert "No exception on negative count" is False
+		except taskforce.http.HttpError as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Expected exception on negative count: %s", my(self), str(e))
 
 		#  Reload config to put it back
 		(reload_code, content, content_type) = httpc.get('/manage/reload')
@@ -417,7 +494,7 @@ class Test(object):
 			self.log.info('%s stop response info: %d %s "%s"', taskname, count_code, content_type, content.strip())
 			assert stop_code < 300
 			assert content.strip().endswith('exit initiated')
-		except Exception as e:
+		except taskforce.http.HttpError as e:
 			self.log.info('%s Expected possible error from stop manage -- %s', my(self), str(e))
 
 		support.check_procsim_errors(self.__module__, env, log=self.log)
