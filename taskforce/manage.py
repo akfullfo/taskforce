@@ -91,7 +91,7 @@ class http(object):
 			results = {}
 			counts = {}
 			change_detected = False
-			error_detected = False
+			error_detected = True
 			for taskname in postmap:
 				try:
 					count = int(postmap[taskname][0])
@@ -101,24 +101,24 @@ class http(object):
 				task = self._legion.task_get(taskname)
 				if not task:
 					results[taskname] = 'not found'
-					error_detected = True
 				elif count <= 0:
 					results[taskname] = "non-positive count '%s'" % (count,)
-					error_detected = True
-				elif not task._config_pending:
+				elif not task._config_pending or 'count' not in task._config_pending:		# pragma no cover
 					results[taskname] = "no pending config"
 					error_detected = True
-				elif not task._config_running:
+				elif not task._config_running or 'count' not in task._config_running:		# pragma no cover
 					results[taskname] = "no running config"
 					error_detected = True
 				elif task._config_running.get('count') == count:
+					error_detected = False
 					results[taskname] = "no change"
 				else:
+					error_detected = False
 					results[taskname] = "ok"
 					counts[taskname] = count
 					change_detected = True
 			text = ''
-			for taskname in sorted(results):
+			for taskname in sorted(results.keys()):
 				text += "%s\t%s\n" % (taskname, results[taskname])
 			if error_detected:
 				return (404, text, 'text/plain')
