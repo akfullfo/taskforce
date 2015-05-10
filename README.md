@@ -442,6 +442,7 @@ The example itself is documented with comments so that it can be read separately
         #  set in the environment, "taskforce" will run from the root directory.
         #
         "EXAMPLES_BASE": "",
+        "EXAMPLES_LISTEN": "0.0.0.0",
     },
     "<a href="#defines">defines</a>": {
         #  These defines are also global.  They will override environment values
@@ -465,7 +466,7 @@ The example itself is documented with comments so that it can be read separately
                 #  Legion params can be used to override settings in the first
                 #  entry.
                 #
-                "listen": "0.0.0.0",
+                "listen": "{EXAMPLES_LISTEN}",
                 "certfile": "{EXAMPLES_BASE}/etc/sslcert.pem"
             },
             {
