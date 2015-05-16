@@ -233,6 +233,10 @@ class Test(object):
 		resp = httpc.getmap('/status/version')
 		self.log.info("Version info: %s", str(resp))
 		assert 'taskforce' in resp
+		assert 'platform' in resp
+		#  This is not a control path, so the os release and platform should be hidden
+		assert 'release' not in resp['platform']
+		assert 'platform' not in resp['platform']
 
 		#  Try a bogus format
 		try:
@@ -292,7 +296,7 @@ class Test(object):
 		self.log.info("Version info: %s", str(resp))
 		assert 'taskforce' in resp
 
-		#  Same, put use post
+		#  Same, but use post
 		resp = httpc.postmap('/status/version')
 		self.log.info("Version info: %s", str(resp))
 		assert 'taskforce' in resp
@@ -329,6 +333,8 @@ class Test(object):
 		resp = httpc.getmap('/status/version')
 		self.log.info("Version info: %s", str(resp))
 		assert 'taskforce' in resp
+		assert 'platform' in resp
+		assert 'release' in resp['platform']
 
 		#  Allow some process startup time
 		time.sleep(2)
