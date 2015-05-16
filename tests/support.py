@@ -229,6 +229,9 @@ class python_subprocess(object):
 			self.proc.wait()
 			ret = self.proc.returncode
 			if self.log: self.log.info("%s() killed after %.1fs", self.__class__.__name__, time.time()-start)
+		else:
+			ret = self.proc.returncode
+			if self.log: self.log.info("%s() exited %d", self.__class__.__name__, ret)
 		self.proc = None
 		return ret
 
