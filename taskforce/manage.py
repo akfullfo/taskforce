@@ -63,10 +63,10 @@ class http(object):
 				elif control not in self._legion.all_controls:
 					results[taskname] = "bad control '%s'" % (control,)
 					error_detected = True
-				elif not task._config_pending or 'control' not in task._config_pending:		# pragma no cover
+				elif not task._config_pending or 'control' not in task._config_pending:		# pragma: no cover
 					results[taskname] = "no pending config"
 					error_detected = True
-				elif not task._config_running or 'control' not in task._config_running:		# pragma no cover
+				elif not task._config_running or 'control' not in task._config_running:		# pragma: no cover
 					results[taskname] = "no running config"
 					error_detected = True
 				elif task._config_running['control'] == control:
@@ -103,10 +103,10 @@ class http(object):
 					results[taskname] = 'not found'
 				elif count <= 0:
 					results[taskname] = "non-positive count '%s'" % (count,)
-				elif not task._config_pending or 'count' not in task._config_pending:		# pragma no cover
+				elif not task._config_pending or 'count' not in task._config_pending:		# pragma: no cover
 					results[taskname] = "no pending config"
 					error_detected = True
-				elif not task._config_running or 'count' not in task._config_running:		# pragma no cover
+				elif not task._config_running or 'count' not in task._config_running:		# pragma: no cover
 					results[taskname] = "no running config"
 					error_detected = True
 				elif task._config_running.get('count') == count:
