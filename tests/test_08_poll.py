@@ -50,6 +50,7 @@ class Test(object):
 			fl = fcntl.fcntl(fd, fcntl.F_GETFL)
 			fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
+		self.log.info("%s poll_fd = %d, poll_send = %d", my(self), self.poll_fd, self.poll_send)
 		return (self.poll_fd, self.poll_send)
 
 	def close_pipe(self):
