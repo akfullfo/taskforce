@@ -85,7 +85,7 @@ class poll(object):
 		self._fd_map = {}
 
 		self._mode = None
-		if 'kqueue' in dir(select) and callable(select.kqueue):
+		if 'kqueue' in dir(select) and callable(select.kqueue):			# pragma: no cover
 			if self._mode is None:
 				self._mode = PL_KQUEUE
 			self._available_modes.add(PL_KQUEUE)
@@ -94,10 +94,10 @@ class poll(object):
 				self._mode = PL_POLL
 			self._available_modes.add(PL_POLL)
 		if 'select' in dir(select) and callable(select.select):
-			if self._mode is None:
+			if self._mode is None:						# pragma: no cover
 				self._mode = PL_SELECT
 			self._available_modes.add(PL_SELECT)
-		else:
+		else:									# pragma: no cover
 			raise Error("System supports neither select.poll() nor select.select()")
 
 	def get_mode(self):
@@ -111,7 +111,8 @@ class poll(object):
 			self._mode = mode
 			return old_mode
 		else:
-			raise Error("Mode '%s' is not available" % (self.get_mode_name(mode),))
+			raise Error("Mode '%s' is not available" %
+					(self.get_mode_name(mode) if mode in self._mode_map else str(mode),))
 
 	def get_mode_name(self, mode=None):
 		if mode is None:
@@ -159,8 +160,13 @@ class poll(object):
 				raise Error("File object '%s' is neither 'int' nor object with fileno() method" % (str(fo),))
 		if not isinstance(fd, int):
 			raise Error("File object '%s' fileno() method did not return an 'int'" % (str(fo),))
+
+		#  Trigger an exception if the fd in not an open file.
+		#
+		os.fstat(fd)
+
 		if not self._has_registered:
-			if self._mode == PL_KQUEUE:
+			if self._mode == PL_KQUEUE:					# pragma: no cover
 				self._kq = select.kqueue()
 			elif self._mode == PL_POLL:
 				self._poll = select.poll()
@@ -169,7 +175,7 @@ class poll(object):
 				self._wfos = set()
 				self._xfos = set()
 			self._has_registered = True
-		if self._mode == PL_KQUEUE:
+		if self._mode == PL_KQUEUE:						# pragma: no cover
 			if eventmask & POLLPRI:
 				raise Error("POLLPRI is not supported in %s mode", self.get_mode_name(self._mode))
 			self.unregister(fo)
@@ -214,7 +220,7 @@ class poll(object):
 				raise Error("File object '%s' is neither 'int' nor object with fileno() method" % (str(fo),))
 		if fd in self._fd_map:
 			del self._fd_map[fd]
-		if self._mode == PL_KQUEUE:
+		if self._mode == PL_KQUEUE:						# pragma: no cover
 			ev = select.kevent(fo, filter=select.KQ_FILTER_READ, flags=select.KQ_EV_DELETE)
 			try: self._kq.control([ev], 0, 0)
 			except: pass
@@ -230,7 +236,7 @@ class poll(object):
 
 	def poll(self, timeout=None):
 		try:
-			if self._mode == PL_KQUEUE:
+			if self._mode == PL_KQUEUE:					# pragma: no cover
 				if timeout is not None:
 					timeout /= 1000.0
 				evlist = []
@@ -253,7 +259,7 @@ class poll(object):
 				pllist = self._poll.poll(timeout)
 				for pl in pllist:
 					(fd, mask) = pl
-					if fd not in self._fd_map:
+					if fd not in self._fd_map:			# pragma: no cover
 						raise Error("Unknown fd '%s' in select.poll()" % (str(fd),))
 					evlist.append((self._fd_map[fd], mask))
 				return evlist
@@ -285,9 +291,9 @@ class poll(object):
 				try:
 					ecode = e[0]
 					etext = e[1]
-				except:
+				except:							# pragma: no cover
 					pass
 			if ecode == errno.EINTR:
 				raise OSError(ecode, etext)
 			else:
-				raise e
+				raise e							# pragma: no cover
