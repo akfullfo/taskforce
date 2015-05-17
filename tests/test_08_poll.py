@@ -34,10 +34,33 @@ class Test(object):
 	def setUpAll(self, mode=None):
 		self.log = support.logger()
 		self.log.info("%s started", self.__module__)
+		self.poll_fd = None
+		self.poll_send = None
 
 	@classmethod
 	def tearDownAll(self):
 		self.log.info("%s ended", self.__module__)
+
+	def self_pipe(self):
+		"""
+		A self-pipe is a convenient way of exercising some polling
+	"""
+		self.poll_fd, self.poll_send = os.pipe()
+		for fd in [self.poll_fd, self.poll_send]:
+			fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+			fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+		return (self.poll_fd, self.poll_send)
+
+	def close_pipe(self):
+		if self.poll_fd is not None:
+			try: os.close(self.poll_fd)
+			except: pass
+			self.poll_fd = None
+		if self.poll_send is not None:
+			try: os.close(self.poll_send)
+			except: pass
+			self.poll_send = None
 
 	def dump_evlist(self, poll, tag, evlist):
 		if evlist:
@@ -157,22 +180,22 @@ class Test(object):
 				nextmode = mode
 		self.log.info("%s Determined valid non-active mode as %s", my(self), poll.get_mode_name(mode=nextmode))
 
-		with open(os.devnull, 'r') as f:
-			poll.register(f)
+		poll_fd, poll_send = self.self_pipe()
+		poll.register(poll_fd)
 
-			#  Test that an attempt to change mode is rejected
-			#
-			try:
-				#  Mask the log message as we expect a failure
-				self.log.setLevel(logging.CRITICAL)
-				poll.set_mode(nextmode)
-				self.log.setLevel(log_level)
-				expected_error_occurred = False
-			except Exception as e:
-				self.log.setLevel(log_level)
-				self.log.info("%s Received expected error -- %s", my(self), str(e))
-				expected_error_occurred = True
-			assert expected_error_occurred
+		#  Test that an attempt to change mode is rejected
+		#
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			poll.set_mode(nextmode)
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except Exception as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		assert expected_error_occurred
 
 		#  Test that an attempt to register an invalid fd fails
 		#
@@ -202,36 +225,30 @@ class Test(object):
 		#  Change to PL_SELECT and register
 		poll.set_mode(taskforce.poll.PL_SELECT)
 		assert poll.get_mode() == taskforce.poll.PL_SELECT
-		with open(os.devnull, 'r') as f:
-			poll.register(f)
+		poll.register(poll_fd)
 
-			#  Check invalid unregister
-			#
-			try:
-				#  Mask the log message as we expect a failure
-				self.log.setLevel(logging.CRITICAL)
-				poll.unregister(self)
-				self.log.setLevel(log_level)
-				expected_error_occurred = False
-			except Exception as e:
-				self.log.setLevel(log_level)
-				self.log.info("%s Received expected error -- %s", my(self), str(e))
-				expected_error_occurred = True
-			assert expected_error_occurred
+		#  Check invalid unregister
+		#
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			poll.unregister(self)
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except Exception as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		assert expected_error_occurred
 
-			#  Check valid unregister
-			#
-			poll.unregister(f)
+		#  Check valid unregister
+		#
+		poll.unregister(poll_fd)
 
 	def Test_C_poll(self):
 		log_level = self.log.getEffectiveLevel()
 
-		#  Create a self-pipe as a convenient way of exercising some polling
-		#
-		poll_fd, poll_send = os.pipe()
-		for fd in [poll_fd, poll_send]:
-			fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-			fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+		poll_fd, poll_send = self.self_pipe()
 
 		poll = taskforce.poll.poll()
 		poll.register(poll_fd)
@@ -286,3 +303,5 @@ class Test(object):
 			delta = abs(time.time() - start - delay/1000.0)
 			self.log.info("%s select poll timeout delta from wall clock %s", my(self), deltafmt(delta, decimals=6))
 			assert delta < 0.1
+
+		self.close_pipe()
