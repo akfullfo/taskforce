@@ -63,7 +63,7 @@ class udomHTTPSConnection(HTTPConnection, object):
 		ctx = None
 		if self.context:
 			ctx = self.context
-		else:
+		else:							# pragma: no cover
 			try:
 				ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
 			except AttributeError:
@@ -165,7 +165,7 @@ class Client(object):
 		self.sock = self.http.sock
 		self.lastpath = None
 		self.log.info("HTTP connected via %s", self.http.sock)
-		if use_ssl and hasattr(self.http.sock, 'cipher'):
+		if use_ssl and hasattr(self.http.sock, 'cipher'):	# pragma: no cover
 			self.log.debug("Cipher: %s", self.http.sock.cipher())
 
 	def _build_params(self, use_ssl, timeout):
@@ -177,15 +177,15 @@ class Client(object):
 			return ssl_params
 		if use_ssl is False:
 			ctx.verify_mode = ssl.CERT_NONE
-		else:
+		else:							# pragma: no cover
 			ctx.verify_mode = ssl.CERT_REQUIRED
 		if 'OP_NO_SSLv2' in ssl.__dict__:
 			ctx.options |= ssl.OP_NO_SSLv2
-		else:
+		else:							# pragma: no cover
 			self.log.info("Implementation does not offer ssl.OP_NO_SSLv2 which may allow less secure connections")
 		if 'OP_NO_SSLv3' in ssl.__dict__:
 			ctx.options |= ssl.OP_NO_SSLv3
-		else:
+		else:							# pragma: no cover
 			self.log.info("Implementation does not offer ssl.OP_NO_SSLv3 which may allow less secure connections")
 		ssl_params['context'] = ctx
 		return ssl_params
