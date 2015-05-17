@@ -66,7 +66,7 @@ class Test(object):
 	def dump_evlist(self, poll, tag, evlist):
 		if evlist:
 			self.log.info("%s Event list from %s ...", my(self), tag)
-			for ev, fd in evlist:
+			for fd, ev in evlist:
 				self.log.info("    %s on fd %s", poll.get_event(ev), str(fd))
 		else:
 			self.log.info("%s Event list from %s is empty", my(self), tag)
@@ -246,13 +246,15 @@ class Test(object):
 		#
 		poll.unregister(poll_fd)
 
+		self.close_pipe()
+
 	def Test_C_poll(self):
 		log_level = self.log.getEffectiveLevel()
 
 		poll_fd, poll_send = self.self_pipe()
 
 		poll = taskforce.poll.poll()
-		poll.register(poll_fd)
+		poll.register(poll_fd, taskforce.poll.POLLIN)
 
 		#  Check active poll
 		os.write(poll_send, '\0'.encode('utf-8'))
@@ -281,7 +283,7 @@ class Test(object):
 		else:
 			poll = taskforce.poll.poll()
 			poll.set_mode(taskforce.poll.PL_SELECT)
-			poll.register(poll_fd)
+			poll.register(poll_fd, taskforce.poll.POLLIN)
 
 			#  Check active poll
 			os.write(poll_send, '\0'.encode('utf-8'))
