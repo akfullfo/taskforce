@@ -364,6 +364,85 @@ class Test(object):
 		del httpd
 		assert expected_error_occurred
 
+	def Test_G_connect_to_nothing(self):
+		log_level = self.log.getEffectiveLevel()
+
+		#  Test get_query() convenience function
+		#
+		qdict = taskforce.httpd.get_query('http://localhost/path?element=value')
+		self.log.info("%s get_query() returned: %s", my(self), str(qdict))
+		assert 'element' in qdict
+
+		qdict = taskforce.httpd.get_query('http://localhost/path?element=value', force_unicode=False)
+		self.log.info("%s get_query() returned: %s", my(self), str(qdict))
+		assert 'element' in qdict
+
+		#  Try to create service with a non-integer port
+		#
+		http_service = taskforce.httpd.HttpService()
+		http_service.listen = self.tcp_address + ':not_an_int'
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpd = taskforce.httpd.server(http_service, log=self.log)
+			self.log.setLevel(log_level)
+			expected_tcp_port_error_occurred = False
+		except Exception as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected tcp port error -- %s", my(self), str(e))
+			expected_tcp_port_error_occurred = True
+		assert expected_tcp_port_error_occurred
+
+		#  Try tcp and unx connections with and without ssl, with nothing listening
+		#
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpc = taskforce.http.Client(address='localhost', log=self.log)
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except Exception as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		assert expected_error_occurred
+
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpc = taskforce.http.Client(address='/tmp/no/such/socket', log=self.log)
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except Exception as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		assert expected_error_occurred
+
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpc = taskforce.http.Client(address='localhost', use_ssl=False, log=self.log)
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except Exception as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		assert expected_error_occurred
+
+		try:
+			#  Mask the log message as we expect a failure
+			self.log.setLevel(logging.CRITICAL)
+			httpc = taskforce.http.Client(address='/tmp/no/such/socket', use_ssl=False, log=self.log)
+			self.log.setLevel(log_level)
+			expected_error_occurred = False
+		except Exception as e:
+			self.log.setLevel(log_level)
+			self.log.info("%s Received expected error -- %s", my(self), str(e))
+			expected_error_occurred = True
+		assert expected_error_occurred
+
 	def Test_H_getmap_non_text_error(self):
 		self.log.info("Starting %s", my(self))
 		gc.collect()
