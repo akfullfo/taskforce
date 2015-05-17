@@ -19,7 +19,7 @@
 import os, sys, stat, errno, re, logging, ssl
 from cgi import parse_header, parse_multipart
 from . import utils
-try:
+try:											# pragma: no cover
 	import socketserver
 	import http.server as http_server
 	from urllib.parse import parse_qs, urlparse
@@ -121,7 +121,7 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 			if not resp:
 				self.fault(404, self.path + ' not found')
 				return
-			if type(resp) != tuple or len(resp) != 3:
+			if type(resp) != tuple or len(resp) != 3:			# pragma: no cover
 				self.fault(500, 'Bad callback response for ' + self.path)
 			code, content, content_type = resp
 		except Exception as e:
@@ -183,15 +183,15 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 	def log_message(self, fmt, *fargs):
 		try:
 			msg = fmt.strip() % fargs
-		except Exception as e:
+		except Exception as e:							# pragma: no cover
 			msg = "Error formatting '%s' -- %s" % (str(fmt), str(e))
 		try:
 			saddr = self.format_addr(self.server.server_address, showport=True)
-		except:
+		except:									# pragma: no cover
 			saddr = 'unknown'
 		try:
 			raddr = self.format_addr(self.client_address)
-		except:
+		except:									# pragma: no cover
 			raddr = 'unknown'
 		self.server.log.info("%s>%s %s", raddr, saddr, msg)
 
@@ -203,7 +203,7 @@ class BaseServer(object):
 		requests.  If the callback is None, any
 		existing registration is removed.
 	"""
-		if callback is None:
+		if callback is None:							# pragma: no cover
 			if regex in self.get_registrations:
 				del self.get_registrations[regex]
 		else:
@@ -219,7 +219,7 @@ class BaseServer(object):
 	
 			callback(path, postmap)
 	"""
-		if callback is None:
+		if callback is None:							# pragma: no cover
 			if regex in self.post_registrations:
 				del self.post_registrations[regex]
 		else:
@@ -278,7 +278,7 @@ class BaseServer(object):
 		to handle a path.
 	"""
 		matched = self._match_path(path, self.post_registrations)
-		if matched is None:
+		if matched is None:							# pragma: no cover
 			return None
 		else:
 			return matched(path, postmap)
@@ -324,7 +324,7 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 					try:
 						os.unlink(self.path)
 						self.log.info("Removed existing udom socket '%s'", self.path)
-					except Exception as e:
+					except Exception as e:				# pragma: no cover
 						self.log.warning("Could not unlink existing udom socket '%s' -- %s",
 													self.path, str(e))
 				else:
@@ -336,7 +336,7 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 	def close(self):
 		if self.path and os.path.exists(self.path):
 			try: os.unlink(self.path)
-			except: pass
+			except: pass							# pragma: no cover
 		self.path = None
 
 	def get_request(self):
@@ -399,10 +399,10 @@ def server(service, log=None):
 """
 	if log:
 		log = log
-	else:
+	else:										# pragma: no cover
 		log = logging.getLogger(__name__)
 		log.addHandler(logging.NullHandler())
-	if not service.timeout:
+	if not service.timeout:								# pragma: no cover
 		service.timeout = None
 
 	if not service.listen:
@@ -431,7 +431,7 @@ def server(service, log=None):
 		ctx = None
 		try:
 			ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-		except AttributeError:
+		except AttributeError:							# pragma: no cover
 			log.warning("No ssl.SSLContext(), less secure connections may be allowed")
 			pass
 		if ctx:
@@ -439,18 +439,18 @@ def server(service, log=None):
 			#
 			if 'OP_NO_SSLv2' in ssl.__dict__:
 				ctx.options |= ssl.OP_NO_SSLv2
-			else:
+			else:								# pragma: no cover
 				log.warning("Implementation does not offer ssl.OP_NO_SSLv2 which may allow less secure connections")
 			if 'OP_NO_SSLv3' in ssl.__dict__:
 				ctx.options |= ssl.OP_NO_SSLv3
-			else:
+			else:								# pragma: no cover
 				log.warning("Implementation does not offer ssl.OP_NO_SSLv3 which may allow less secure connections")
 			log.info("Certificate file: %s", service.certfile)
 			with open(service.certfile, 'r') as f: pass
 			ctx.load_cert_chain(service.certfile)
 			ctx.set_ciphers(ciphers)
 			httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
-		else:
+		else:									# pragma: no cover
 			httpd.socket = ssl.wrap_socket(httpd.socket, server_side=True,
 				certfile=service.certfile, ssl_version=ssl.PROTOCOL_TLSv1, ciphers=ciphers)
 	if service.allow_control:
@@ -468,10 +468,10 @@ def _unicode(p):
 	for tag in p:
 		vals = []
 		for v in p[tag]:
-			if type(v) is not str:
+			if type(v) is not str:						# pragma: no cover
 				v = v.decode('utf-8')
 			vals.append(v)
-		if type(tag) is not str:
+		if type(tag) is not str:						# pragma: no cover
 			tag = tag.decode('utf-8')
 		q[tag] = vals
 	return q
