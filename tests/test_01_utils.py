@@ -204,10 +204,10 @@ how it is typically used.
 		for utc, terse, decimals, regex in variations:
 			if decimals is None:
 				res = utils.time2iso(now, utc=utc, terse=terse)
-				self.log.warning("time2iso(now, utc=%s, terse=%s) gives '%s'", utc, terse, res)
+				self.log.info("time2iso(now, utc=%s, terse=%s) gives '%s'", utc, terse, res)
 			else:
 				res = utils.time2iso(now, utc=utc, terse=terse, decimals=decimals)
-				self.log.warning("time2iso(now, utc=%s, terse=%s, decimals=%d) gives '%s'", utc, terse, decimals, res)
+				self.log.info("time2iso(now, utc=%s, terse=%s, decimals=%d) gives '%s'", utc, terse, decimals, res)
 			assert re.match(regex, res)
 
 	def Test_G_module_description(self):
