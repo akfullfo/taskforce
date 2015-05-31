@@ -189,6 +189,11 @@ how it is typically used.
 
 	def Test_F_time2iso(self):
 		now = time.time()
+
+		#  Make sure we are not operating in UTC as that causes the terse, non-utc pattern match to fail
+		#
+		os.environ['TZ'] = 'America/Chicago'
+
 		variations = [
 			(False, False, None, r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}$'),
 			(True, False, None, r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+00:00$'),
