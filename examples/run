@@ -30,7 +30,7 @@ fi
 usage()
 {
 	cat >&2 <<EOT
-Usage: ./$P [-v] [-l] [-C] [-x] [-w addr] [-c certfile] role [...]
+Usage: ./$P [-v] [-l] [-C] [-A] [-x] [-w addr] [-c certfile] role [...]
 
        Run the example configuration in the specified role.
        This must be run from within the example directory, ie:
@@ -50,6 +50,9 @@ Usage: ./$P [-v] [-l] [-C] [-x] [-w addr] [-c certfile] role [...]
 	-c	Override examples certificate file
 
 	-C	Check the config and exit
+
+	-A	Allow HTTP operations that can change the
+		task state.
 
 	-x	Cause simulated ntpd to exit randomly to
 		demonstrate the 'timeset' restart.
@@ -72,6 +75,9 @@ while [ "$#" -gt 0 ]; do
 		;;
 	-C*)
 		TFARGS="$TFARGS --check-config"
+		;;
+	-A*)
+		TFARGS="$TFARGS --allow-control"
 		;;
 	-c*)
 		shift
