@@ -59,16 +59,16 @@ def get_caller(*caller_class, **params):
 
 	if class_name:
 		name = class_name + '.'
-	elif caller_class != ():
+	elif caller_class != ():							# pragma: no cover
 		name = inspect.getmodule(caller_class[0]).__name__ + '.'
 	elif hasattr(inspect.getmodule(frame), '__name__'):
 		name = inspect.getmodule(frame).__name__ + '.'
-	else:
+	else:										# pragma: no cover
 		name = ''
 
 	if func == '__init__' and class_name:
 		name = class_name + '()'
-	elif name == '__main__.':
+	elif name == '__main__.':							# pragma: no cover
 		name = func + '()'
 	else:
 		name += func + '()'
@@ -130,6 +130,8 @@ def version_cmp(ver_a, ver_b):
 	The function also accepts the case where both args are ints
 	or can be converted to ints.
 """
+	if ver_a is None and ver_b is None:
+		return 0
 	if ver_a is None:
 		return -1
 	elif ver_b is None:
@@ -158,8 +160,7 @@ def version_cmp(ver_a, ver_b):
 		b = ver_b
 	if pref_a != pref_b:
 		if ver_a < ver_b: return -1
-		elif ver_a > ver_b: return 1
-		else: return 0
+		else: return 1
 	a = a.split('.')
 	b = b.split('.')
 
@@ -173,9 +174,9 @@ def version_cmp(ver_a, ver_b):
 		bstr = restrip.sub('', b[i])
 		if not bstr: bstr = '0'
 		try: aint = int(astr)
-		except: return -1
+		except: return -1							# pragma: no cover
 		try: bint = int(bstr)
-		except: return -1
+		except: return -1							# pragma: no cover
 		if aint < bint: return -1
 		elif aint > bint: return 1
 	return 0
@@ -225,7 +226,7 @@ less than 10 minutes, and zero places otherwise
 	try:
 		delta = float(delta)
 	except:
-		return '(bad delta)'
+		return '(bad delta: %s)' % (str(delta),)
 	if delta < 60:
 		if decimals is None:
 			decimals = 2
@@ -302,7 +303,7 @@ web applications show up as our own.
 		path = sys.argv[0]
 	name = os.path.basename(os.path.splitext(path)[0])
 	if name == 'mod_wsgi':
-		name = 'nvn_web'
+		name = 'nvn_web'							# pragma: no cover
 	return name
 
 def module_description(module__name__, module__doc__, module__file__):
@@ -311,7 +312,7 @@ def module_description(module__name__, module__doc__, module__file__):
 	embedded documentation.  The function should be called exactly
 	as:
 
-		ns_utils.module_help(__name__, __doc__, __file__)
+		taskforce.utils.module_description(__name__, __doc__, __file__)
 
 	The most common use for this function is to produce the help
 	message for test code in a library module, which might look
@@ -321,7 +322,7 @@ def module_description(module__name__, module__doc__, module__file__):
 		import ns_utils, argparse
 
 		p = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
-				description=ns_utils.module_description(__name__, __doc__, __file__))
+				description=taskforce.utils.module_description(__name__, __doc__, __file__))
 """
 	mod_name = os.path.splitext(os.path.basename(module__file__))[0]
 
@@ -377,16 +378,14 @@ def statusfmt(status):
 	"""
 	Format an exit status as text.
 """
-	if os.WIFSIGNALED(status):
+	if status == 0:
+		msg = 'exited ok'
+	elif os.WIFSIGNALED(status):
 		msg = 'died on '+signame(os.WTERMSIG(status))
 	elif os.WIFEXITED(status) and os.WEXITSTATUS(status) > 0:
 		msg = 'exited '+str(os.WEXITSTATUS(status))
-	elif os.WIFSTOPPED(status):
-		msg = 'exited '+str(os.WSTOPSIG(status))
-	elif os.WIFCONTINUED(status):
-		msg = 'continued'
 	else:
-		msg = 'exited ok'
+		msg = 'unknown exit code 0x%04x' % (status,)
 	if os.WCOREDUMP(status):
 		msg += ' (core dumped)'
 	return msg
@@ -462,7 +461,7 @@ def closeall(**params):
 		try:
 			for s in exclude_list:
 				_pick_fd(s, excludes)
-		except:
+		except:									# pragma: no cover
 			_pick_fd(exclude_list, excludes)
 
 	#  Find the largest excluded fd
@@ -470,7 +469,7 @@ def closeall(**params):
 	if len(exlist) > 0:
 		exlist.sort(reverse=True)
 		last_exc_fd = exlist[0]
-	else:
+	else:										# pragma: no cover
 		last_exc_fd = None
 
 	#  Find the maximum available fd
@@ -499,7 +498,7 @@ def closeall(**params):
 		return highest
 closeall.beyond_last_fd = 200	  # Stop closeall() after this many failures
 
-def format_cmd(args, **params):
+def format_cmd(args):
 	"""
 	Format the arg list appropriate for display as a command line with
 	individual arguments quoted appropriately.  This is intended for logging
@@ -574,7 +573,7 @@ when a subprocess needs to claim a lock on behalf of its parent.
 		if 'pid' in params:
 			pid = int(params['pid'])
 			if pid <= 1:
-				raise PidClaimError("Invalid pip param '%s'", str(pid))
+				raise PidClaimError("Invalid pid param '%s'" % (str(pid)))
 		else:
 			pid = os.getpid()
 
@@ -657,60 +656,3 @@ when a subprocess needs to claim a lock on behalf of its parent.
 				self.temp_pidfile = None
 		except:
 			pass
-
-if __name__ == "__main__":
-
-	now = time.time()
-	print(time2iso(now, utc=False, terse=False))
-	print(time2iso(now, utc=True, terse=False))
-	print(time2iso(now, utc=False, terse=True))
-	print(time2iso(now, utc=True, terse=True, decimals=0))
-
-	print("%d thing%s found" % (0, ses(0)))
-	print("%d item%s found" % (1, ses(1)))
-	print("%d process%s found" % (2, ses(2, 'es')))
-	print("%d quantit%s found" % (3, ses(3, 'ies', 'y')))
-	print("%d famil%s found" % (4, ses(4, singular='y', plural='ies')))
-
-	new_title = appname() + ' testing mode'
-	old_title = setproctitle(new_title)
-
-	if old_title:
-		print("Title changed from '%s' to '%s'" % (old_title, new_title))
-	else:
-		print("Process title change not supported")
-
-	versions = ['2', '1.2', '1.2.3.4', 'abc', '1.2.3.14', '1.2.3.3', '1.2.3.4.3', '1.2.3.4c']
-	versions.sort(key=version_sort_key)
-	for v in versions:
-		print(v)
-	filenames = ['release-1.2.3.4.tar', 'release_1.2.3.4.tar', 'release-a1.2.3.4.tar']
-	for fname in filenames:
-		print('Prefix test on file name "%s" gives key "%s"' % (fname, version_sort_key(fname, digits=4)))
-	versions = [('2', '1.2'), ('1.2', '1.2.3.4'), ('1.2.3', '1.2.3.0'), ('1.2.3.4.3', '1.2.3.4c'),
-		    (321, 123),
-		    (None, None),
-		    (None, '1.2.3'),
-		    ('1.2.3', None),
-		    ('release-1.2.3.5.tar', 'release-1.2.3.4.tar'),		#  should be +1
-		    ('release-1.2.3.5.tar', 'release_1.2.3.4.tar'),		#  should be -1 because dash is less than uscore
-		    ('release-1.2.3.4.tgz', 'release-1.2.3.4.tar')]		#  should be 0 (trailing non-numbers ignored)
-	for pair in versions:
-		print("'%s' cmp '%s' = '%s'" % (pair[0], pair[1], version_cmp(pair[0], pair[1])))
-
-	args = list(sys.argv)
-	args.pop(0)
-	pidfile = './%s.pid' % (appname(),)
-	claimed_ok = False
-	try:
-		pidclaim(pidfile)
-		claimed_ok = True
-	except Exception as e:
-		print("Claim of '%s' failed -- %s" % (pidfile, e))
-	if claimed_ok:
-		with open(pidfile, 'r') as f:
-			claim_pid = int(f.readline().strip())
-		if claim_pid == os.getpid():
-			print("Pid claim ok, pid = %d" % (claim_pid,))
-		else:
-			print("Pid claimed %d, but it should be %d" % (claim_pid, os.getpid()))
