@@ -22,6 +22,8 @@ import support
 import taskforce.utils as utils
 from taskforce.utils import get_caller as my
 
+env = support.env(base='.')
+
 def my_module_level():
 	here = my()
 	support.logger().info("%s at module level", here)
@@ -53,6 +55,12 @@ how it is typically used.
 	@classmethod
 	def tearDownAll(self):
 		self.log.info("%s ended", self.__module__)
+
+	def set_path(self, tag, val):
+		if tag in os.environ:
+			os.environ[tag] = val + ':' + os.environ[tag]
+		else:
+			os.environ[tag] = val
 
 	def Test_A_my(self):
 		has_place = re.compile(r'\[\+\d+\s+[^\]]+\]')
@@ -325,6 +333,7 @@ how it is typically used.
 		pid = os.fork()
 		if pid == 0:
 			args = ['pidclaim']
+			self.set_path('PYTHONPATH', env.base_dir)
 			if 'NOSE_WITH_COVERAGE' in os.environ:
 				exe = 'coverage'
 				args.append('run')
