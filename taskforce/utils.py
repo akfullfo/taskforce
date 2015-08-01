@@ -260,9 +260,10 @@ def setproctitle(text):
 		import setproctitle
 	except Exception as e:
 		return None
-	prev = setproctitle.getproctitle()
-	setproctitle.setproctitle(text)
-	return prev
+	else:										# pragma: no cover
+		prev = setproctitle.getproctitle()
+		setproctitle.setproctitle(text)
+		return prev
 
 def time2iso(unix_time, utc=False, terse=False, decimals=3):
 	from math import pow
@@ -398,7 +399,7 @@ def sys_maxfd():
 	maxfd = None
 	try:
 		maxfd = int(resource.getrlimit(resource.RLIMIT_NOFILE)[0])
-		if maxfd == resource.RLIM_INFINITY:
+		if maxfd == resource.RLIM_INFINITY:					# pragma: no cover
 			maxfd = None
 	except: pass
 	if maxfd is None:
@@ -413,9 +414,8 @@ def _pick_fd(obj, excludes):
 	except:
 		pass
 	try:
-		if 'fileno' in dir(obj):
-			excludes[obj.fileno()] = True
-			return
+		excludes[obj.fileno()] = True
+		return
 	except:
 		pass
 

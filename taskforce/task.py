@@ -77,7 +77,7 @@ def legion_create_handler(obj):
 	def _handler(sig, frame):
 		obj._sig_handler(sig, frame)
 
-	if '_sig_handler' not in dir(obj):
+	if '_sig_handler' not in dir(obj):							# pragma: no cover
 		raise Excecption("%s object instance has no _sig_handler method" % (my(),))
 	return _handler
 
@@ -100,6 +100,7 @@ class TaskError(Exception):
 	def __str__(self):
 		return "%s: %s" % ('Legion' if self.name is None else self.name, self.message)
 
+_fmt_context_isvar = re.compile(r'^\{(\w+)\}$')
 def _fmt_context(arg_list, context):
 	"""
 	Iterate on performing a format operation until the formatting makes no
@@ -115,19 +116,27 @@ def _fmt_context(arg_list, context):
 	if arg_list is None:
 		return arg_list
 	just_one = False
-	if type(arg_list) is not list:
+	if not isinstance(arg_list, list):
 		arg_list = [arg_list]
 		just_one = True
 	ans = []
 	for arg in arg_list:
-		if arg is None:
+		if arg is None:									# pragma: no cover
 			continue
 		for attempt in range(0, 10):
 			res = None
 			try:
-				res = arg.format(**context)
-				if res == arg:
+				m = _fmt_context_isvar.match(arg)
+				if m and m.group(1) in context and context[m.group(1)] is None:
+					#  Handle case where the var is in the context will
+					#  value None.  If this is left to formatting, it
+					#  gets converted to the string value "None".
+					#
 					break
+				else:
+					res = arg.format(**context)
+					if res == arg:
+						break
 				arg = res
 			except:
 				if res is None:
@@ -171,7 +180,7 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 	context_prefix+'uid'		-  The numeric uid (based on 'user' if set, getuid() otherwise)
 	context_prefix+'gid'		-  The numeric gid (based on 'group' if set, getgid() otherwise)
 """
-	if not log:
+	if not log:									# pragma: no cover
 		log = logging.getLogger(__name__)
 		log.addHandler(logging.NullHandler())
 
@@ -205,13 +214,13 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 		try:
 			uid = int(user)
 			try: pw = pwd.getpwuid(uid)
-			except: pass
+			except: pass								# pragma: no cover
 		except: pass
 		if pw is None:
 			try:
 				pw = pwd.getpwnam(user)
 			except Exception as e:
-				raise TaskError(name, "Bad user '%s' -- %s" % (user, str(e)))
+				raise TaskError(name, "Bad user %s -- %s" % (repr(user), str(e)))
 		if proc_uid != pw.pw_uid:
 			proc_uid = pw.pw_uid
 			do_setuid = True
@@ -334,8 +343,11 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 		#
 		env = {}
 		for tag, val in context.items():
+			if val is None:
+				continue
+			val = _fmt_context(str(val), context)
 			if val is not None:
-				env[tag] = _fmt_context(str(val), context)
+				env[tag] = val
 	except Exception as e:
 		#  At this point we can still send logs to stderr, so log these
 		#  too, just in case.
@@ -539,13 +551,13 @@ class Context(object):
 		The order is such that a role_defines value will override
 		a normal defines value.
 	"""
-		if conf and 'defines' in conf and type(conf['defines']) is dict:
+		if conf and 'defines' in conf and isinstance(conf['defines'], dict):
 			context.update(conf['defines'])
 		if hasattr(self, '_legion'):
 			roles = self._legion.get_roles()
 		else:
 			roles = self.get_roles()
-		if conf and roles and 'role_defines' in conf and type(conf['role_defines']) is dict:
+		if conf and roles and 'role_defines' in conf and isinstance(conf['role_defines'], dict):
 			for role in conf['role_defines']:
 				if role in roles:
 					context.update(conf['role_defines'][role])
@@ -561,13 +573,13 @@ class Context(object):
 			roles = self._legion.get_roles()
 		else:
 			roles = self.get_roles()
-		if conf and roles and 'role_defaults' in conf and type(conf['role_defaults']) is dict:
+		if conf and roles and 'role_defaults' in conf and isinstance(conf['role_defaults'], dict):
 			for role in conf['role_defaults']:
 				if role in roles:
 					for tag, val in conf['role_defaults'][role].items():
 						if tag not in context:
 							context[tag] = val
-		if conf and 'defaults' in conf and type(conf['defaults']) is dict:
+		if conf and 'defaults' in conf and isinstance(conf['defaults'], dict):
 			for tag, val in conf['defaults'].items():
 				if tag not in context:
 					context[tag] = val
@@ -597,11 +609,11 @@ class Context(object):
 			return res
 		if context is None:
 			context = self._context
-		if type(value) is list:
+		if isinstance(value, list):
 			log.debug("%s Processing list %s", my(self), value)
 			for v in value:
 				res.extend(self._get_list(v, context=context))
-		elif type(value) is dict:
+		elif isinstance(value, dict):
 			log.debug("%s Processing dict %s", my(self), value)
 			for k in value:
 				if k in context:
@@ -629,7 +641,7 @@ class Context(object):
 		if ret is None:
 			return default
 		name = getattr(self, '_name', None)
-		if type(ret) is list:
+		if isinstance(ret, list):
 			if len(ret) == 0:
 				raise TaskError(name, "Value '%s' resolved to an empty list" % (value,))
 			elif len(ret) == 1:
@@ -637,7 +649,7 @@ class Context(object):
 			else:
 				raise TaskError(name, "Value '%s' resolved to a multi-valued list %s" % (value, str(ret)))
 		else:
-				raise TaskError(name, "Value '%s' resolved to unexpect type %s" % (value, str(type(ret))))
+			raise TaskError(name, "Value '%s' resolved to unexpect type %s" % (value, type(ret).__name__))
 
 class legion(Context):
 	"""
@@ -1341,7 +1353,7 @@ Params are:
 		A task can only register a single action with each path.
 	"""
 		log = self._params.get('log', self._discard)
-		if type(paths) is not list:
+		if not isinstance(paths, list):
 			paths = [paths]
 		for path in paths:
 			if path not in self._file_event_map:
@@ -1361,7 +1373,7 @@ Params are:
 			for path in self._file_event_map:
 				if key in self._file_event_map[path]:
 					paths.append(path)
-		elif type(paths) is not list:
+		elif not isinstance(paths, list):
 			paths = [paths]
 		for path in paths:
 			if key in self._file_event_map[path]:
@@ -1559,7 +1571,7 @@ Params are:
 												my(self), type(item).__name__)
 							continue
 						for tgt in item.get():
-							if type(tgt) == tuple:
+							if isinstance(tgt, tuple):
 								name = tgt[0]
 								cmd = tgt[1]
 								paths = tgt[2]
@@ -1811,7 +1823,7 @@ Params are:
 		log = self._params.get('log', self._discard)
 		if 'commands' in self._config_running and 'start' in self._config_running['commands']:
 			name = _fmt_context(self._config_running['commands']['start'], self._context)
-			if type(name) is list:
+			if isinstance(name, list):
 				name = name[0]
 			if os.path.basename(name) != name:
 				log.debug("%s Task '%s' path '%s' (direct from 'start' command)", my(self), self._name, name)
@@ -2265,7 +2277,7 @@ Params are:
 				start_command = self._get_list(conf['commands'].get('start'))
 			if not start_command:
 				raise TaskError(self._name, "No 'start' command in task configuration")
-			if type(start_command) is not list:
+			if not isinstance(start_command, list):
 				start_command = list(start_command)
 
 			needed = self._get(conf.get('count'), default=1)
