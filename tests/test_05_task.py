@@ -17,7 +17,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, time, logging, errno, re
+import os, sys, time, logging, errno, re, pwd, grp
 import support
 import taskforce.poll as poll
 import taskforce.task as task
@@ -112,9 +112,16 @@ class Test(object):
 		assert sanity_established
 
 	def Test_C_role_switch(self):
+		"""
+		Check that a role change stops and starts processes correctly.
+		Also excercise the uid-setting code (even though this just sets
+		it to ourself as we are not necessarily running as root).
+	"""
 		self.set_path('PATH', env.examples_bin)
 		self.log.info("PATH: %s", os.environ['PATH'])
 		os.environ['EXAMPLES_BASE'] = env.examples_dir
+		os.environ['EXAMPLES_TESTUSER'] = str(os.getuid())
+		os.environ['EXAMPLES_TESTGROUP'] = str(os.getgid())
 		new_roles = env.test_roles
 		self.set_roles(new_roles)
 		self.log.info("Setting roles %s", new_roles)
@@ -151,4 +158,29 @@ class Test(object):
 
 		support.check_procsim_errors(self.__module__, env, log=self.log)
 
+		tf.close()
+
+	def Test_D_user_group(self):
+		"""
+		Now start the legion with user and group strings.
+	"""
+		self.set_path('PATH', env.examples_bin)
+		self.log.info("PATH: %s", os.environ['PATH'])
+		os.environ['EXAMPLES_BASE'] = env.examples_dir
+		os.environ['EXAMPLES_TESTUSER'] = pwd.getpwuid(os.getuid()).pw_name
+		os.environ['EXAMPLES_TESTGROUP'] = grp.getgrgid(os.getgid()).gr_name
+		new_roles = env.test_roles
+		self.set_roles(new_roles)
+		self.log.info("Setting roles %s", new_roles)
+		self.log.info("Will run: %s", ' '.join(support.taskforce.command_line(env, [])))
+		tf = support.taskforce(env, [], log=self.log)
+
+		self.log.info("Checking startup of %s roles", new_roles)
+		db_started = tf.search([r"Task 'db_server' already started"], log=self.log)
+		assert db_started
+		kids = len(support.proctree().processes[tf.pid].children) 
+		assert self.find_children(tf, roles=new_roles) == expected_frontback_process_count
+		self.log.info("User/group names ok")
+
+		support.check_procsim_errors(self.__module__, env, log=self.log)
 		tf.close()

@@ -290,8 +290,8 @@ how it is typically used.
 		assert maxfd > 20
 		start_fds = self.now_open(maxfd)
 		self.log.info("Pretest open fds: %s", start_fds)
-		rd = os.open('/dev/null', os.O_RDONLY)
-		wd = os.open('/dev/null', os.O_WRONLY)
+		rd = os.open(os.devnull, os.O_RDONLY)
+		wd = os.open(os.devnull, os.O_WRONLY)
 		open_fds = set(start_fds)
 		open_fds.add(rd)
 		open_fds.add(wd)
@@ -300,6 +300,27 @@ how it is typically used.
 		utils.closeall(exclude=list(start_fds))
 		post_fds = self.now_open(maxfd)
 		self.log.info("Post test open fds: %s", post_fds)
+		assert post_fds == start_fds
+
+		#  Exclude using a set, with a file object mixed in
+		#
+		with open(os.devnull, 'r') as f:
+			exclude_fds = set(start_fds)
+			exclude_fds.add(f)
+			start_fds = self.now_open(maxfd)
+			utils.closeall(exclude=exclude_fds)
+			post_fds = self.now_open(maxfd)
+			self.log.info("Set with object open fds: %s", post_fds)
+			assert post_fds == start_fds
+
+		#  Exclude with a bad object mixed in
+		#
+		exclude_fds = set(start_fds)
+		exclude_fds.add(self)
+		start_fds = self.now_open(maxfd)
+		utils.closeall(exclude=exclude_fds)
+		post_fds = self.now_open(maxfd)
+		self.log.info("Set with object open fds: %s", post_fds)
 		assert post_fds == start_fds
 
 		closed = utils.closeall(exclude=range(100))
