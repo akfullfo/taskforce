@@ -1,0 +1,14 @@
+;  Sample systemd service file for taskforce
+;
+[Unit]
+Description=Taskforce Process Monitor
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/taskforce
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target
+;Alias=ns_init.service
