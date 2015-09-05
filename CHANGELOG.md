@@ -1,8 +1,66 @@
 Changelog
 =========
 
+0.3.13 (2015-09-05)
+-------------------
+
+- Updated with latest examples.conf. [Andrew Fullford]
+
+- Move daemonize() to utils as it is getting used in multiple apps.
+  [Andrew Fullford]
+
+- Include sample systemd config. [Andrew Fullford]
+
+- Better coverage. [Andrew Fullford]
+
+- Better coverage, cleanup on use of type() [Andrew Fullford]
+
+- Support user/group override for testing. [Andrew Fullford]
+
+- Revert debugging to normal. [Andrew Fullford]
+
+- Force timezone to not be UTC. [Andrew Fullford]
+
+- Elevate debug to determine travis ios date difference. [Andrew
+  Fullford]
+
+- Make sure PYTHONPATH is set. [Andrew Fullford]
+
+- Pass -A to taskforce. [Andrew Fullford]
+
+- Improve utils coverage. [Andrew Fullford]
+
+- Minor fixes to error codes and coverage improvements. [Andrew
+  Fullford]
+
+- Need to specify POLLIN or POLLOUT event stays present in kqueue.
+  [Andrew Fullford]
+
+- Add poll_fd logging. [Andrew Fullford]
+
+- Use pipe instead of open file for sake of kevent. [Andrew Fullford]
+
+- Extend polling coverage. [Andrew Fullford]
+
+- Improved error reporting. [Andrew Fullford]
+
+- Coverage in httpd.py. [Andrew Fullford]
+
+- Pragma out some untestable code. [Andrew Fullford]
+
+- Pragma out some untestable code. [Andrew Fullford]
+
+- Validate platform details in and not in control path. [Andrew
+  Fullford]
+
+- Log exit in all cases. [Andrew Fullford]
+
+- Fix some coverage pragmas. [Andrew Fullford]
+
 0.3.12 (2015-05-10)
 -------------------
+
+- Release 0.3.12. [Andrew Fullford]
 
 - Made consistent with example. [Andrew Fullford]
 
