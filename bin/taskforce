@@ -61,92 +61,6 @@ def send_signal(pidfile, sig):
 			raise Exception("Invalid pid '%s' in '%s' -- %s"%(str(pidstr), pidfile))
 	os.kill(pid, sig)
 
-def daemonize(**params):
-	"""
-This is a simple daemonization method.  It just does a double fork() and the
-parent exits after closing a good clump of possibly open file descriptors.  The
-child redirects stdin from /dev/null and sets a new process group and session.
-If you need fancier, suggest you look at http://pypi.python.org/pypi/python-daemon/
-
-Application logging setup needs to be delayed until after daemonize() is called.
-
-Supported params:
-
-	redir	- Redirect stdin, stdout, and stderr to /dev/null.  Default
-		  is True, use "redir=False" to leave std files unchanged.
-
-	log     - logging function, default is no logging.  A logging function
-		  works best if you use stderr or a higher fd because these are
-		  closed last.  But note that all fds are closed or associated
-		  with /dev/null, so the log param is really only useful for
-		  debugging this function itself.  A caller needing logging
-		  should probably use syslog.
-
-	plus params appropriate for taskforce.utils.closeall().
-"""
-	log = params.get('log')
-	redir = params.get('redir', True)
-
-	try:
-		if os.fork() != 0:
-			os._exit(0)
-	except Exception as e:
-		if log: log("First fork failed -- %s", str(e))
-		return False
-	try:
-		os.setsid()
-	except Exception as e:
-		if log: log("Setsid() failed -- %s", str(e))
-
-	try:
-		if os.fork() != 0:
-			os._exit(0)
-	except Exception as e:
-		if log: log("Second fork failed, pressing on -- %s", str(e))
-
-	try:
-		os.chdir('/')
-	except Exception as e:
-		if log: log("Chdir('/') failed -- %s", str(e))
-	if redir:
-		try: os.close(0)
-		except Exception as e:
-			if log: log("Stdin close failed -- %s", str(e))
-		try:
-			fd = os.open('/dev/null', os.O_RDONLY)
-		except Exception as e:
-			if log: log("Stdin open failed -- %s", str(e))
-		if fd != 0:
-			if log: log("Stdin open returned %d, should be 0", fd)
-		try: os.close(1)
-		except Exception as e:
-			if log: log("Stdout close failed -- %s", str(e))
-		try:
-			fd = os.open('/dev/null', os.O_WRONLY)
-		except Exception as e:
-			if log: log("Stdout open failed -- %s", str(e))
-		if fd != 1:
-			if log: log("Stdout open returned %d, should be 1", fd)
-
-	try:
-		os.setpgrp()
-	except Exception as e:
-		if log: log("Setpgrp failed -- %s", str(e))
-
-	if redir:
-		try: os.close(2)
-		except Exception as e:
-			if log: log("Stderr close failed -- %s", str(e))
-		try:
-			fd = os.dup(1)
-		except Exception as e:
-			if log: log("Stderr dup failed -- %s", str(e))
-		if fd != 2:
-			if log: log("Stderr dup returned %d, should be 2", fd)
-	if 'exclude' not in params:
-		params['exclude'] = [0,1,2]
-	utils.closeall(**params)
-
 def sanity_test(l):
 	import tempfile
 	code = 1
@@ -294,7 +208,7 @@ if args.roles_file is None:
 	log.warning("None of the default roles files (%s) were accessible", ', '.join(def_roles_filelist))
 
 if args.daemonize:
-	daemonize()
+	utils.daemonize()
 
 log.info("Starting python v%s, config '%s', roles '%s'",
 			'.'.join(str(x) for x in sys.version_info[:3]), str(args.config_file), str(args.roles_file))
