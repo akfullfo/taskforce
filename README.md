@@ -443,6 +443,8 @@ The example itself is documented with comments so that it can be read separately
         #
         "EXAMPLES_BASE": "",
         "EXAMPLES_LISTEN": "0.0.0.0",
+        "EXAMPLES_TESTUSER": null,
+        "EXAMPLES_TESTGROUP": null
     },
     "<a href="#defines">defines</a>": {
         #  These defines are also global.  They will override environment values
@@ -695,6 +697,8 @@ The example itself is documented with comments so that it can be read separately
             #
             "<a href="#control">control</a>": "wait",
             "<a href="#roles">roles</a>": [ "backend" ],
+            "<a href="#user">user</a>": "{EXAMPLES_TESTUSER}",
+            "<a href="#group">group</a>": "{EXAMPLES_TESTGROUP}",
             "<a href="#requires">requires</a>": [ "httpd" ],
             "<a href="#defines">defines</a>": { "conf": "{confdir}/db.conf" },
             "<a href="#pidfile">pidfile</a>": "{piddir}/{<a href="#Task_name">Task_name</a>}.pid",
