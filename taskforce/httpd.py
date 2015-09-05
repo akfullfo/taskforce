@@ -146,6 +146,10 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 				elif ctype == 'application/x-www-form-urlencoded':
 					length = int(self.headers['content-length'])
 					postmap = parse_qs(self.rfile.read(length), keep_blank_values=1)
+				else:
+					length = int(self.headers['content-length'])
+					postmap['=type'] = ctype
+					postmap['=data'] = self.rfile.read(length)
 			except Exception as e:
 				self.fault(400, "Parse error -- " + str(e))
 				return
