@@ -70,7 +70,7 @@ class Test(object):
 		except: pass
 		self.log.info("%s ended", self.__module__)
 
-	def getter(self, path):
+	def getter(self, path, **params):
 		u = urlparse(path)
 		self.log.info("GET path '%s', query '%s'", u.path, u.query)
 		if u.path.endswith('/json'):
@@ -95,7 +95,7 @@ class Test(object):
 """
 			return (200, text, 'text/html; charset=utf-8')
 
-	def poster(self, path, postdict):
+	def poster(self, path, postdict, **params):
 		p = taskforce.httpd.merge_query(path, postdict)
 		self.log.info('%d element post received', len(p))
 		self.log.debug('Answer ...')

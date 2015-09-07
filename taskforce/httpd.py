@@ -116,8 +116,9 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 			self.end_headers()
 
 	def do_GET(self):
+		params = {'handler': self}
 		try:
-			resp = self.server.serve_get(self.path)
+			resp = self.server.serve_get(self.path, **params)
 			if not resp:
 				self.fault(404, self.path + ' not found')
 				return
@@ -138,6 +139,7 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 	def do_POST(self):
 		content_type = self.headers.get('content-type')
 		postmap = {}
+		params = {'handler': self}
 		if content_type:
 			try:
 				ctype, pdict = parse_header(content_type)
@@ -148,13 +150,13 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
 					postmap = parse_qs(self.rfile.read(length), keep_blank_values=1)
 				else:
 					length = int(self.headers['content-length'])
-					postmap['=type'] = ctype
-					postmap['=data'] = self.rfile.read(length)
+					params['type'] = ctype
+					params['data'] = self.rfile.read(length)
 			except Exception as e:
 				self.fault(400, "Parse error -- " + str(e))
 				return
 		try:
-			resp = self.server.serve_post(self.path, postmap)
+			resp = self.server.serve_post(self.path, postmap, **params)
 			if not resp:
 				self.fault(404, self.path + ' not found')
 				return
@@ -241,21 +243,21 @@ class BaseServer(object):
 					matched = callback
 		return matched
 
-	def serve_get(self, path):
+	def serve_get(self, path, **params):
 		"""
-		Find a GET callback for the given HTTP path, call it and
-		return the results.  The callback is called with
-		one argument, the path used to match it.  The callback
-		must return a tuple:
+		Find a GET callback for the given HTTP path, call it and return the
+		results.  The callback is called with two arguments, the path used to
+		match it, and params which include the BaseHTTPRequestHandler instance.
+
+		The callback must return a tuple:
 
 			(code, content, content_type)
 
-		If multiple registrations match the path, the one with
-		the longest matching text will be used.  Matches are
-		always anchored at the start of the path.
+		If multiple registrations match the path, the one with the longest
+		matching text will be used.  Matches are always anchored at the start
+		of the path.
 
-		None is returned if no registered callback is willing
-		to handle a path.
+		None is returned if no registered callback is willing to handle a path.
 	"""
 		if path is None: return None
 
@@ -263,29 +265,30 @@ class BaseServer(object):
 		if matched is None:
 			return None
 		else:
-			return matched(path)
+			return matched(path, **params)
 
-	def serve_post(self, path, postmap):
+	def serve_post(self, path, postmap, **params):
 		"""
-		Find a POST callback for the given HTTP path, call it and
-		return the results.  The callback is called with the path
-		used to match it and a dict of vars from the POST body.
+		Find a POST callback for the given HTTP path, call it and return
+		the results.  The callback is called with the path used to match
+		it, a dict of vars from the POST body and params which include the
+		BaseHTTPRequestHandler instance.
+
 		The callback must return a tuple:
 
 			(code, content, content_type)
 
-		If multiple registrations match the path, the one with
-		the longest matching text will be used.  Matches are
-		always anchored at the start of the path.
+		If multiple registrations match the path, the one with the longest
+		matching text will be used.  Matches are always anchored at the start
+		of the path.
 
-		None is returned if no registered callback is willing
-		to handle a path.
+		None is returned if no registered callback is willing to handle a path.
 	"""
 		matched = self._match_path(path, self.post_registrations)
 		if matched is None:							# pragma: no cover
 			return None
 		else:
-			return matched(path, postmap)
+			return matched(path, postmap, **params)
 
 class TCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer, BaseServer):
 	daemon_threads = True

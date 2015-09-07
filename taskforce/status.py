@@ -103,7 +103,7 @@ class http(object):
 					(fmt, ' '.join(self._formatters.keys()),),
 				'text/plain')
 
-	def version(self, path, postmap=None):
+	def version(self, path, postmap=None, **params):
 		"""
 		Return the taskforce version.
 
@@ -129,7 +129,7 @@ class http(object):
 
 		return self._format(ans, q)
 
-	def config(self, path, postmap=None):
+	def config(self, path, postmap=None, **params):
 		"""
 		Return the running configuration which almost always matches the
 		configuration in the config file.  During a reconfiguration, it may
@@ -149,7 +149,7 @@ class http(object):
 
 		return self._format(ans, q)
 
-	def tasks(self, path, postmap=None):
+	def tasks(self, path, postmap=None, **params):
 		"""
 		Return the task status.  This delves into the operating structures
 		and picks out information about tasks that is useful for status

@@ -46,7 +46,7 @@ class http(object):
 		self._httpd.register_post(r'/manage/', self.control)
 		self._httpd.register_get(r'/manage/', self.control)
 
-	def control(self, path, postmap=None):
+	def control(self, path, postmap=None, **params):
 		if not self._allow_control:
 			return (403, 'Control not permitted on this path\n', 'text/plain')
 		if path.startswith('/manage/control'):
