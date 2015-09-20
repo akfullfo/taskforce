@@ -1,8 +1,20 @@
 Changelog
 =========
 
+0.3.14 (2015-09-20)
+-------------------
+
+- Add **params to get/post functions, including 'handler' as well as
+  moving 'data' and 'type' for post.  Using **params will make most
+  future calling changes less intrusive. [Andrew Fullford]
+
+- Add =data and =type fields to handle case where the post payload is
+  not form-data or urlencoded. [Andrew Fullford]
+
 0.3.13 (2015-09-05)
 -------------------
+
+- Release 0.3.13. [Andrew Fullford]
 
 - Updated with latest examples.conf. [Andrew Fullford]
 
