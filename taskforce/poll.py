@@ -64,7 +64,7 @@ class poll(object):
 	    you will probably have to force PL_SELECT mode.  PL_SELECT mode should
 	    be available on all systems.
 
-	3.  select.poll() accepts integer file descriptors and object with a fileno()
+	3.  select.poll() accepts integer file descriptors and objects with a fileno()
 	    method that returns an integer file descriptor.  However, the event that
 	    fires when an object is used for registration holds the file descriptor
 	    returned by the fileno() method rather than the object itself.  On the
