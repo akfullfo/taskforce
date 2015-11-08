@@ -507,7 +507,7 @@ def format_cmd(args):
 	if args is None:
 		return ''
 	out = ''
-	if type(args) is not list:
+	if not instanceof(args, list):
 		args = [str(args)]
 	for arg in args:
 		if out != '':
