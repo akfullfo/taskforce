@@ -85,15 +85,15 @@ class poll(object):
 		self._fd_map = {}
 
 		self._mode = None
-		if 'kqueue' in dir(select) and callable(select.kqueue):			# pragma: no cover
+		if 'kqueue' in select.__dict__ and callable(select.kqueue):		# pragma: no cover
 			if self._mode is None:
 				self._mode = PL_KQUEUE
 			self._available_modes.add(PL_KQUEUE)
-		if 'poll' in dir(select) and callable(select.poll):
+		if 'poll' in select.__dict__ and callable(select.poll):
 			if self._mode is None:
 				self._mode = PL_POLL
 			self._available_modes.add(PL_POLL)
-		if 'select' in dir(select) and callable(select.select):
+		if 'select' in select.__dict__ and callable(select.select):
 			if self._mode is None:						# pragma: no cover
 				self._mode = PL_SELECT
 			self._available_modes.add(PL_SELECT)
