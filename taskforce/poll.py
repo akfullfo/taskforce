@@ -100,6 +100,9 @@ class poll(object):
 		else:									# pragma: no cover
 			raise Error("System supports neither select.poll() nor select.select()")
 
+	def __len__(self):
+		return len(self._fd_map)
+
 	def get_mode(self):
 		return self._mode
 
