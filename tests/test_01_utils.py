@@ -226,7 +226,7 @@ how it is typically used.
 		}
 		for signo, expected in signals.items():
 			res = utils.signame(signo)
-			self.log.info("Signal %d gives '%s'", signo, res)
+			self.log.info("signame() signal %d gives '%s'", signo, repr(res))
 			assert res == expected
 
 		signames = {
@@ -243,7 +243,7 @@ how it is typically used.
 		}
 		for signame, expected in signames.items():
 			res = utils.signum(signame)
-			self.log.info("Signal %s gives %s", signame, res)
+			self.log.info("signum() %s gives %s", repr(signame), repr(res))
 			assert res == expected
 
 	def Test_I_statusfmt(self):
@@ -350,7 +350,7 @@ how it is typically used.
 	def Test_L_pidclaim(self):
 		args = list(sys.argv)
 		args.pop(0)
-		pidfile = './%s.pid' % (utils.appname(),)
+		pidfile = './%s-%s.pid' % (utils.appname(), env.edition)
 
 		#  Run the test as a forked process so we can test for
 		#  pid file creation and removal.

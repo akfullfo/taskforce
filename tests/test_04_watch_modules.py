@@ -23,8 +23,9 @@ import taskforce.utils as utils
 import taskforce.watch_modules as watch_modules
 import support
 
-base_dir = "tests"
-working_dir = os.path.join(base_dir, "work")
+env = support.env(base='.')
+
+working_dir = os.path.join(env.temp_dir, "work")
 test_modules = ["test_module_1", "test_module_2", "test_module_3"]
 module_content = """
 def test_function():
@@ -61,7 +62,7 @@ class Test(object):
 				self.change_target = path
 			self.file_list.append(path)
 			self.file_list.append(path + 'c')
-		self.module_path = os.path.join(base_dir, self.__module__)
+		self.module_path = os.path.join(env.test_dir, self.__module__)
 
 	@classmethod
 	def tearDownAll(self):

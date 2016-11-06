@@ -16,7 +16,7 @@
 # ________________________________________________________________________
 #
 
-import os, time, subprocess, fcntl, errno, logging, re
+import os, sys, time, subprocess, fcntl, errno, logging, re, random, platform, shutil
 
 import taskforce.utils as utils
 
@@ -29,8 +29,12 @@ class env(object):
 		self.base_dir = os.path.realpath(base)
 		self.bin_dir = os.path.join(self.base_dir, "bin")
 		self.test_dir = os.path.join(self.base_dir, "tests")
-		self.temp_dir = os.path.join(self.test_dir, "tmp")
-		self.examples_dir =  os.path.join(self.base_dir, "examples")
+		self.edition = platform.python_implementation().lower() + '-' + '.'.join(map(str, sys.version_info[0:3]))
+		self.temp_dir = os.path.join(self.test_dir, "tmp-" + self.edition)
+		self.examples_src =  os.path.join(self.base_dir, "examples")
+		self.clean()
+		self.examples_dir = os.path.join(self.temp_dir, "examples")
+		shutil.copytree(self.examples_src, self.examples_dir, symlinks=True)
 		self.examples_run = os.path.join(self.examples_dir, 'var', 'run')
 		self.examples_etc = os.path.join(self.examples_dir, 'etc')
 		self.cert_file = os.path.join(self.examples_etc, 'sslcert.pem')
@@ -44,9 +48,20 @@ class env(object):
 		if not os.path.isdir(self.temp_dir):
 			os.makedirs(self.temp_dir)
 
-	def __del__(self):
-		try: os.rmdir(self.temp_dir)
+		#  This random int should be used to offset a base port starting
+		#  at 32768 so that collissions when running concurrent tests
+		#  in the same network address space are very unlikely to collide.
+		#
+		self.port_offset = random.randint(1,16384)
+
+	def clean(self):
+		try: os.unlink(os.path.join(self.examples_src, 'var/run/taskforce.sock'))
 		except: pass
+		try: shutil.rmtree(self.temp_dir)
+		except: pass
+
+	def __del__(self):
+		self.clean()
 
 def logger():
 	if logger.log:

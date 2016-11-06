@@ -42,9 +42,10 @@ class Test(object):
 	if tcp_port:
 		tcp_port = int(tcp_port)
 	else:
-		tcp_port = 34567
+		tcp_port = 32777 + env.port_offset
 	tcp_address = tcp_host + ':' + str(tcp_port)
-	unx_address = os.path.join('/tmp', 's.' + __module__)
+	lo_address = 'localhost:' + str(tcp_port)
+	unx_address = os.path.join(env.temp_dir, 's.' + __module__)
 	http_test_map = {
 		u'English': u'hello, world',
 		u'français': u'bonjour le monde',
@@ -249,7 +250,7 @@ class Test(object):
 		#  Check operation with default non-ssl port
 		#
 		http_service = taskforce.httpd.HttpService()
-		http_service.listen = 'localhost'
+		http_service.listen = self.lo_address
 		httpd = taskforce.httpd.server(http_service, log=self.log)
 
 		httpc = taskforce.http.Client(address=http_service.listen, log=self.log)
@@ -369,11 +370,12 @@ class Test(object):
 
 		#  Test get_query() convenience function
 		#
-		qdict = taskforce.httpd.get_query('http://localhost/path?element=value')
+		element_path = 'http://' + self.lo_address + '/path?element=value'
+		qdict = taskforce.httpd.get_query(element_path)
 		self.log.info("%s get_query() returned: %s", my(self), str(qdict))
 		assert 'element' in qdict
 
-		qdict = taskforce.httpd.get_query('http://localhost/path?element=value', force_unicode=False)
+		qdict = taskforce.httpd.get_query(element_path, force_unicode=False)
 		self.log.info("%s get_query() returned: %s", my(self), str(qdict))
 		assert 'element' in qdict
 
@@ -422,7 +424,7 @@ class Test(object):
 		try:
 			#  Mask the log message as we expect a failure
 			self.log.setLevel(logging.CRITICAL)
-			httpc = taskforce.http.Client(address='localhost', use_ssl=False, log=self.log)
+			httpc = taskforce.http.Client(address=self.lo_address, use_ssl=False, log=self.log)
 			self.log.setLevel(log_level)
 			expected_error_occurred = False
 		except Exception as e:
@@ -521,7 +523,7 @@ class Test(object):
 		and won't successfully create a socket anyway.
 	"""
 		http_service = taskforce.httpd.HttpService()
-		http_service.listen = '/tmp'
+		http_service.listen = env.temp_dir
 		log_level = self.log.getEffectiveLevel()
 		try:
 			#  Mask the log message as we expect a failure

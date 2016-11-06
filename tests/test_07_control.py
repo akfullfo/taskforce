@@ -27,8 +27,9 @@ env = support.env(base='.')
 
 class Test(object):
 
-	unx_address = os.path.join('/tmp', 's.' + __module__)
-	tcp_address = '127.0.0.1:3210'
+	unx_address = os.path.join(env.temp_dir, 's.' + __module__)
+	tcp_port = 32778 + env.port_offset
+	tcp_address = '127.0.0.1:' + str(tcp_port)
 	expected_ws_server_count = 4
 
 	@classmethod

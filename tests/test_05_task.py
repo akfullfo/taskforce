@@ -33,6 +33,8 @@ expected_backend_process_count = 3
 
 class Test(object):
 
+	tcp_listen = '0.0.0.0:' + str(32779 + env.port_offset)
+
 	@classmethod
 	def setUpAll(self):
 		self.log = support.logger()
@@ -99,6 +101,7 @@ class Test(object):
 		self.set_path('PATH', env.examples_bin)
 		self.set_path('PYTHONPATH', env.base_dir)
 		self.set_path('EXAMPLES_BASE', env.examples_dir)
+		os.environ['EXAMPLES_LISTEN'] = self.tcp_listen
 		self.set_roles(env.test_roles[0])
 		l = task.legion(log=self.log)
 		l.set_roles_file(env.roles_file)
@@ -122,6 +125,7 @@ class Test(object):
 		os.environ['EXAMPLES_BASE'] = env.examples_dir
 		os.environ['EXAMPLES_TESTUSER'] = str(os.getuid())
 		os.environ['EXAMPLES_TESTGROUP'] = str(os.getgid())
+		os.environ['EXAMPLES_LISTEN'] = self.tcp_listen
 		new_roles = env.test_roles
 		self.set_roles(new_roles)
 		self.log.info("Setting roles %s", new_roles)
@@ -169,6 +173,7 @@ class Test(object):
 		os.environ['EXAMPLES_BASE'] = env.examples_dir
 		os.environ['EXAMPLES_TESTUSER'] = pwd.getpwuid(os.getuid()).pw_name
 		os.environ['EXAMPLES_TESTGROUP'] = grp.getgrgid(os.getgid()).gr_name
+		os.environ['EXAMPLES_LISTEN'] = self.tcp_listen
 		new_roles = env.test_roles
 		self.set_roles(new_roles)
 		self.log.info("Setting roles %s", new_roles)
