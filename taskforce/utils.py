@@ -350,8 +350,12 @@ def signame(sig):
 
 def signum(signame):
 	"""
-	Determine the signal number from its name.  These forms are supported:
+	Determine the signal from its name.  These forms are supported:
+	In python 3.5 and above, "signal" is an object, so in addition
+	to mapping signal numbers and stringified numbers, this also
+	maps signal objects.
 
+		signal object (needed for python >= 3.5)
 		integer signal number
 		text signal number
 		SIGNAME (signal name in upper case)
@@ -365,7 +369,9 @@ def signum(signame):
 		signum.namemap = {}
 		for num, nam in sigmap.items():
 			signum.namemap[num] = num
+			signum.namemap[int(num)] = num
 			signum.namemap[str(num)] = num
+			signum.namemap[str(int(num))] = num
 			signum.namemap[nam.upper()] = num
 			signum.namemap[nam.lower()] = num
 			abbr = nam.replace('SIG', '', 1)
