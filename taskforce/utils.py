@@ -351,9 +351,6 @@ def signame(sig):
 def signum(signame):
 	"""
 	Determine the signal from its name.  These forms are supported:
-	In python 3.5 and above, "signal" is an object, so in addition
-	to mapping signal numbers and stringified numbers, this also
-	maps signal objects.
 
 		signal object (needed for python >= 3.5)
 		integer signal number
@@ -362,6 +359,10 @@ def signum(signame):
 		signame (signal name in lower case)
 		NAME    (name without 'SIG' in upper case)
 		name    (name without 'SIG' in lower case)
+
+	In python 3.5 and above, "signal" is an object, so in addition
+	to mapping signal numbers and stringified numbers, this also
+	maps signal objects.
 """
 	if signum.namemap is None:
 		#  First time through, map evrything likely to its signal number
