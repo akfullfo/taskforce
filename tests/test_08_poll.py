@@ -19,9 +19,10 @@
 #
 
 import os, sys, logging, time, fcntl
-import support
 import taskforce.poll
-from taskforce.utils import get_caller as my, deltafmt
+from taskforce.utils import deltafmt
+import support
+from support import get_caller as my
 
 env = support.env(base='.')
 

@@ -19,7 +19,6 @@
 import sys, os, time, errno, select, logging
 from . import utils
 from .utils import ses
-from .utils import get_caller as my
 
 #  These values are used internally to select watch mode.
 #
@@ -273,7 +272,7 @@ class watch(object):
 	"""
 		log = self._getparam('log', self._discard, **params)
 
-		log.debug("%s Path '%s' removed or renamed, handling removal", my(self), path)
+		log.debug("Path '%s' removed or renamed, handling removal", path)
 		self._close(fd)
 		if self._mode == WF_POLLING and fd in self._poll_stat:
 			del self._poll_stat[fd]
@@ -284,11 +283,11 @@ class watch(object):
 		if self.paths[path]:
 			try:
 				if self._add_file(path, **params):
-					log.debug("%s Path '%s' immediately reappeared, pending transition skipped", my(self), path)
+					log.debug("Path '%s' immediately reappeared, pending transition skipped", path)
 					return
 			except Exception as e:
-				log.debug("%s Path '%s' reappearance check failed -- %s", my(self), path, str(e))
-			log.debug("%s Path '%s' marked as pending", my(self), path)
+				log.debug("Path '%s' reappearance check failed -- %s", path, str(e))
+			log.debug("Path '%s' marked as pending", path)
 			self.paths_pending[path] = True
 		else:
 			del self.paths[path]
@@ -304,7 +303,7 @@ class watch(object):
 			fstate = (st.st_mode, st.st_nlink, st.st_uid, st.st_gid, st.st_size, st.st_mtime)
 		except Exception as e:
 			log = self._getparam('log', self._discard)
-			log.debug("%s stat failed on %s -- %s", my(self), path, str(e))
+			log.debug("stat failed on %s -- %s", path, str(e))
 			self._poll_pending[path] = time.time()
 			self._disappeared(fd, path)
 			fstate = None
@@ -318,7 +317,7 @@ class watch(object):
 			os.write(self._poll_send, '\0'.encode('utf-8'))
 		except Exception as e:
 			log = self._getparam('log', self._discard)
-			log.debug("%s Ignoring self-pipe write error -- %s", my(self), str(e))
+			log.debug("Ignoring self-pipe write error -- %s", str(e))
 
 	def _clean_failed_fds(self, fdlist):
 		for fd in fdlist:
@@ -356,9 +355,9 @@ class watch(object):
 				ev = select.kevent(fd, filter=select.KQ_FILTER_TIMER,
 							flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR | select.KQ_EV_ONESHOT, data=0)
 				self._kq.control([ev], 0, 0)
-				log.debug("%s Added timer event following pending file promotion", my(self))
+				log.debug("Added timer event following pending file promotion")
 			except Exception as e:
-				log.error("%s Failed to add timer event following pending file promotion -- %s", my(self), str(e))
+				log.error("Failed to add timer event following pending file promotion -- %s", str(e))
 		elif self._mode == WF_INOTIFYX:
 			if fd in self.fds_open:
 				try:
@@ -373,10 +372,10 @@ class watch(object):
 					if nfd != fd:
 						raise Exception("Assertion failed: IN_OPEN add_watch() clear gave new wd")
 				except Exception as e:
-					log.error("%s Failed to trigger event via os.open() following pending file promotion -- %s",
-											my(self), str(e))
+					log.error("Failed to trigger event via os.open() following pending file promotion -- %s",
+											str(e))
 			else:
-				log.error("%s Pending file promotion of unknown wd %d failed", my(self), fd)
+				log.error("Pending file promotion of unknown wd %d failed", fd)
 		elif self._mode == WF_POLLING:
 			self._poll_stat[fd] = ()
 			self._poll_trigger()
@@ -391,18 +390,17 @@ class watch(object):
 			fd = os.open(path, os.O_RDONLY)
 		except Exception as e:
 			if not self.paths[path]:
-				log.error("%s open failed on watched path '%s' -- %s",
-								my(self), path, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
+				log.error("Open failed on watched path '%s' -- %s",
+								path, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 				raise e
 			elif path in self.paths_pending:
-				log.debug("%s path '%s' is still pending -- %s", my(self), path, str(e))
+				log.debug("path '%s' is still pending -- %s", path, str(e))
 			else:
 				self.paths_pending[path] = True
-				log.debug("%s added '%s' to pending list after open failure -- %s",
-							my(self), path, str(e))
+				log.debug("Added '%s' to pending list after open failure -- %s", path, str(e))
 			return False
 		if self._mode == WF_KQUEUE:
-			log.debug("%s path %s opened as fd %d", my(self), path, fd)
+			log.debug("path %s opened as fd %d", path, fd)
 			try:
 				ev = select.kevent(fd,
 					filter=select.KQ_FILTER_VNODE,
@@ -411,7 +409,7 @@ class watch(object):
 								select.KQ_NOTE_DELETE | select.KQ_NOTE_RENAME)
 				self._kq.control([ev], 0, 0)
 			except Exception as e:
-				log.error("%s kevent failed on watched path '%s' -- %s", my(self), path, str(e))
+				log.error("kevent failed on watched path '%s' -- %s", path, str(e))
 				try: os.close(fd)
 				except: pass
 				raise e
@@ -428,7 +426,7 @@ class watch(object):
 				s = os.fstat(fd)
 				self._inx_inode[path] = s.st_ino
 			except Exception as e:
-				log.error("%s fstat(%d) failed on open path '%s' -- %s", my(self), fd, path, str(e))
+				log.error("fstat(%d) failed on open path '%s' -- %s", fd, path, str(e))
 				try: os.close(fd)
 				except: pass
 				raise e
@@ -436,13 +434,13 @@ class watch(object):
 			except: pass
 			try:
 				fd = inotifyx.add_watch(self._inx_fd, path, self._inx_mask)
-				log.debug("%s path %s watched with wd %d", my(self), path, fd)
+				log.debug("path %s watched with wd %d", path, fd)
 			except Exception as e:
-				log.error("%s inotify failed on watched path '%s' -- %s", my(self), path, str(e))
+				log.error("inotify failed on watched path '%s' -- %s", path, str(e))
 				raise e
 
 		elif self._mode == WF_POLLING:
-			log.debug("%s path %s opened as fd %d", my(self), path, fd)
+			log.debug("path %s opened as fd %d", path, fd)
 			fstate = self._poll_get_stat(fd, path)
 			if fstate:
 				self._poll_stat[fd] = fstate
@@ -472,29 +470,29 @@ class watch(object):
 					try:
 						os.close(fd)
 					except Exception as e:
-						log.warning("%s close failed on watched file '%s' -- %s", my(self), path, str(e))
+						log.warning("close failed on watched file '%s' -- %s", path, str(e))
 				elif self._mode == WF_INOTIFYX:
 					try:
 						inotifyx.rm_watch(self._inx_fd, fd)
 					except Exception as e:
-						log.warning("%s remove failed on watched file '%s' -- %s", my(self), path, str(e))
+						log.warning("remove failed on watched file '%s' -- %s", path, str(e))
 					if path in self._inx_inode:
 						del self._inx_inode[path]
 				elif self._mode == WF_POLLING:
 					if fd in self._poll_stat:
 						del self._poll_stat[fd]
 					else:
-						log.warning("%s fd watched path '%s' missing from _poll_stat map", my(self), path)
+						log.warning("fd watched path '%s' missing from _poll_stat map", path)
 					try:
 						os.close(fd)
 					except Exception as e:
-						log.warning("%s close failed on watched file '%s' -- %s", my(self), path, str(e))
+						log.warning("close failed on watched file '%s' -- %s", path, str(e))
 				if fd in self.fds_open:
 					del self.fds_open[fd]
 				else:
-					log.warning("%s fd watched path '%s' missing from fd map", my(self), path)
+					log.warning("fd watched path '%s' missing from fd map", path)
 				del self.paths_open[path]
-				log.debug("%s Removed watch for path '%s'", my(self), path)
+				log.debug("Removed watch for path '%s'", path)
 				removed += 1
 
 		#  Find all the paths that are new and should be watched
@@ -502,7 +500,7 @@ class watch(object):
 		fdlist = []
 		failed = []
 		last_exc = None
-		log.debug("%s %d watched path%s", my(self), len(self.paths), ses(len(self.paths)))
+		log.debug("%d watched path%s", len(self.paths), ses(len(self.paths)))
 		for path in list(self.paths):
 			if path not in self.paths_open:
 				try:
@@ -515,16 +513,16 @@ class watch(object):
 				fdlist.append(self.paths_open[path])
 
 				if path in self.paths_pending:
-					log.debug("%s pending path '%s' has now appeared", my(self), path)
+					log.debug("pending path '%s' has now appeared", path)
 					del self.paths_pending[path]
 					self._trigger(self.paths_open[path], **params)
 
 				added += 1
-				log.debug("%s Added watch for path '%s' with ident %d", my(self), path, self.paths_open[path])
+				log.debug("Added watch for path '%s' with ident %d", path, self.paths_open[path])
 		if failed:
 			self._clean_failed_fds(fdlist)
 			raise Exception("Failed to set watch on %s -- %s" % (str(failed), str(last_exc)))
-		log.debug("%s %d added, %d removed", my(self), added, removed)
+		log.debug("%d added, %d removed", added, removed)
 
 	def get(self, **params):
 		"""
@@ -556,7 +554,7 @@ class watch(object):
 
 		max_events = limit if limit else 10000
 		if self.unprocessed_event:
-			log.debug("%s Will handle unprocessed event", my(self))
+			log.debug("Will handle unprocessed event")
 
 		if self._mode == WF_KQUEUE:
 			evagg = {}
@@ -570,7 +568,7 @@ class watch(object):
 				if not evlist:
 					break
 
-				log.debug("%s kq.control() returned %d event%s", my(self), len(evlist), ses(len(evlist)))
+				log.debug("kq.control() returned %d event%s", len(evlist), ses(len(evlist)))
 				for ev in evlist:
 					if ev.ident in self.fds_open:
 						path = self.fds_open[ev.ident]
@@ -584,7 +582,7 @@ class watch(object):
 				if ev.fflags & (select.KQ_NOTE_DELETE | select.KQ_NOTE_RENAME):
 					self._disappeared(ev.ident, path, **params)
 				self.last_changes[path] = time.time()
-				log.debug("%s Change on '%s'", my(self), path)
+				log.debug("Change on '%s'", path)
 
 		elif self._mode == WF_INOTIFYX:
 			evagg = {}
@@ -598,7 +596,7 @@ class watch(object):
 				if not evlist:
 					break
 
-				log.debug("%s inotifyx.get_events() returned %d event%s", my(self), len(evlist), ses(len(evlist)))
+				log.debug("inotifyx.get_events() returned %d event%s", len(evlist), ses(len(evlist)))
 
 				for ev in evlist:
 					if ev.wd in self.fds_open:
@@ -608,13 +606,13 @@ class watch(object):
 						else:
 							evagg[path] = ev
 					elif ev.mask & inotifyx.IN_IGNORED:
-						log.debug("%s skipping IN_IGNORED event on unknown wd %d", my(self), ev.wd)
+						log.debug("skipping IN_IGNORED event on unknown wd %d", ev.wd)
 					else:
-						log.warning("%s attempt to handle unknown inotify event wd %d", my(self), ev.wd)
+						log.warning("attempt to handle unknown inotify event wd %d", ev.wd)
 				if limit and len(evagg) >= limit:
 					break
 			for path, ev in evagg.items():
-				log.debug("%s Change on '%s' -- %s", my(self), path, ev.get_mask_description())
+				log.debug("Change on '%s' -- %s", path, ev.get_mask_description())
 				if ev.mask & (inotifyx.IN_DELETE_SELF | inotifyx.IN_MOVE_SELF):
 					self._disappeared(ev.wd, path, **params)
 				elif ev.mask & inotifyx.IN_ATTRIB:
@@ -623,12 +621,10 @@ class watch(object):
 						s = os.stat(path)
 						if s.st_ino != self._inx_inode[path]:
 							file_move_del = True
-							log.info("%s 'simfs' (used with containers) bug detected -- '%s' moved",
-													my(self), path)
+							log.info("'simfs' (used with containers) bug detected -- '%s' moved", path)
 					except Exception as e:
 						file_move_del = True
-						log.info("%s 'simfs' (used with containers) bug detected -- '%s' removed",
-													my(self), path)
+						log.info("'simfs' (used with containers) bug detected -- '%s' removed", path)
 					if file_move_del:
 						self._disappeared(ev.wd, path, **params)
 				self.last_changes[path] = time.time()
@@ -647,12 +643,12 @@ class watch(object):
 					cnt += len(data)
 				except OSError as e:
 					if e.errno != errno.EAGAIN:
-						log.warning("%s Ignoring self-pipe read failure -- %s", my(self), str(e))
+						log.warning("Ignoring self-pipe read failure -- %s", str(e))
 					break
 				except Exception as e:
-					log.warning("%s Ignoring self-pipe read failure -- %s", my(self), str(e))
+					log.warning("Ignoring self-pipe read failure -- %s", str(e))
 					break
-			log.debug("%s Self-pipe read consumed %d byte%s", my(self), cnt, ses(cnt))
+			log.debug("Self-pipe read consumed %d byte%s", cnt, ses(cnt))
 			now = time.time()
 			for path in self._poll_pending:
 				self.last_changes[path] = self._poll_pending[path]
@@ -665,12 +661,12 @@ class watch(object):
 				elif self._poll_stat[fd] != fstate:
 					self._poll_stat[fd] = fstate
 					self.last_changes[path] = now
-					log.debug("%s Change on '%s'", my(self), path)
+					log.debug("Change on '%s'", path)
 		else:
 			raise Exception("Unsupported polling mode " + self.get_mode_name())
 		paths = list(self.last_changes)
 		paths.sort()
-		log.debug("%s Change was to %d path%s", my(self), len(paths), ses(len(paths)))
+		log.debug("Change was to %d path%s", len(paths), ses(len(paths)))
 		return paths
 
 	def add(self, paths, **params):
@@ -690,13 +686,13 @@ class watch(object):
 		for path in paths:
 			if path in self.paths:
 				if self.paths[path] == missing:
-					log.info("%s Ignoring attempt to add existing path '%s'", my(self), path)
+					log.info("Ignoring attempt to add existing path '%s'", path)
 				else:
-					log.debug("%s Changing missing state from %s to %s on existing path '%s'",
-							my(self), str(self.paths[path]), str(missing), path)
+					log.debug("Changing missing state from %s to %s on existing path '%s'",
+							str(self.paths[path]), str(missing), path)
 					self.paths[path] = missing
 			else:
-				log.debug("%s Adding path '%s'", my(self), path)
+				log.debug("Adding path '%s'", path)
 				self.paths[path] = missing
 				rebuild = True
 		if commit and rebuild:
@@ -720,7 +716,7 @@ class watch(object):
 				del self.paths[path]
 				rebuild = True
 			else:
-				log.error("%s Attempt to remove '%s' which was never added", my(self), path)
+				log.error("Attempt to remove '%s' which was never added", path)
 				raise Exception("Path '%s' has never been added" % (path,))
 		if commit and rebuild:
 			self.commit(**params)
@@ -761,14 +757,14 @@ class watch(object):
 	"""
 		log = self._getparam('log', self._discard, **params)
 		pending = len(self.paths_pending)
-		log.debug("%s Checking %d pending path%s", my(self), pending, ses(pending))
+		log.debug("Checking %d pending path%s", pending, ses(pending))
 		for path in self.paths_pending:
 			if os.path.exists(path):
-				log.debug("%s pending path %s now accessible, triggering commit()", my(self), path)
+				log.debug("pending path %s now accessible, triggering commit()", path)
 				self.commit(**params)
 				return
 		if self._mode == WF_POLLING:
-			log.debug("%s Checking %d open path%s", my(self), len(self._poll_stat), ses(len(self._poll_stat)))
+			log.debug("Checking %d open path%s", len(self._poll_stat), ses(len(self._poll_stat)))
 			for fd in list(self._poll_stat):
 				fstate = self._poll_get_stat(fd, self.fds_open[fd])
 				if fstate is None or self._poll_stat[fd] != fstate:

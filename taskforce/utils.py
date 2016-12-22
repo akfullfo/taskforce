@@ -22,35 +22,7 @@ from logging.handlers import SysLogHandler
 
 def get_caller(*caller_class, **params):
 	"""
-	Provide a convenient was to report your class and function.
-	Common practice is to use:
-
-		from taskforce.utils import get_caller as my
-
-	You can then log top-of-stack calling details using something
-	like this:
-
-		log.debug("%s: Nothing to report", my(self))
-
-	Outside a class context, my() will report the current module and function name.
-
-	If the param "place" is set, logging will include the file and
-	line number of the call.  This happens automatically if the
-	loglevel of the 'log' param (default is the root logger) is DEBUG.
-
-		log.debug("%s: Nothing to report", my(self, place=True))
-
-	If the param "persist_place" is set, that value will persist across
-	multiple calls until the next call with "persist_place" is set.  For
-	example:
-
-		log.debug("%s: Nothing to report", my(self, persist_place=True))
-		  .  .  .
-		log.debug("%s: Still nothing to report", my(self))
-		  .  .  .
-		log.debug("%s: Nothing to report", my(self, persist_place=False))
-
-		
+	This is obsolete and references are being removed
 """
 	(frame, file, line, func, contextlist, index) = inspect.stack()[1]
 

@@ -21,7 +21,6 @@ import sys, os, fcntl, pwd, grp, signal, errno, time, socket, select, yaml, re
 import logging
 from . import utils
 from .utils import ses, deltafmt, statusfmt
-from .utils import get_caller as my
 from . import poll
 from . import watch_files
 from . import watch_modules
@@ -78,7 +77,7 @@ def legion_create_handler(obj):
 		obj._sig_handler(sig, frame)
 
 	if '_sig_handler' not in dir(obj):							# pragma: no cover
-		raise Excecption("%s object instance has no _sig_handler method" % (my(),))
+		raise Excecption("Object instance has no _sig_handler method")
 	return _handler
 
 class LegionReset(Exception):
@@ -193,7 +192,7 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 	#
 	cmd_list = list(cmd_list)
 	name = context.get(context_prefix+'name', cmd_list[0])
-	log.debug("%s Starting %s instance %d", my(), name, instance)
+	log.debug("Starting %s instance %d", name, instance)
 
 	procname = _fmt_context(context.get(context_prefix+'procname'), context)
 	user = _fmt_context(context.get(context_prefix+'user'), context)
@@ -240,7 +239,7 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 			except Exception as e:
 				raise TaskError(name, "Bad group '%s' -- %s" % (group, str(e)))
 		if proc_uid is not None and proc_gid != gr.gr_gid:
-			log.info("%s gid for user '%s' (%d) overridden by group '%s' (%d)", my(), user, proc_gid, group, gr.gr_gid)
+			log.info("gid for user '%s' (%d) overridden by group '%s' (%d)", user, proc_gid, group, gr.gr_gid)
 			proc_gid = gr.gr_gid
 			do_setgid = True
 
@@ -273,26 +272,26 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 		if do_setgid:
 			try:
 				os.setgid(proc_gid)
-				log.debug("%s Setgid to %d succeeded in child '%s', instance %d", my(), proc_gid, name, instance)
+				log.debug("Setgid to %d succeeded in child '%s', instance %d", proc_gid, name, instance)
 			except Exception as e:
-				log.error("%s Setgid to %d failed in child '%s', instance %d -- %s",
-						my(), proc_gid, name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
+				log.error("Setgid to %d failed in child '%s', instance %d -- %s",
+						proc_gid, name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 				os._exit(81)
 		if do_setuid:
 			try:
 				os.setuid(proc_uid)
-				log.debug("%s Setuid to %d succeeded in child '%s', instance %d", my(), proc_uid, name, instance)
+				log.debug("Setuid to %d succeeded in child '%s', instance %d", proc_uid, name, instance)
 			except Exception as e:
-				log.error("%s Setuid to %d failed in child '%s', instance %d -- %s",
-						my(), proc_uid, name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
+				log.error("Setuid to %d failed in child '%s', instance %d -- %s",
+						proc_uid, name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 				os._exit(82)
 		if cwd is not None:
 			try:
 				os.chdir(cwd)
-				log.debug("%s Chdir to '%s' succeeded in child '%s', instance %d", my(), cwd, name, instance)
+				log.debug("Chdir to '%s' succeeded in child '%s', instance %d", cwd, name, instance)
 			except Exception as e:
-				log.error("%s Chdir to '%s' failed in child '%s', instance %d -- %s",
-						my(), cwd, name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
+				log.error("Chdir to '%s' failed in child '%s', instance %d -- %s",
+						cwd, name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 				os._exit(83)
 
 		#  Build formatted command
@@ -305,13 +304,13 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 		for a in cmd_list:
 			cmd.append(_fmt_context(a, context))
 
-		log.info("%s child, Execing: %s <%s>", my(), prog, utils.format_cmd(cmd))
+		log.info("child, Execing: %s <%s>", prog, utils.format_cmd(cmd))
 	except Exception as e:
 		#  Log any exceptions here while we still can.  After the closeall,
 		#  bets are off.
 		#
-		log.error("%s Child processing failed for task '%s', instance %d -- %s",
-				my(), name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
+		log.error("Child processing failed for task '%s', instance %d -- %s",
+				name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 		os._exit(84)
 	try:
 		retain_fds = [0,1,2]
@@ -325,18 +324,18 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 		try:
 			fd = os.open(std_process_dest, os.O_RDONLY)
 		except Exception as e:
-			log.error("%s child read open of %s failed -- %s",  my(), std_process_dest, str(e))
+			log.error("child read open of %s failed -- %s", std_process_dest, str(e))
 		if fd != 0:
-			log.error("%s child failed to redirect stdin to %s", my(), std_process_dest)
+			log.error("child failed to redirect stdin to %s", std_process_dest)
 
 		try: os.close(1)
 		except: pass
 		try:
 			fd = os.open('/dev/null', os.O_WRONLY)
 		except Exception as e:
-			log.error("%s child write open of %s failed -- %s",  my(), std_process_dest, str(e))
+			log.error("child write open of %s failed -- %s", std_process_dest, str(e))
 		if fd != 1:
-			log.error("%s child failed to redirect stdout to %s", my(), std_process_dest)
+			log.error("child failed to redirect stdout to %s", std_process_dest)
 
 		#  Build a fresh environment based on context, with None values excluded and
 		#  all other values as strings, formatted where appropriate:
@@ -352,8 +351,8 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
 		#  At this point we can still send logs to stderr, so log these
 		#  too, just in case.
 		#
-		log.error("%s Child processing failed for task '%s', instance %d -- %s",
-			my(), name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
+		log.error("Child processing failed for task '%s', instance %d -- %s",
+			name, instance, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 		os._exit(85)
 	try:
 		try: os.close(2)
@@ -424,8 +423,8 @@ access must be done with blocking activity fed through the legion event loop.
 
 	def handle(self, details=None):
 		log = self._params.get('log', self._discard)
-		log.debug("%s Received %s(%s) event for '%s', details: %s",
-				my(self), self._handler_name, '' if self._handler_arg is None else str(self._handler_arg),
+		log.debug("Received %s(%s) event for '%s', details: %s",
+				self._handler_name, '' if self._handler_arg is None else str(self._handler_arg),
 				str(self._name), str(details))
 		return self._handler(details)
 
@@ -439,7 +438,7 @@ access must be done with blocking activity fed through the legion event loop.
 	"""
 		log = self._params.get('log', self._discard)
 		if '_config_running' not in dir(self._parent) or 'commands' not in self._parent._config_running:
-			log.error("%s Event parent '%s' has no 'commands' config section", my(self), self._name)
+			log.error("Event parent '%s' has no 'commands' config section", self._name)
 			return
 		commands = self._parent._config_running['commands']
 		if self._handler_arg not in commands:
@@ -450,11 +449,10 @@ access must be done with blocking activity fed through the legion event loop.
 			if self._handler_arg == 'stop':
 				self._parent.stop()
 			else:
-				log.error("%s Event parent '%s' has no '%s' command configured",
-											my(self), self._name, self._handler_arg)
+				log.error("Event parent '%s' has no '%s' command configured", self._name, self._handler_arg)
 			return
 		pid = _exec_process(commands[self._handler_arg], self._parent._context, log=log)
-		log.info("%s Forked pid %d for %s(%s)", my(self), pid, self._name, str(self._handler_arg))
+		log.info("Forked pid %d for %s(%s)", pid, self._name, str(self._handler_arg))
 		self._parent._legion.proc_add(event_target(self._parent, 'command_exit', key=pid, arg=self._handler_arg, log=log))
 
 	def command_exit(self, details):
@@ -466,9 +464,9 @@ access must be done with blocking activity fed through the legion event loop.
 		status = details
 		why = statusfmt(status)
 		if status:
-			log.warning("%s pid %d for %s(%s) %s", my(self), pid, self._name, str(self._handler_arg), why)
+			log.warning("pid %d for %s(%s) %s", pid, self._name, str(self._handler_arg), why)
 		else:
-			log.info("%s pid %d for %s(%s) %s", my(self), pid, self._name, str(self._handler_arg), why)
+			log.info("pid %d for %s(%s) %s", pid, self._name, str(self._handler_arg), why)
 
 	def proc_exit(self, details):
 		"""
@@ -483,8 +481,8 @@ access must be done with blocking activity fed through the legion event loop.
 			if pid == p.pid:
 				proc = p
 		if proc is None:
-			log.error("%s legion reported exit of unknown pid %s for task '%s' which %s",
-								my(self), str(pid), self._name, why)
+			log.error("Legion reported exit of unknown pid %s for task '%s' which %s",
+								str(pid), self._name, why)
 			return
 
 		now = time.time()
@@ -501,11 +499,11 @@ access must be done with blocking activity fed through the legion event loop.
 			self._parent._stopped = now
 			self._parent.onexit()
 		else:
-			log.debug("%s task '%s' still has %d process%s running", my(self), self._name, extant, ses(extant, 'es'))
+			log.debug("Task '%s' still has %d process%s running", self._name, extant, ses(extant, 'es'))
 		if exit_code and not self._parent._terminated:
-			log.warning("%s Task '%s' pid %d %s -- unexpected error exit", my(self), self._name, pid, why)
+			log.warning("Task '%s' pid %d %s -- unexpected error exit", self._name, pid, why)
 		else:
-			log.info("%s task '%s' pid %d %s", my(self), self._name, pid, why)
+			log.info("Task '%s' pid %d %s", self._name, pid, why)
 
 	def signal(self, details):
 		"""
@@ -513,13 +511,13 @@ access must be done with blocking activity fed through the legion event loop.
 	"""
 		log = self._params.get('log', self._discard)
 		if '_signal' not in dir(self._parent) or not callable(getattr(self._parent, '_signal')):
-			log.error("%s Event parent '%s' has no '_signal' method", my(self), self._name)
+			log.error("Event parent '%s' has no '_signal' method", self._name)
 			return
 		sig = utils.signum(self._handler_arg)
 		if sig is None:
-			log.error("%s Invalid signal '%s' for task '%s'", my(self), self._handler_arg, sig._name)
+			log.error("Invalid signal '%s' for task '%s'", self._handler_arg, sig._name)
 			return
-		log.info("%s sending %s to all '%s' processes", my(self), utils.signame(sig), self._name)
+		log.info("sending %s to all '%s' processes", utils.signame(sig), self._name)
 		self._parent._signal(sig)
 
 	def legion_config(self, details):
@@ -610,16 +608,16 @@ class Context(object):
 		if context is None:
 			context = self._context
 		if isinstance(value, list):
-			log.debug("%s Processing list %s", my(self), value)
+			log.debug("Processing list %s", value)
 			for v in value:
 				res.extend(self._get_list(v, context=context))
 		elif isinstance(value, dict):
-			log.debug("%s Processing dict %s", my(self), value)
+			log.debug("Processing dict %s", value)
 			for k in value:
 				if k in context:
 					res.extend(self._get_list(value[k], context=context))
 		else:
-			log.debug("%s Processing value '%s'", my(self), value)
+			log.debug("Processing value '%s'", value)
 			res.append(value)
 		return res
 
@@ -715,9 +713,9 @@ Params are:
 			try:
 				time_to_die = float(time_to_die)
 				self.expires = time.time() + time_to_die
-				log.info("%s Expire time set to %s from now", my(self), deltafmt(time_to_die))
+				log.info("Expire time set to %s from now", deltafmt(time_to_die))
 			except Exception as e:
-				log.warn("%s Bad 'expires' param value '%s' ignored", my(self), time_to_die)
+				log.warn("Bad 'expires' param value '%s' ignored", time_to_die)
 
 		#  Set to the program name (as delivered by set_own_module).
 		#  This is used to successfully dispatch legion events.
@@ -841,35 +839,35 @@ Params are:
 	def _sig_handler(self, sig, frame):
 		log = self._params.get('log', self._discard)
 		if sig == signal.SIGCHLD:
-			log.debug("%s Received SIGCHLD", my(self))
+			log.debug("Received SIGCHLD")
 			try:
 				os.write(self._wakeup, '*'.encode('utf-8'))
 			except Exception as e:
-				log.error("%s Write to self-pipe failed -- %s", my(self), str(e))
+				log.error("Write to self-pipe failed -- %s", str(e))
 			return
 
 		if sig in set([signal.SIGHUP, signal.SIGINT, signal.SIGTERM]):
-			log.info("%s Stopping all unadoptable tasks on %s", my(self), utils.signame(sig))
+			log.info("Stopping all unadoptable tasks on %s", utils.signame(sig))
 			now = time.time()
 			self._exiting = now
 			if sig == signal.SIGHUP:
 				self._resetting = now
 			elif self._resetting:
-				log.warn("%s Terminating signal arrived while resetting, coercing to exit", my(self))
+				log.warn("Terminating signal arrived while resetting, coercing to exit")
 				self._resetting = None
 			self.stop_all()
 		else:
-			log.info("%s Relaying %s to all registered tasks", my(self), utils.signame(sig))
+			log.info("Relaying %s to all registered tasks", utils.signame(sig))
 			self.signal_all(sig)
 		if sig in self._signal_prior and type(self._signal_prior[sig]) == type(self._sig_handler):
-			log.info("%s Chaining to prior signal handler %s", my(self), str(self._signal_prior[sig]))
+			log.info("Chaining to prior signal handler %s", str(self._signal_prior[sig]))
 			try:
 				self._signal_prior[sig](sig, frame)
 			except Exception as e:
-				log.error("%s Exception from chained handler %s -- %s",
-								my(self), str(self._signal_prior[sig]), str(e))
+				log.error("Exception from chained handler %s -- %s",
+								str(self._signal_prior[sig]), str(e))
 			else:
-				log.info("%s Prior signal handler %s returned", my(self), str(self._signal_prior[sig]))
+				log.info("Prior signal handler %s returned", str(self._signal_prior[sig]))
 
 	def schedule_exit(self, now=None):
 		if not now:
@@ -927,13 +925,13 @@ Params are:
 		This is similar to the task conext but without the task-specific entries.
 	"""
 		log = self._params.get('log', self._discard)
-		log.debug("%s called with pending=%s", my(self), pending)
+		log.debug("called with pending=%s", pending)
 		if pending:
 			conf = self._config_pending
 		else:
 			conf = self._config_running
 		if not conf:
-			log.warning("%s No config available", my(self)) 
+			log.warning("No config available") 
 			conf = {}
 
 		#  Build context used to format process args.
@@ -951,7 +949,7 @@ Params are:
 			self._context_defines(context, conf)
 			self._context_defaults(context, conf)
 		else:
-			log.warning("%s No legion config available for defines", my(self)) 
+			log.warning("No legion config available for defines") 
 		return context
 
 	def _get_http_services(self, http_list):
@@ -981,15 +979,15 @@ Params are:
 			services.append(httpd.HttpService())
 		if services:
 			if listen_param is not None:
-				log.debug("%s Service 0 listen from args: %s", my(self), listen_param)
+				log.debug("Service 0 listen from args: %s", listen_param)
 				services[0].listen = listen_param
 			val = self._params.get('control')
 			if val is not None:
-				log.debug("%s Service 0 control from args: %s", my(self), val)
+				log.debug("Service 0 control from args: %s", val)
 				services[0].allow_control = val
 			val = self._params.get('certfile')
 			if val is not None:
-				log.debug("%s Service 0 certfile from args: %s", my(self), val)
+				log.debug("Service 0 certfile from args: %s", val)
 				services[0].certfile = val
 		return services
 
@@ -1021,8 +1019,8 @@ Params are:
 		#  If the service count has changed, close all servers and rebuild from scratch.
 		#
 		if len(self._http_servers) != len(need):
-			log.info("%s HTTP services count changed from %d to %d, reconfiguring all services",
-						my(self), len(self._http_servers), len(need))
+			log.info("HTTP services count changed from %d to %d, reconfiguring all services",
+						len(self._http_servers), len(need))
 			pos = 0
 			for server in self._http_servers:
 				if server:
@@ -1031,7 +1029,7 @@ Params are:
 						except: pass
 					try: server.close()
 					except: pass
-					log.debug("%s Slot %d service closed", my(self), pos)
+					log.debug("Slot %d service closed", pos)
 				pos += 1
 			self._http_servers = []
 
@@ -1040,11 +1038,11 @@ Params are:
 			if len(self._http_servers) > pos:
 				if self._http_servers[pos]:
 					if need[pos].cmp(self._http_servers[pos]._http_service):
-						log.debug("%s No change in service slot %d: %s", my(self), pos, str(need[pos]))
+						log.debug("No change in service slot %d: %s", pos, str(need[pos]))
 						continue
 					else:
-						log.debug("%s Slot %d service changing from %s",
-									my(self), pos, str(self._http_servers[pos]._http_service))
+						log.debug("Slot %d service changing from %s",
+									pos, str(self._http_servers[pos]._http_service))
 						if self._pset:
 							try: self._pset.unregister(self._http_servers[pos])
 							except: pass
@@ -1052,9 +1050,9 @@ Params are:
 						except: pass
 						self._http_servers[pos] = None
 				else:
-					log.debug("%s No existing service in slot %d", my(self), pos)
+					log.debug("No existing service in slot %d", pos)
 			else:
-				log.debug("%s Increasing services list for slot %d", my(self), pos)
+				log.debug("Increasing services list for slot %d", pos)
 				self._http_servers.append(None)
 
 			#  At this point the service slot exists and is empty.  We'll attempt to fill it.
@@ -1070,10 +1068,9 @@ Params are:
 				if self._pset:
 					self._pset.register(server, poll.POLLIN)
 				self._http_servers[pos] = server
-				log.info("%s Slot %d service is now %s", my(self), pos, str(server._http_service))
+				log.info("Slot %d service is now %s", pos, str(server._http_service))
 			except Exception as e:
-				log.error("%s Failed to create server slot %d on %s -- %s",
-									my(self), pos, str(need[pos]), str(e))
+				log.error("Failed to create server slot %d on %s -- %s", pos, str(need[pos]), str(e))
 				if not self._http_retry:
 					self._http_retry = time.time() + service_retry_limit
 
@@ -1103,15 +1100,14 @@ Params are:
 						if line and not re.match(r'^\s*#', line):
 							new_role_set.add(line)
 			except Exception as e:
-				log.warning("%s Open failed on roles file '%s' -- %s", my(self), self._roles_file, str(e))
+				log.warning("Open failed on roles file '%s' -- %s", self._roles_file, str(e))
 		if self._role_set == new_role_set:
-			log.info("%s Roles file check gave no changes from current set '%s'", my(self), self._fmt_set(new_role_set))
+			log.info("Roles file check gave no changes from current set '%s'", self._fmt_set(new_role_set))
 			return False
 		elif self._role_set is None:
-			log.info("%s Roles set to: %s", my(self), self._fmt_set(new_role_set))
+			log.info("Roles set to: %s", self._fmt_set(new_role_set))
 		else:
-			log.info("%s Roles changing from '%s' to '%s'",
-						my(self), self._fmt_set(self._role_set), self._fmt_set(new_role_set))
+			log.info("Roles changing from '%s' to '%s'", self._fmt_set(self._role_set), self._fmt_set(new_role_set))
 		self._prev_role_set = self._role_set
 		self._role_set = new_role_set
 		return True
@@ -1133,10 +1129,10 @@ Params are:
 		log = self._params.get('log', self._discard)
 		if path != self._roles_file:
 			if self._roles_file:
-				log.info("%s Roles file changed from '%s' to '%s'", my(self), self._config_file, path)
+				log.info("Roles file changed from '%s' to '%s'", self._config_file, path)
 				self.file_del(self, paths=[self._roles_file])
 			else:
-				log.info("%s Roles file set to '%s'", my(self), path)
+				log.info("Roles file set to '%s'", path)
 			self._roles_file = path
 			self.file_add(event_target(self, 'legion_config', log=log), path)
 		return self._load_roles()
@@ -1169,10 +1165,10 @@ Params are:
 				if 'tasks' not in new_config:
 					raise Exception("File '%s' does not contain a valid config" % (self._config_file,))
 			except Exception as e:
-				log.error("%s Load of config from '%s' failed -- %s", my(self), self._config_file, str(e))
+				log.error("Load of config from '%s' failed -- %s", self._config_file, str(e))
 				return False
 		else:
-			log.error("%s Invalid config file", my(self))
+			log.error("Invalid config file")
 			return False
 
 		self._config_running = new_config
@@ -1200,10 +1196,10 @@ Params are:
 		log = self._params.get('log', self._discard)
 		if path != self._config_file:
 			if self._config_file:
-				log.info("%s Config file changed from '%s' to '%s'", my(self), self._config_file, path)
+				log.info("Config file changed from '%s' to '%s'", self._config_file, path)
 				self.file_del(self, paths=[self._config_file])
 			else:
-				log.info("%s Config file set to '%s'", my(self), path)
+				log.info("Config file set to '%s'", path)
 			self._config_file = path
 			self.file_add(event_target(self, 'legion_config', log=log), path)
 		return self._load_config()
@@ -1253,8 +1249,8 @@ Params are:
 			t.stop()
 		except:
 			log = self._params.get('log', self._discard)
-			log.error("%s Failed to stop processes for task '%s' -- %s",
-							my(self), name, exc_info=log.isEnabledFor(logging.DEBUG))
+			log.error("Failed to stop processes for task '%s' -- %s",
+							name, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 		for pid in t.get_pids():
 			self.proc_del(pid)
 
@@ -1293,13 +1289,12 @@ Params are:
 					changed = True
 					start_order.append(t)
 					done.add(t._name)
-					log.debug("%s Found '%s' in scope", my(self), t._name)
+					log.debug("Found '%s' in scope", t._name)
 			if not changed:
-				log.error("%s %s Cycle %d failed after %s", my(self),
-						my(self), cycle, str([t._name for t in set(tasks).difference(done)]))
+				log.error("Cycle %d failed after %s", cycle, str([t._name for t in set(tasks).difference(done)]))
 				raise TaskError(None, "At cycle %d, startup order conflict, processed %s, remaining %s" %
 						(cycle, str(done), str([t._name for t in set(tasks).difference(done)])))
-		log.debug("%s Cycle %d gave %s", my(self), cycle, str([t._name for t in start_order]))
+		log.debug("Cycle %d gave %s", cycle, str([t._name for t in start_order]))
 		return start_order
 
 	def proc_add(self, ev):
@@ -1319,7 +1314,7 @@ Params are:
 			del self._procs[pid]
 		else:
 			log = self._params.get('log', self._discard)
-			log.warning("%s Process %d missing from proc list during deletion", my(self), pid)
+			log.warning("Process %d missing from proc list during deletion", pid)
 
 	def module_add(self, ev, path=None):
 		"""
@@ -1330,7 +1325,7 @@ Params are:
 		key = ev.get_key()
 		if key is None:
 			raise TaskError(name, "Attempt to register python module event with no key available")
-		log.debug("%s Adding path '%s' for task '%s', action %s", my(self), str(path), str(ev.get_name()), ev._handler_name)
+		log.debug("Adding path '%s' for task '%s', action %s", str(path), str(ev.get_name()), ev._handler_name)
 		self._watch_modules.add(key, command_path=path)
 		self._module_event_map[key] = ev
 
@@ -1360,8 +1355,8 @@ Params are:
 				self._watch_files.add(path)
 				self._file_event_map[path] = {}
 			self._file_event_map[path][ev.get_key()] = ev
-		log.debug("%s added event key '%s', action '%s' to path%s: %s",
-					my(self), str(ev.get_key()), ev._handler_name, ses(len(paths)), str(paths))
+		log.debug("Added event key '%s', action '%s' to path%s: %s",
+					str(ev.get_key()), ev._handler_name, ses(len(paths)), str(paths))
 
 	def file_del(self, key, paths=None):
 		"""
@@ -1391,31 +1386,30 @@ Params are:
 		log = self._params.get('log', self._discard)
 		try:
 			cnt = len(os.read(self._watch_child, 102400))
-			log.debug("%s %d byte%s read from self-pipe", my(self), cnt, ses(cnt))
+			log.debug("%d byte%s read from self-pipe", cnt, ses(cnt))
 		except OSError as e:
 			if e.errno != errno.EAGAIN:
-				log.error("%s Self-pipe read failed -- %s", my(self), str(e))
+				log.error("Self-pipe read failed -- %s", str(e))
 		except Exception as e:
-			log.error("%s Self-pipe read failed -- %s", my(self), str(e))
+			log.error("Self-pipe read failed -- %s", str(e))
 		reaped = False
 		while True:
 			try:
 				(pid, status) = os.waitpid(-1, os.WNOHANG)
 			except OSError as e:
 				if e.errno == errno.ECHILD:
-					log.debug("%s No children to wait for", my(self))
+					log.debug("No children to wait for")
 					pid = 0
 				else:
 					raise e
 			if pid > 0:
 				reaped = True
 				if pid in self._procs:
-					log.debug("%s Pid %d exited, firing event", my(self), pid)
+					log.debug("Pid %d exited, firing event", pid)
 					self._procs[pid].handle(status)
 					self.proc_del(pid)
 				else:
-					log.error("%s Unknown pid %d %s, ignoring",
-								my(self), pid, statusfmt(status))
+					log.error("Unknown pid %d %s, ignoring", pid, statusfmt(status))
 				continue
 			else:
 				return reaped
@@ -1429,12 +1423,12 @@ Params are:
 		target_tasks = self.task_list()
 		for t in set(self._tasks_scoped):
 			if t not in target_tasks:
-				log.info("%s Removing task '%s' from scope", my(self), t.get_name())
+				log.info("Removing task '%s' from scope", t.get_name())
 				self._tasks_scoped.discard(t)
 				t.stop()
 		for t in target_tasks:
 			if t not in self._tasks_scoped:
-				log.info("%s Adding task '%s' to scope", my(self), t.get_name())
+				log.info("Adding task '%s' to scope", t.get_name())
 				self._tasks_scoped.add(t)
 			t.apply()
 
@@ -1453,8 +1447,8 @@ Params are:
 		last_idle_run = time.time()
 		exit_report = 0
 		self._pset = poll.poll()
-		log.info("%s File event polling via %s from %s available",
-						my(self), self._pset.get_mode_name(), self._pset.get_available_mode_names())
+		log.info("File event polling via %s from %s available",
+						self._pset.get_mode_name(), self._pset.get_available_mode_names())
 		self._pset.register(self._watch_child, poll.POLLIN)
 		self._pset.register(self._watch_modules, poll.POLLIN)
 		self._pset.register(self._watch_files, poll.POLLIN)
@@ -1472,34 +1466,33 @@ Params are:
 
 				if self._exiting:
 					if self._exiting + sigterm_limit < time.time():
-						log.warning("%s Limit waiting for all tasks to exit was exceeded", my(self))
+						log.warning("Limit waiting for all tasks to exit was exceeded")
 						break
 					still_running = 0
 					for t in self._tasks_scoped:
 						still_running += len(t.get_pids())
 					if still_running == 0:
-						log.info("%s All tasks have stopped", my(self))
+						log.info("All tasks have stopped")
 						break
 					if exit_report + 1 < now:
-						log.warning("%s Still waiting for %d process%s",
-								my(self), still_running, ses(still_running))
+						log.warning("Still waiting for %d process%s", still_running, ses(still_running))
 						exit_report = now
 					self.next_timeout()
 				if self.expires:
 					if self.expires < now:
 						if self._exiting:
-							log.debug("%s Legion expiration reached %s ago, still exiting",
-											my(self), deltafmt(now - self.expires))
+							log.debug("Legion expiration reached %s ago, still exiting",
+											deltafmt(now - self.expires))
 						else:
-							log.warning("%s Legion expiration reached %s ago",
-											my(self), deltafmt(now - self.expires))
+							log.warning("Legion expiration reached %s ago",
+											deltafmt(now - self.expires))
 							self._exiting = now
 						self.stop_all()
 					else:
-						log.debug("%s expires in %s", my(self), deltafmt(self.expires - now))
+						log.debug("expires in %s", deltafmt(self.expires - now))
 
 				if last_timeout != self._timeout:
-					log.debug("%s select() timeout is now %s", my(self), deltafmt(self._timeout))
+					log.debug("select() timeout is now %s", deltafmt(self._timeout))
 					last_timeout = self._timeout
 				try:
 					evlist = self._pset.poll(self._timeout*1000)
@@ -1507,16 +1500,15 @@ Params are:
 					if e.errno != errno.EINTR:
 						raise e
 					else:
-						log.debug("%s Ignoring %s(%s) during poll", my(self), e.__class__.__name__, str(e))
+						log.debug("Ignoring %s(%s) during poll", e.__class__.__name__, str(e))
 
 				self._timeout = timeout_long_cycle
 
 				idle_starving = (last_idle_run + idle_starvation < now)
 				if idle_starving:
-					log.warning("%s Idle starvation detected, last run was %s ago",
-										my(self), deltafmt(now - last_idle_run))
+					log.warning("Idle starvation detected, last run was %s ago", deltafmt(now - last_idle_run))
 				if idle_starving or not evlist:
-					log.debug("%s idle", my(self))
+					log.debug("idle")
 					last_idle_run = now
 
 					if self._reap():
@@ -1534,15 +1526,14 @@ Params are:
 
 					if self._reload_config:
 						try:
-							log.info("%s Reloading config for change from %s ago",
-								my(self), deltafmt(time.time() - self._reload_config))
+							log.info("Reloading config for change from %s ago",
+									deltafmt(time.time() - self._reload_config))
 							self._load_roles()
 							self._load_config()
 							self._reload_config = None
 						except Exception as e:
 
-							log.error("%s Config load sequence failed -- %s",
-											my(self), str(e), exc_info=True)
+							log.error("Config load sequence failed -- %s", str(e), exc_info=True)
 
 					#  Housekeeping
 					#
@@ -1559,7 +1550,7 @@ Params are:
 								self.next_timeout()
 							continue
 
-						log.debug("%s Activity: %s", my(self), str(item))
+						log.debug("Activity: %s", str(item))
 
 						#  This may need work.  For now, all selectable events
 						#  give back objects that have a 'get' method, and it
@@ -1567,8 +1558,7 @@ Params are:
 						#  of the value returned.
 						#
 						if not callable(getattr(item, 'get')):
-							log.error("%s Selected %s object has no 'get' method",
-												my(self), type(item).__name__)
+							log.error("Selected %s object has no 'get' method", type(item).__name__)
 							continue
 						for tgt in item.get():
 							if isinstance(tgt, tuple):
@@ -1579,25 +1569,24 @@ Params are:
 									desc = str(len(paths))+' files'
 								else:
 									desc = ','.join(paths)
-								log.info("%s handling module %s change for task '%s'",
-													my(self), desc, name)
+								log.info("Handling module %s change for task '%s'", desc, name)
 								if name not in self._module_event_map:
-									log.error("%s Ignoring unknown python module '%s' in event",
-													my(self), name)
+									log.error("Ignoring unknown python module '%s' in event",
+													name)
 									continue
 								self._module_event_map[name].handle(name)
 							else:
 								path = tgt
 								if path not in self._file_event_map:
-									log.error("%s Ignoring unknown file path '%s' from event",
-													my(self), path)
+									log.error("Ignoring unknown file path %s from event",
+													repr(path))
 									continue
-								log.info("%s file_change event for '%s'", my(self), path)
+								log.info("file_change event for '%s'", path)
 								for key, ev in self._file_event_map[path].items():
-									log.debug("%s dispatching '%s' event", my(self), key)
+									log.debug("dispatching '%s' event", key)
 									ev.handle(path)
 		except Exception as e:
-			log.error("%s unexpected error -- %s", my(self), str(e), exc_info=True)
+			log.error("unexpected error -- %s", str(e), exc_info=True)
 			raise e
 		finally:
 			#  If we reach here and _exiting is not set then something bad
@@ -1605,11 +1594,11 @@ Params are:
 			#  leaving.
 			#
 			if not self._exiting:
-				log.warning("%s Unexpected exit -- attempting to stop all tasks", my(self))
+				log.warning("Unexpected exit -- attempting to stop all tasks")
 				try:
 					self.stop_all()
 				except Exception as ee:
-					log.error("%s Failsafe attempt to stop tasks failed -- %s", my(self), str(ee))
+					log.error("Failsafe attempt to stop tasks failed -- %s", str(ee))
 			for server in self._http_servers:
 				if server:
 					try: self._pset.unregister(server)
@@ -1618,7 +1607,7 @@ Params are:
 					except: pass
 			self._http_servers = []
 			#  Reset all signal handlers to their entry states
-			log.debug("%s reseting signals", my(self))
+			log.debug("reseting signals")
 			for sig, state in self._signal_prior.items():
 				signal.signal(sig, state)
 		if self._resetting:
@@ -1709,15 +1698,15 @@ Params are:
 			try:
 				self._event_deregister()
 			except Exception as e:
-				log.warning("%s Task '%s' event deregister failed -- %s",
-							my(self), self._name, str(e), exc_info=log.isEnabledFor(logging.INFO))
+				log.warning("Task '%s' event deregister failed -- %s",
+							self._name, str(e), exc_info=log.isEnabledFor(logging.INFO))
 			try:
 				self._legion.task_del(self)
 			except Exception as e:
-				log.warning("%s Task '%s' legion delete -- %s",
-							my(self), self._name, str(e), exc_info=log.isEnabledFor(logging.INFO))
+				log.warning("Task '%s' legion delete -- %s",
+							self._name, str(e), exc_info=log.isEnabledFor(logging.INFO))
 		else:
-			log.warning("%s Task '%s' has no associated legion -- close skipped", my(self), self._name)
+			log.warning("Task '%s' has no associated legion -- close skipped", self._name)
 
 	def _reset_state(self):
 		"""
@@ -1770,13 +1759,13 @@ Params are:
 		of pre-defined values which have a common prefix from 'context_prefix'.
 	"""
 		log = self._params.get('log', self._discard)
-		log.debug("%s called with pending=%s", my(self), pending)
+		log.debug("called with pending=%s", pending)
 		if pending:
 			conf = self._config_pending
 		else:
 			conf = self._config_running
 		if not conf:
-			log.warning("%s No config available", my(self)) 
+			log.warning("No config available") 
 			conf = {}
 
 		#  Initially create the context as a copy of the environment.
@@ -1806,14 +1795,14 @@ Params are:
 		if self._legion._config_running:
 			self._context_defines(context, self._legion._config_running)
 		else:
-			log.warning("%s No legion config available for defines", my(self)) 
+			log.warning("No legion config available for defines") 
 		self._context_defines(context, conf)
 
 		self._context_defaults(context, conf)
 		if self._legion._config_running:
 			self._context_defaults(context, self._legion._config_running)
 		else:
-			log.warning("%s No legion config available for defaults", my(self)) 
+			log.warning("No legion config available for defaults") 
 
 		return context
 
@@ -1826,15 +1815,15 @@ Params are:
 			if isinstance(name, list):
 				name = name[0]
 			if os.path.basename(name) != name:
-				log.debug("%s Task '%s' path '%s' (direct from 'start' command)", my(self), self._name, name)
+				log.debug("Task '%s' path '%s' (direct from 'start' command)", self._name, name)
 				return name
-			log.debug("%s Task '%s' using '%s' from 'start' command for path lookup", my(self), self._name, name)
+			log.debug("Task '%s' using '%s' from 'start' command for path lookup", self._name, name)
 		else:
 			name = self._name
 			if os.path.basename(name) != name:
-				log.debug("%s Task '%s' path '%s' (direct from task name)", my(self), self._name, name)
+				log.debug("Task '%s' path '%s' (direct from task name)", self._name, name)
 				return name
-			log.debug("%s Task '%s' using task name for path lookup", my(self), self._name, name)
+			log.debug("Task '%s' using task name for path lookup", self._name, name)
 		path_list = self._params.get('path', os.environ['PATH']).split(os.pathsep)
 		for dir in path_list:
 			path = os.path.join(dir, name)
@@ -1846,7 +1835,7 @@ Params are:
 				continue
 		if self._path is None:
 			raise TaskError(self._name, "Could not determine full path for task executable")
-		log.debug("%s Task '%s' using '%s' from path lookup of '%s'", my(self), self._name, self._path, name)
+		log.debug("Task '%s' using '%s' from path lookup of '%s'", self._name, self._path, name)
 		return self._path
 
 	def get_pids(self):
@@ -1854,7 +1843,7 @@ Params are:
 
 	def get_config(self, pending=False):
 		log = self._params.get('log', self._discard)
-		log.debug("%s %s '%s' config", my(self), 'pending' if pending else 'running', self._name)
+		log.debug("%s '%s' config", 'pending' if pending else 'running', self._name)
 		if pending:
 			return self._config_pending
 		else:
@@ -1875,14 +1864,13 @@ Params are:
 			else:
 				raise TaskError(self._name, "Task requires separate task '%s' that does not exist" % (r,))
 		if requires:
-			log.debug("%s %s '%s' requires: %s",
-				my(self), 'pending' if pending else 'running', self._name,
-				', '.join([t._name for t in requires]))
+			log.debug("%s '%s' requires: %s",
+				'Pending' if pending else 'Running', self._name, ', '.join([t._name for t in requires]))
 		return requires
 
 	def set_config(self, config):
 		log = self._params.get('log', self._discard)
-		log.debug("%s for '%s'", my(self), self._name)
+		log.debug("for '%s'", self._name)
 		self._config_pending = config.copy()
 
 	def participant(self):
@@ -1895,7 +1883,7 @@ Params are:
 		conf = self._config_pending
 
 		if conf.get('control') == 'off':
-			log.debug("%s Excluding task '%s' -- control is off", my(self), self._name)
+			log.debug("Excluding task '%s' -- control is off", self._name)
 			return False
 
 		#  If role-set is None (but not the empty set)
@@ -1903,7 +1891,7 @@ Params are:
 		#
 		active_roles = self._legion.get_roles()
 		if active_roles is None:
-			log.debug("%s Including task '%s' -- role processing is inhibited", my(self), self._name)
+			log.debug("Including task '%s' -- role processing is inhibited", self._name)
 			return True
 
 		#  If roles are present, at least one has to match the role-set.
@@ -1915,14 +1903,14 @@ Params are:
 		#  in all roles:
 		#
 		if not roles:
-			log.debug("%s Including task '%s' -- no explicit roles", my(self), self._name)
+			log.debug("Including task '%s' -- no explicit roles", self._name)
 			return True
 
 		for role in roles:
 			if role in active_roles:
-				log.debug("%s Including task '%s' -- has role '%s'", my(self), self._name, role)
+				log.debug("Including task '%s' -- has role '%s'", self._name, role)
 				return True
-		log.debug("%s Excluding task '%s' -- no role matches %s", my(self), self._name, str(active_roles))
+		log.debug("Excluding task '%s' -- no role matches %s", self._name, str(active_roles))
 		return False
 
 	def _make_event_target(self, event, control):
@@ -1933,7 +1921,7 @@ Params are:
 			val = self._get(event.get(h))
 			if val:
 				if control in self._legion.once_controls and h == 'command' and val == 'stop':
-					log.warning("%s Ignoring '%s' %s event for %s task", my(self), val, h, control)
+					log.warning("Ignoring '%s' %s event for %s task", val, h, control)
 					return None
 				handler = h
 				arg = val
@@ -1950,17 +1938,17 @@ Params are:
 	"""
 		log = self._params.get('log', self._discard)
 		if 'events' not in self._config_running:
-			log.debug("%s No events present for task '%s'", my(self), self._name)
+			log.debug("No events present for task '%s'", self._name)
 			return
 		for event in self._config_running['events']:
 			ev_type = self._get(event.get('type'))
 			if not ev_type:
-				log.error("%s Ignoring event in task '%s' with no type", my(self), self._name)
+				log.error("Ignoring event in task '%s' with no type", self._name)
 				continue
 			ev = self._make_event_target(event, control)
 			if ev is None:
 				continue
-			log.debug("%s Adding event type '%s' for task '%s'", my(self), ev_type, self._name)
+			log.debug("Adding event type '%s' for task '%s'", ev_type, self._name)
 			if ev_type == 'self':
 				self._legion.file_add(ev, self.get_path())
 			elif ev_type == 'python':
@@ -1970,11 +1958,11 @@ Params are:
 				if path:
 					self._legion.file_add(ev, _fmt_context(path, self._context))
 				else:
-					log.error("%s Ignoring %s event in task '%s' with no path", my(self), ev_type, self._name)
+					log.error("Ignoring %s event in task '%s' with no path", ev_type, self._name)
 			elif ev_type in ['stop', 'restart']:
-				log.debug("%s No task '%s' registration action for '%s' event", my(self), self._name, ev_type)
+				log.debug("No task '%s' registration action for '%s' event", self._name, ev_type)
 			else:
-				log.error("%s Ignoring unknown event type '%s' in task '%s'", my(self), ev_type, self._name)
+				log.error("Ignoring unknown event type '%s' in task '%s'", ev_type, self._name)
 			
 	def _event_deregister(self):
 		"""
@@ -1984,7 +1972,7 @@ Params are:
 	"""
 		log = self._params.get('log', self._discard)
 		if 'events' not in self._config_running:
-			log.debug("%s No events present for task '%s'", my(self), self._name)
+			log.debug("No events present for task '%s'", self._name)
 			return
 		for event in self._config_running['events']:
 			ev_type = self._get(event.get('type'))
@@ -2007,7 +1995,7 @@ Params are:
 	"""
 		log = self._params.get('log', self._discard)
 		if self._config_running is None:
-			log.debug("%s Task '%s' change - no previous config", my(self), self._name)
+			log.debug("Task '%s' change - no previous config", self._name)
 			return True
 		for elem in set(list(self._config_running) + list(self._config_pending)):
 			#  Ignore these elements as they don't affect the operation of a process
@@ -2016,19 +2004,19 @@ Params are:
 			if elem in ['control', 'pidfile', 'onexit', 'requires', 'start_delay']:
 				continue
 			if self._config_running.get(elem) != self._config_pending.get(elem):
-				log.debug("%s Task '%s' change - '%s' text change", my(self), self._name, elem)
+				log.debug("Task '%s' change - '%s' text change", self._name, elem)
 				return True
 		new_context = self._context_build(pending=True)
 		if self._context != new_context:
 			if log.isEnabledFor(logging.DEBUG):
-				log.debug("%s Task '%s' change - context change", my(self), self._name)
+				log.debug("Task '%s' change - context change", self._name)
 				for tag in set(list(self._context) + list(new_context)):
 					o = self._context.get(tag)
 					n = new_context.get(tag)
 					if o != n:
 						log.debug("    %s: %s -> %s", tag, str(o), str(n))
 			return True
-		log.debug("%s No changes in task '%s'", my(self), self._name)
+		log.debug("No changes in task '%s'", self._name)
 		return False
 
 	def _task_periodic(self):
@@ -2038,7 +2026,7 @@ Params are:
 		typically when it is otherwise idle.
 	"""
 		log = self._params.get('log', self._discard)
-		log.debug("%s periodic", my(self))
+		log.debug("periodic")
 		self.manage()
 
 	def _signal(self, sig, pid=None):
@@ -2054,10 +2042,10 @@ Params are:
 		for pid in pids:
 			try:
 				os.kill(pid, sig)
-				log.debug("%s Signalled '%s' pid %d with %s", my(self), self._name, pid, utils.signame(sig))
+				log.debug("Signalled '%s' pid %d with %s", self._name, pid, utils.signame(sig))
 			except Exception as e:
-				log.warning("%s Failed to signal '%s' pid %d with %s -- %s",
-									my(self), self._name, pid, utils.signame(sig), str(e))
+				log.warning("Failed to signal '%s' pid %d with %s -- %s",
+									self._name, pid, utils.signame(sig), str(e))
 
 	def onexit(self):
 		"""
@@ -2078,44 +2066,43 @@ Params are:
 		log = self._params.get('log', self._discard)
 		conf = self._config_running
 		if 'onexit' not in conf:
-			log.debug("%s Task %s has no 'onexit' processing", my(self), self._name)
+			log.debug("Task %s has no 'onexit' processing", self._name)
 			return
 		if self._legion.is_exiting():
-			log.debug("%s Skipping task %s 'onexit' processing because legion is exiting", my(self), self._name)
+			log.debug("Skipping task %s 'onexit' processing because legion is exiting", self._name)
 			return
 		item = 0
 		for op in conf['onexit']:
 			item += 1
 			if 'type' not in op:
-				log.error("%s Task %s 'onexit' item %d has no 'type'", my(self), self._name, item)
+				log.error("Task %s 'onexit' item %d has no 'type'", self._name, item)
 				continue
 			op_type = self._get(op.get('type'))
 			if op_type == 'start':
 				if 'task' not in op:
-					log.error("%s Task %s 'onexit' item %d type '%s' has no 'task'",
-										my(self), self._name, item, op_type)
+					log.error("Task %s 'onexit' item %d type '%s' has no 'task'", self._name, item, op_type)
 					continue
 				taskname = self._get(op.get('task'))
 				if taskname not in self._legion._tasknames:
-					log.error("%s Task %s 'onexit' item %d type '%s' task '%s' does not exist",
-										my(self), self._name, item, op_type, taskname)
+					log.error("Task %s 'onexit' item %d type '%s' task '%s' does not exist",
+										self._name, item, op_type, taskname)
 					continue
 				task = None
 				for t in self._legion.task_list(pending=False):
 					if taskname == t._name:
 						task = t
 				if not task:
-					log.error("%s Task %s 'onexit' item %d type '%s' task '%s' exists but is out of scope",
-										my(self), self._name, item, op_type, taskname)
+					log.error("Task %s 'onexit' item %d type '%s' task '%s' exists but is out of scope",
+										self._name, item, op_type, taskname)
 					continue
 				if task._config_running.get('control') not in self._legion.once_controls:
-					log.error("%s Task %s 'onexit' item %d type '%s' task '%s' may only start 'once' tasks",
-										my(self), self._name, item, op_type, taskname)
+					log.error("Task %s 'onexit' item %d type '%s' task '%s' may only start 'once' tasks",
+										self._name, item, op_type, taskname)
 					continue
-				log.info("%s Task '%s' marked to restart by task '%s'", my(self), taskname, self._name)
+				log.info("Task '%s' marked to restart by task '%s'", taskname, self._name)
 				task._reset_state()
 			else:
-				log.error("%s Unknown type '%s' for task %s 'onexit' item %d", my(self), op_type, self._name, item)
+				log.error("Unknown type '%s' for task %s 'onexit' item %d", op_type, self._name, item)
 				continue
 
 	def _shrink(self, needed, running):
@@ -2126,8 +2113,7 @@ Params are:
 		be logged but otherwise ignored.
 	"""
 		log = self._params.get('log', self._discard)
-		log.info("%s %d process%s running, reducing to %d process%s",
-						my(self), running, ses(running, 'es'), needed, ses(needed, 'es'))
+		log.info("%d process%s running, reducing to %d process%s", running, ses(running, 'es'), needed, ses(needed, 'es'))
 		now = time.time()
 		signalled = 0
 		for proc in self._proc_state[needed:]:
@@ -2141,9 +2127,9 @@ Params are:
 				proc.pending_sig = signal.SIGKILL
 				proc.next_sig = now + sigkill_escalation
 			else:
-				log.debug("%s Process instance %d (pid %d) for task '%s' exit pending",
-						my(self), proc.instance, proc.pid, self._name)
-		log.info("%s %d process%s signalled", my(self), signalled, ses(signalled, 'es'))
+				log.debug("Process instance %d (pid %d) for task '%s' exit pending",
+						proc.instance, proc.pid, self._name)
+		log.info("%d process%s signalled", signalled, ses(signalled, 'es'))
 
 	def _mark_started(self):
 		"""
@@ -2160,11 +2146,11 @@ Params are:
 		try:
 			limit = float(_fmt_context(self._get(limit, default='0'), self._context))
 			if limit > 0:
-				log.debug("%s Applying task '%s' time limit of %s", my(self), self._name, deltafmt(limit))
+				log.debug("Applying task '%s' time limit of %s", self._name, deltafmt(limit))
 				self._limit = now + limit
 		except Exception as e:
-			log.warn("%s Task '%s' time_limit value '%s' invalid -- %s",
-				my(self), self._name, limit, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
+			log.warn("Task '%s' time_limit value '%s' invalid -- %s",
+				self._name, limit, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 
 	def _start(self):
 		"""
@@ -2196,7 +2182,7 @@ Params are:
 	"""
 		log = self._params.get('log', self._discard)
 		if self._stopping:
-			log.debug("%s %s task is stopping", my(self), self._name)
+			log.debug("%s task is stopping", self._name)
 			return True
 		now = time.time()
 		conf = self._config_running
@@ -2211,16 +2197,15 @@ Params are:
 			self._stopped = now
 		if self._stopped:
 			if self._dnr:
-				log.info("%s Task '%s' stopped and will now be deleted", my(self), self._name)
+				log.info("Task '%s' stopped and will now be deleted", self._name)
 				self.close()
 				return False
 			elif once:
-				log.debug("%s '%s' task %s exited %s ago",
-							my(self), control, self._name, deltafmt(time.time() - self._stopped))
+				log.debug("'%s' task %s exited %s ago", control, self._name, deltafmt(time.time() - self._stopped))
 				return False
 			else:
-				log.debug("%s Restarting %s, task was stopped %s ago",
-							my(self), self._name, deltafmt(time.time() - self._stopped))
+				log.debug("Restarting %s, task was stopped %s ago",
+							self._name, deltafmt(time.time() - self._stopped))
 				self._reset_state()
 
 		start_delay = self._get(conf.get('start_delay'))
@@ -2228,18 +2213,17 @@ Params are:
 			try:
 				start_delay = int(start_delay)
 			except Exception as e:
-				log.error("%s Task '%s' has invalid start_delay '%s'", my(self), self._name, start_delay)
+				log.error("Task '%s' has invalid start_delay '%s'", self._name, start_delay)
 				start_delay = 0
 		else:
 			start_delay = 0
 		if self._starting and not self._started:
 			if now > self._starting + start_delay:
-				log.info("%s %s task marked started after %s",
-						my(self), self._name, deltafmt(now - self._starting))
+				log.info("%s task marked started after %s", self._name, deltafmt(now - self._starting))
 				self._mark_started()
 				return False
-			log.debug("%s %s task has been starting for %s of %s",
-				my(self), self._name, deltafmt(now - self._starting), deltafmt(start_delay))
+			log.debug("%s task has been starting for %s of %s",
+					self._name, deltafmt(now - self._starting), deltafmt(start_delay))
 			return True
 
 		#  Check the required state to ensure dependencies have been started.  In the case of
@@ -2247,21 +2231,19 @@ Params are:
 		#  started.
 		#
 		if self._started:
-			log.debug("%s Task '%s' already started, skipping requires-check", my(self), self._name)
+			log.debug("Task '%s' already started, skipping requires-check", self._name)
 		else:
 			for req in self.get_requires():
 				if req._config_running.get('control') == 'once':
 					if not req._stopped:
 						if self._last_message + repetition_limit < time.time():
-							log.info("%s Task '%s' is waiting on '%s' to complete",
-												my(self), self._name, req._name)
+							log.info("Task '%s' is waiting on '%s' to complete", self._name, req._name)
 							self._last_message = now
 						return True
 				else:
 					if not req._started:
 						if self._last_message + repetition_limit < time.time():
-							log.info("%s Task '%s' is waiting on '%s' to start",
-												my(self), self._name, req._name)
+							log.info("Task '%s' is waiting on '%s' to start", self._name, req._name)
 							self._last_message = now
 						return True
 
@@ -2286,7 +2268,7 @@ Params are:
 				self._shrink(needed, running)
 				return False
 			elif needed == running:
-				log.debug("%s all %d needed process%s running", my(self), running, ses(running, 'es'))
+				log.debug("all %d needed process%s running", running, ses(running, 'es'))
 				return False
 
 			self._starting = now
@@ -2299,7 +2281,7 @@ Params are:
 				if instance < len(self._proc_state):
 					proc = self._proc_state[instance]
 					if proc.pid is not None:
-						log.debug("%s %s instance %d already started", my(self), self._name, instance)
+						log.debug("%s instance %d already started", self._name, instance)
 						continue
 					if proc.started == None:
 						proc.started = now
@@ -2311,33 +2293,32 @@ Params are:
 						#  as now so the task restart will only be delayed slightly longer
 						#  than normal.
 						#
-						log.warning("%s Time flowed backwards, resetting %s instance %d start time",
-							my(self), self._name, instance)
+						log.warning("Time flowed backwards, resetting %s instance %d start time",
+								self._name, instance)
 						proc.started = now
 						continue
 					if last_start_delta < reexec_delay:
-						log.debug("%s %s instance %d restart skipped, last attempt %s ago",
-							my(self), self._name, instance, deltafmt(last_start_delta))
+						log.debug("%s instance %d restart skipped, last attempt %s ago",
+								self._name, instance, deltafmt(last_start_delta))
 						continue
 				else:
-					log.debug("%s %s growing instance %d", my(self), self._name, instance)
+					log.debug("%s growing instance %d", self._name, instance)
 					self._proc_state.append(ProcessState())
 					proc = self._proc_state[instance]
 
 				pid = _exec_process(start_command, self._context, instance=instance, log=log)
-				log.debug("%s Forked pid %d for '%s', %d of %d now running",
-							my(self), pid, self._name, len(self.get_pids()), needed)
+				log.debug("Forked pid %d for '%s', %d of %d now running",
+							pid, self._name, len(self.get_pids()), needed)
 				self._legion.proc_add(event_target(self, 'proc_exit', key=pid, log=log))
 				proc.pid = pid
 				proc.started = now
 				started += 1
 
-			log.info("%s Task %s: %d process%s scheduled to start%s",
-				my(self), self._name, started, ses(started, 'es'),
-				(' with time limit %s' % (deltafmt(self._limit - now),)) if self._limit else '')
+			log.info("Task %s: %d process%s scheduled to start%s",
+					self._name, started, ses(started, 'es'),
+					(' with time limit %s' % (deltafmt(self._limit - now),)) if self._limit else '')
 		except Exception as e:
-			log.error("%s Failed to start task '%s' -- %s",
-							my(self), self._name, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
+			log.error("Failed to start task '%s' -- %s", self._name, str(e), exc_info=log.isEnabledFor(logging.DEBUG))
 		return False
 
 	def stop(self, task_is_resetting=False):
@@ -2358,12 +2339,12 @@ Params are:
 		log = self._params.get('log', self._discard)
 
 		if self._stopped:
-			log.debug("%s '%s' is already stopped", my(self), self._name)
+			log.debug("'%s' is already stopped", self._name)
 			return False
 		now = time.time()
 		running = len(self.get_pids())
 		if self._stopping and running == 0:
-			log.debug("%s All '%s' processes are now stopped", my(self), self._name)
+			log.debug("All '%s' processes are now stopped", self._name)
 			self._reset_state()
 			self._stopped = now
 			return False
@@ -2375,29 +2356,28 @@ Params are:
 			#  These are tasks that have been explicitly terminated but have not yet stopped
 			#
 			if self._killed:
-				log.warning("%s %d '%s' process%s still running %s after SIGKILL escalation",
-					my(self), running, self._name, ses(running, 'es'), deltafmt(now - self._killed))
+				log.warning("%d '%s' process%s still running %s after SIGKILL escalation",
+							running, self._name, ses(running, 'es'), deltafmt(now - self._killed))
 			elif self._terminated + sigkill_escalation < now:
-				log.warning("%s Excalating to SIGKILL with %d '%s' process%s still running",
-								my(self), running, self._name, ses(running, 'es'))
+				log.warning("Excalating to SIGKILL with %d '%s' process%s still running",
+							running, self._name, ses(running, 'es'))
 				self._signal(signal.SIGKILL)
 				self._killed = now
 			else:
-				log.debug("%s %d '%s' process%s still running %s after being terminated",
-					my(self), running, self._name, ses(running, 'es'), deltafmt(now - self._terminated))
+				log.debug("%d '%s' process%s still running %s after being terminated",
+					running, self._name, ses(running, 'es'), deltafmt(now - self._terminated))
 			return True
 		if self._limit and now > self._limit:
 			#  These are tasks that have a time limit set and it has expired.
 			#  This case falls through to the stop code.
-			log.info("%s Stopping task '%s', time limit exceeded %s ago",
-								my(self), self._name, deltafmt(now - self._limit))
+			log.info("Stopping task '%s', time limit exceeded %s ago", self._name, deltafmt(now - self._limit))
 		elif self._stopping and not self._legion.is_exiting():
 			#  These are tasks that are expected to stop soon but have not been explicitly
 			#  terminated.  These are typically tasks with 'once' or 'event' controls.
 			#  Unless there is a time limit set, they are allowed to run indefinitely
 			#
-			log.debug("%s %d '%s' '%s' process%s still running %s",
-					my(self), running, self._name, control, ses(running, 'es'), deltafmt(now - self._stopping))
+			log.debug("%d '%s' '%s' process%s still running %s",
+					running, self._name, control, ses(running, 'es'), deltafmt(now - self._stopping))
 			return False
 
 		if not self._stopping:
@@ -2414,16 +2394,13 @@ Params are:
 				elif ev_type == 'stop':
 					stop_target = self._make_event_target(event, control)
 		if restart_target:
-			log.debug("%s Restart event on %d '%s' process%s",
-					my(self), running, self._name, ses(running, 'es'))
+			log.debug("Restart event on %d '%s' process%s", running, self._name, ses(running, 'es'))
 			restart_target.handle()
 		elif stop_target:
-			log.debug("%s Stop event on %d '%s' process%s",
-					my(self), running, self._name, ses(running, 'es'))
+			log.debug("Stop event on %d '%s' process%s", running, self._name, ses(running, 'es'))
 			stop_target.handle()
 		else:
-			log.debug("%s Stopping %d '%s' process%s with SIGTERM",
-					my(self), running, self._name, ses(running, 'es'))
+			log.debug("Stopping %d '%s' process%s with SIGTERM", running, self._name, ses(running, 'es'))
 			self._signal(signal.SIGTERM)
 		return True
 
@@ -2437,7 +2414,7 @@ Params are:
 		log = self._params.get('log', self._discard)
 		self._dnr = time.time()
 		self.stop()
-		log.info("%s Task '%s' marked for death", my(self), self._name)
+		log.info("Task '%s' marked for death", self._name)
 
 	def apply(self):
 		"""
@@ -2455,7 +2432,7 @@ Params are:
 		if not control:
 			control = 'wait'
 
-		log.debug("%s for '%s', control '%s'", my(self), self._name, control)
+		log.debug("for '%s', control '%s'", self._name, control)
 		if self._command_change() and len(self.get_pids()) > 0:
 			self._event_deregister()
 			self.stop(task_is_resetting=True)
@@ -2476,19 +2453,17 @@ Params are:
 	"""
 		log = self._params.get('log', self._discard)
 		if self._stopping:
-			log.debug("%s Task '%s', stopping, retrying stop()", my(self), self._name)
+			log.debug("Task '%s', stopping, retrying stop()", self._name)
 			return self.stop()
 		now = time.time()
 		if self._started and self._limit:
 			if now > self._limit:
-				log.debug("%s Task '%s', time limit exceeded by %s, stopping",
-									my(self), self._name, deltafmt(now - self._limit))
+				log.debug("Task '%s', time limit exceeded by %s, stopping", self._name, deltafmt(now - self._limit))
 				return self.stop()
 			else:
-				log.debug("%s Task '%s', time limit remaining %s",
-								my(self), self._name, deltafmt(self._limit - now))
+				log.debug("Task '%s', time limit remaining %s", self._name, deltafmt(self._limit - now))
 		if self._legion.is_exiting():
-			log.debug("%s Not managing '%s', legion is exiting", my(self), self._name)
+			log.debug("Not managing '%s', legion is exiting", self._name)
 			return False
-		log.debug("%s managing '%s'", my(self), self._name)
+		log.debug("managing '%s'", self._name)
 		return self._start()

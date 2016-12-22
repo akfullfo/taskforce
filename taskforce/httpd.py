@@ -305,7 +305,7 @@ class TCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer, BaseServer)
 		super(TCPServer, self).__init__((host, port), HTTP_handler)
 
 	def close(self):
-		pass
+		self.server_close()
 
 	def get_request(self):
 		info = super(TCPServer, self).get_request()
@@ -341,6 +341,7 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 		super(UnixStreamServer, self).__init__(path, HTTP_handler)
 
 	def close(self):
+		self.server_close()
 		if self.path and os.path.exists(self.path):
 			try: os.unlink(self.path)
 			except: pass							# pragma: no cover

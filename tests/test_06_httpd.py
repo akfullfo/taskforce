@@ -19,11 +19,11 @@
 #
 
 import os, sys, logging, time, json, gc
-import support
 import taskforce.poll
 import taskforce.httpd
 import taskforce.http
-from taskforce.utils import get_caller as my
+import support
+from support import get_caller as my
 
 try:
 	from http.client import HTTPConnection

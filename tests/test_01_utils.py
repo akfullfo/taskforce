@@ -18,9 +18,9 @@
 #
 
 import os, sys, time, re, signal, fcntl, errno, logging
-import support
 import taskforce.utils as utils
-from taskforce.utils import get_caller as my
+import support
+from support import get_caller as my
 
 env = support.env(base='.')
 

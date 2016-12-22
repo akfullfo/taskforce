@@ -16,12 +16,13 @@
 # ________________________________________________________________________
 #
 
-import os, sys, time, logging, errno, re, json, tempfile
-import support
-from taskforce.utils import get_caller as my, deltafmt, ses
+import os, sys, socket, time, logging, errno, re, json, tempfile
 import taskforce.poll as poll
 import taskforce.task as task
 import taskforce.http
+from taskforce.utils import deltafmt, ses
+import support
+from support import get_caller as my
 
 env = support.env(base='.')
 
@@ -126,7 +127,7 @@ class Test(object):
 		self.set_roles(env.test_roles)
 		self.log.info("Base dir '%s', tmp dir '%s'", env.base_dir, env.temp_dir)
 
-		cargs = ['--expires', '60']
+		cargs = ['--expires', '120']
 		cargs.extend(['--certfile', '' if use_ssl is None else env.cert_file])
 		cargs.extend(['--http', address])
 		if allow_control:
@@ -497,7 +498,7 @@ class Test(object):
 		#
 		resp = None
 		httpc = None
-		for attempt in range(20):
+		for attempt in range(30):
 			try:
 				httpc = self.start_client(self.unx_address, use_ssl=False)
 				resp = httpc.getmap('/status/version')
@@ -519,8 +520,13 @@ class Test(object):
 			self.log.info('%s stop response info: %d %s "%s"', taskname, count_code, content_type, content.strip())
 			assert stop_code < 300
 			assert content.strip().endswith('exit initiated')
-		except taskforce.http.HttpError as e:
+		except (taskforce.http.BadStatusLine, taskforce.http.HttpError) as e:
 			self.log.info('%s Expected possible error from stop manage -- %s', my(self), str(e))
+		except socket.error as e:
+			if e.errno == errno.ECONNRESET:
+				self.log.info('%s Expected possible socket error from stop manage -- %s', my(self), str(e))
+			else:
+				raise e
 
 		support.check_procsim_errors(self.__module__, env, log=self.log)
 		self.stop_tf()

@@ -143,10 +143,13 @@ class Test(object):
 		new_roles = env.test_roles[0]
 		self.log.info("Switching to role %s", new_roles)
 		self.set_roles(new_roles)
-		db_stopped = tf.search([r"event_target.proc_exit.*task 'db_server'", r"Task 'ws_server' already started"],
+		db_stopped = tf.search([r"Task 'db_server' (still|pid)", r"Task 'ws_server' already started"],
 														log=self.log)
 		assert db_stopped
-		assert self.find_children(tf, roles=new_roles) == expected_frontend_process_count
+		children_found = self.find_children(tf, roles=new_roles)
+		if children_found != expected_frontend_process_count:
+			self.log.warning("Found %d children, expected %d", children_found, expected_frontend_process_count)
+		assert children_found == expected_frontend_process_count
 		self.log.info("Switch to %s ok, pid to check is %d", new_roles, tf.pid)
 
 		new_roles = env.test_roles[1]

@@ -16,7 +16,7 @@
 # ________________________________________________________________________
 #
 
-import os, sys, time, subprocess, fcntl, errno, logging, re, random, platform, shutil
+import os, sys, time, subprocess, fcntl, errno, logging, re, inspect, random, platform, shutil
 
 import taskforce.utils as utils
 
@@ -327,7 +327,7 @@ class python_subprocess(object):
 			found = False
 			for regex in list(need_regex):
 				if need_regex[regex].search(l):
-					if log: log.debug("support.search(%s) found in: %s", regex, l)
+					if log: log.info("support.search(%s) found in: %s", regex, l)
 					found = True
 					del need_regex[regex]
 					break
@@ -697,6 +697,37 @@ def check_procsim_errors(module_name, env, log=None):
 	else:
 		if log: log.info("No err files found")
 	assert err_file_cnt == 0
+
+def get_caller(*caller_class, **params):
+	(frame, file, line, func, contextlist, index) = inspect.stack()[1]
+
+	try: class_name = frame.f_locals["self"].__class__.__name__
+	except: class_name = None
+
+	if class_name:
+		name = class_name + '.'
+	elif caller_class != ():							# pragma: no cover
+		name = inspect.getmodule(caller_class[0]).__name__ + '.'
+	elif hasattr(inspect.getmodule(frame), '__name__'):
+		name = inspect.getmodule(frame).__name__ + '.'
+	else:										# pragma: no cover
+		name = ''
+
+	if func == '__init__' and class_name:
+		name = class_name + '()'
+	elif name == '__main__.':							# pragma: no cover
+		name = func + '()'
+	else:
+		name += func + '()'
+
+	if 'persist_place' in params:
+		get_caller._Persist_Place = params['persist_place']
+
+	log = params.get('log', logging.getLogger())
+	if get_caller._Persist_Place or params.get('place') or log.isEnabledFor(logging.DEBUG):
+		name += ' [+{} {}]'.format(line, os.path.basename(file))
+	return name
+get_caller._Persist_Place = None
 
 if __name__ == "__main__":
 

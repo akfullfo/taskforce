@@ -21,7 +21,6 @@ import sys, os, time, select, logging
 import modulefinder
 from . import watch_files
 from . import utils
-from .utils import get_caller as my
 from .utils import ses
 
 class watch(object):
@@ -86,8 +85,8 @@ class watch(object):
 				self._watch.remove(path, **wparams)
 				rebuild = True
 			except Exception as e:
-				log.warning("%s Remove of watched module '%s' failed -- %s", my(self), path, str(e))
-			log.debug("%s Removed watch for path '%s'", my(self), path)
+				log.warning("Remove of watched module '%s' failed -- %s", path, str(e))
+			log.debug("Removed watch for path '%s'", path)
 
 		#  Find all the modules that are new and should be watched
 		#
@@ -97,7 +96,7 @@ class watch(object):
 					self._watch.add(path, **wparams)
 					rebuild = True
 				except Exception as e:
-					log.error("%s watch failed on module '%s' -- %s", my(self), path, str(e))
+					log.error("watch failed on module '%s' -- %s", path, str(e))
 					continue
 		if rebuild:
 			self._watch.commit(**params)
@@ -131,9 +130,9 @@ class watch(object):
 					else:
 						changes[name] = [path]
 			else:
-				log.warning("%s Path '%s' had no matching watch entry", my(self), path)
+				log.warning("Path '%s' had no matching watch entry", path)
 		names = list(changes)
-		log.debug("%s Change was to %d name%s", my(self), len(names), ses(len(names)))
+		log.debug("Change was to %d name%s", len(names), ses(len(names)))
 		names.sort()
 		resp = []
 		for name in names:
@@ -199,7 +198,7 @@ class watch(object):
 		if command is None and os.access(command_path, os.R_OK):
 			command = command_path
 		if command is None:
-			log.error("%s failed to find '%s'", my(self), command_path)
+			log.error("failed to find '%s'", command_path)
 			raise Exception("Could not locate command '%s'" % (command_path,))
 		command = os.path.realpath(command)
 
@@ -216,7 +215,7 @@ class watch(object):
 		#  If the name was used previously, remove all references
 		#
 		if name in self.names:
-			log.debug("%s Removing existing entries for '%s'", my(self), name)
+			log.debug("Removing existing entries for '%s'", name)
 			self.remove(name)
 		self.names[name] = command
 
@@ -226,28 +225,28 @@ class watch(object):
 		rebuild = False
 		if command in self.modules:
 			if name in self.modules[command]:
-				log.debug("%s Name '%s' already present in '%s'", my(self), name, command)
+				log.debug("Name '%s' already present in '%s'", name, command)
 			else:
-				log.debug("%s Command for '%s' added to '%s'", my(self), name, command)
+				log.debug("Command for '%s' added to '%s'", name, command)
 				self.modules[command].append(name)
 		else:
-			log.debug("%s Command '%s' added for '%s'", my(self), command, name)
+			log.debug("Command '%s' added for '%s'", command, name)
 			self.modules[command] = [name]
 			rebuild = True
 		for modname, mod in list(finder.modules.items()):
 			path = mod.__file__
 			if not path:
-				log.debug("%s Skipping module '%s' -- no __file__ in module", my(self), modname)
+				log.debug("Skipping module '%s' -- no __file__ in module", modname)
 				continue
 			path = os.path.realpath(path)
 			if path in self.modules:
 				if name in  self.modules[path]:
-					log.debug("%s Name '%s' already present in '%s'", my(self), name, command)
+					log.debug("Name '%s' already present in '%s'", name, command)
 				else:
-					log.debug("%s '%s' added to '%s'", my(self), name, path)
+					log.debug("'%s' added to '%s'", name, path)
 					self.modules[path].append(name)
 			else:
-				log.debug("%s '%s' added for '%s'", my(self), path, name)
+				log.debug("'%s' added for '%s'", path, name)
 				self.modules[path] = [name]
 				rebuild = True
 		if rebuild:
@@ -262,7 +261,7 @@ class watch(object):
 		log = self._getparam('log', self._discard, **params)
 
 		if name not in self.names:
-			log.error("%s Attempt to remove '%s' which was never added", my(self), name)
+			log.error("Attempt to remove '%s' which was never added", name)
 			raise Exception("Command '%s' has never been added" % (name,))
 		del self.names[name]
 		rebuild = False
