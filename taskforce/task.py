@@ -696,7 +696,7 @@ Params are:
 			  not run forever in the case where the testing
 			  sequence fails shut it down.
 """
-	all_controls = frozenset(['off', 'once', 'event', 'wait', 'nowait', 'adopt'])
+	all_controls = frozenset(['off', 'once', 'event', 'wait', 'nowait', 'adopt', 'suspend'])
 	run_controls = frozenset(set(list(all_controls)) - set(['off']))
 	once_controls = frozenset(['once', 'event'])
 
@@ -1740,6 +1740,7 @@ Params are:
 	"""
 		self._starting = None
 		self._started = None
+		self._suspended = None
 		self._stopping = None
 		self._terminated = None
 		self._killed = None
@@ -2154,7 +2155,7 @@ Params are:
 
 	def _start(self):
 		"""
-		Start a task, which may involve starting more than one process.
+		Start a task, which may involve starting zero or more processes.
 
 		This is indicated as an internal method because tasks are really
 		only ever marked as startable by the configuration.  Any task
@@ -2230,7 +2231,7 @@ Params are:
 		#  'once' controls, the dependency must have already stopped, otherwise it must have
 		#  started.
 		#
-		if self._started:
+		if self._started and control != 'suspend':
 			log.debug("Task '%s' already started, skipping requires-check", self._name)
 		else:
 			for req in self.get_requires():
@@ -2262,18 +2263,35 @@ Params are:
 			if not isinstance(start_command, list):
 				start_command = list(start_command)
 
-			needed = self._get(conf.get('count'), default=1)
-			running = len(self.get_pids())
-			if needed < running:
-				self._shrink(needed, running)
-				return False
-			elif needed == running:
-				log.debug("all %d needed process%s running", running, ses(running, 'es'))
-				return False
+			if control != 'suspend':
+				needed = self._get(conf.get('count'), default=1)
+				running = len(self.get_pids())
+				if needed < running:
+					self._shrink(needed, running)
+					return False
+				elif needed == running:
+					log.debug("all %d needed process%s running", running, ses(running, 'es'))
+					return False
 
 			self._starting = now
 			if not start_delay:
 				self._mark_started()
+
+			if control == 'suspend':
+				if not self._suspended:
+					log.debug("%s just moved to %s", self._name, repr(control))
+					running = len(self.get_pids())
+					if running > 0:
+						log.debug("%s now %s, stopping running processes", self._name, repr(control))
+						self._shrink(0, running)
+					else:
+						log.debug("%s is %s control, skipping process startup", self._name, repr(control))
+						self._suspended = now
+				return False
+			else:
+				if self._suspended:
+					log.debug("%s just moved to %s", self._name, repr(control))
+				self._suspended = None
 
 			log.debug("Found %d running, %d needed, starting %d", running, needed, needed-running)
 			started = 0
@@ -2283,7 +2301,7 @@ Params are:
 					if proc.pid is not None:
 						log.debug("%s instance %d already started", self._name, instance)
 						continue
-					if proc.started == None:
+					if proc.started is None:
 						proc.started = now
 					last_start_delta = now - proc.started
 					if last_start_delta < 0:
