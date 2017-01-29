@@ -1,8 +1,57 @@
 Changelog
 =========
 
+0.4.0 (2017-01-29)
+------------------
+
+- Ok, I really should test these URLs before I check in the code.
+  [Andrew Fullford]
+
+- Adjust supported python version. [Andrew Fullford]
+
+- Fix badges this time for sure. [Andrew Fullford]
+
+- Fix badges again. [Andrew Fullford]
+
+- Fix badges. [Andrew Fullford]
+
+- Fix #14.  Added new control "suspend" [Andrew Fullford]
+
+- Rmeove my() calls, may be a performance issue.  improve handling of
+  web server exit. [Andrew Fullford]
+
+- Minor comment change. [Andrew Fullford]
+
+- Add python 3.5 to tests. [Andrew Fullford]
+
+- Allows multiple concurrent tests to run in different virtualenvs on a
+  single host. [Andrew Fullford]
+
+- Handle python 3.5 signal objects. [Andrew Fullford]
+
+- Added len() support so a dynamix pset can be checked for registration
+  count. [Andrew Fullford]
+
+- Explicit exception when poll() called before registering anything.
+  [Andrew Fullford]
+
+- Makes more sense to use __dict__ [Andrew Fullford]
+
+- Turn off travis container infrastructure for now.  seems to run the
+  python tests concurrently in the same container. [Andrew Fullford]
+
+- Works better if you spell it right. [Andrew Fullford]
+
+- Switch to travis container infrastructure. [Andrew Fullford]
+
+- Modernize pre-raphaelite code. [Andrew Fullford]
+
+- Typo in comment. [Andrew Fullford]
+
 0.3.14 (2015-09-20)
 -------------------
+
+- Release 0.3.14. [Andrew Fullford]
 
 - Add **params to get/post functions, including 'handler' as well as
   moving 'data' and 'type' for post.  Using **params will make most
