@@ -1475,7 +1475,8 @@ Params are:
 						log.info("All tasks have stopped")
 						break
 					if exit_report + 1 < now:
-						log.warning("Still waiting for %d process%s", still_running, ses(still_running))
+						log.warning("Still waiting for %d process%s",
+									still_running, ses(still_running, 'es'))
 						exit_report = now
 					self.next_timeout()
 				if self.expires:
