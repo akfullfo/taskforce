@@ -2,8 +2,14 @@ Changelog
 =========
 
 
+0.4.2 (2017-11-13)
+------------------
+- PyPi no longer allows multiline descriptions. [Andrew Fullford]
+
+
 0.4.1 (2017-11-13)
 ------------------
+- Release 0.4.1. [Andrew Fullford]
 - Remove download icon, no longer available. [Andrew Fullford]
 - Fix test to allow for running while in UTC. [Andrew Fullford]
 - Switch to pynotifyx fork of inotifyx with support for python 3.
