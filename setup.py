@@ -71,8 +71,7 @@ setup_parms = {
 	'name': name,
 	'provides': [name],
 	'version': version,
-	'description': """Taskforce starts and restarts daemon processes.
-It will detect executable and/or module changes and automatically restart the affected processes.""",
+	'description': """Taskforce starts and restarts daemon processes.  It will detect executable and/or module changes and automatically restart the affected processes.""",
 	'author': "Andrew Fullford",
 	'author_email': "git042013@fullford.com",
 	'maintainer': "Andrew Fullford",
