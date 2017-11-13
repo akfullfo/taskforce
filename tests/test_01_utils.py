@@ -190,14 +190,10 @@ how it is typically used.
 	def Test_F_time2iso(self):
 		now = time.time()
 
-		#  Make sure we are not operating in UTC as that causes the terse, non-utc pattern match to fail
-		#
-		os.environ['TZ'] = 'America/Chicago'
-
 		variations = [
 			(False, False, None, r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}$'),
 			(True, False, None, r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+00:00$'),
-			(False, True, None, r'^\d{8}T\d{6}\.\d{3}[+-]\d{2}:\d{2}$'),
+			(False, True, None, r'^\d{8}T\d{6}\.\d{3}(([+-]\d{2}:\d{2})|Z)$'),
 			(True, True, 0, r'^\d{8}T\d{6}Z$'),
 			(True, True, 6, r'^\d{8}T\d{6}\.\d{6}Z$')
 		]
@@ -208,6 +204,8 @@ how it is typically used.
 			else:
 				res = utils.time2iso(now, utc=utc, terse=terse, decimals=decimals)
 				self.log.info("time2iso(now, utc=%s, terse=%s, decimals=%d) gives '%s'", utc, terse, decimals, res)
+			if not re.match(regex, res):
+				self.log.error("Failed with re %r, res %r", regex, res)
 			assert re.match(regex, res)
 
 	def Test_G_module_description(self):
