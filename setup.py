@@ -3,10 +3,10 @@
 import re, sys, os
 from setuptools import setup
 
-def has_inotifyx():
+def has_pynotifyx():
 	ok = False
 	try:
-		import inotifyx
+		import pynotifyx
 		ok = True
 	except: pass
 	return ok
@@ -25,28 +25,20 @@ def has_developer_tools():
 def get_requires(namesonly = False):
 	requires = ['PyYAML>=3.09']
 	if sys.platform.startswith('linux'):
-		if sys.version_info[0] > 2:
-			sys.stderr.write("""
----------------------------------------------------------------------
-WARNING: The "inotifyx" bindings to inotify(7) do not currently
-	 support Python 3.  "taskforce" will still work, but with
-	 a slightly higher overhead and lower responsiveness.
----------------------------------------------------------------------
-""")
-		elif has_developer_tools():
-			requires += ['inotifyx>=0.2.2']
-		elif not has_inotifyx():
+		if has_developer_tools():
+			requires += ['pynotifyx>=0.3.7']
+		elif not has_pynotifyx():
 			sys.stderr.write("""
 ---------------------------------------------------------------------
 
-WARNING: The linux implementation will use the "inotifyx" bindings to
+WARNING: The linux implementation will use the "pynotifyx" bindings to
 	 inotify(7) if available.  On this system, "inotifyx" is not
 	 already present and the "python-dev" system is not loaded so
-	 "inotifyx" can't be installed.  "taskforce" will still work,
+	 "pynotifyx" can't be installed.  "taskforce" will still work,
 	 but with a slightly higher overhead and lower responsiveness.
 
 	 If you would like to gain full performance, install the
-	 "python-dev" package which is needed to install "inotifyx",
+	 "python-dev" package which is needed to install "pynotifyx",
 	 for example, using:
 
 		sudo apt-get install python-dev
@@ -100,8 +92,8 @@ It will detect executable and/or module changes and automatically restart the af
 		'Operating System :: POSIX :: BSD',
 		'Operating System :: MacOS :: MacOS X',
 		'Programming Language :: Python :: 2.7',
-		'Programming Language :: Python :: 3.4',
 		'Programming Language :: Python :: 3.5',
+		'Programming Language :: Python :: 3.6',
 		'Topic :: System :: Distributed Computing',
 		'Topic :: System :: Software Distribution',
 		'Topic :: System :: Systems Administration',

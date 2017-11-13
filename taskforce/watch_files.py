@@ -26,11 +26,12 @@ WF_POLLING = 0
 WF_KQUEUE = 1
 WF_INOTIFYX = 2
 
-wf_inotifyx_available = False
+wf_pynotifyx_available = False
 try:
-	import inotifyx
-	if callable(inotifyx.init):
-		wf_inotifyx_available = True
+	#import pynotifyx.__main__ as pynotifyx
+	import pynotifyx
+	if callable(pynotifyx.init):
+		wf_pynotifyx_available = True
 except:
 	pass
 
@@ -116,7 +117,7 @@ class watch(object):
 		#
 		if polling:
 			self._mode = WF_POLLING
-		elif wf_inotifyx_available:
+		elif wf_pynotifyx_available:
 			self._mode = WF_INOTIFYX
 		elif 'kqueue' in dir(select) and callable(select.kqueue):
 			self._mode = WF_KQUEUE
@@ -153,15 +154,15 @@ class watch(object):
 			#
 			self._kq = select.kqueue()
 		elif self._mode == WF_INOTIFYX:
-			#  Immediately create an inotifyx channel identified by a
+			#  Immediately create an pynotifyx channel identified by a
 			#  file descriptor.
 			#
-			self._inx_fd = inotifyx.init()
+			self._inx_fd = pynotifyx.init()
 
 			#  This is the standard mask used for watches.  It is setup
 			#  to only trigger events when somethingn changes.
 			#
-			self._inx_mask = inotifyx.IN_ALL_EVENTS & ~(inotifyx.IN_ACCESS | inotifyx.IN_CLOSE | inotifyx.IN_OPEN)
+			self._inx_mask = pynotifyx.IN_ALL_EVENTS & ~(pynotifyx.IN_ACCESS | pynotifyx.IN_CLOSE | pynotifyx.IN_OPEN)
 
 			# Record inode of watched paths to work around simfs bug 
 			#
@@ -244,7 +245,7 @@ class watch(object):
 		of mode.
 	"""
 		if self._mode == WF_INOTIFYX:
-			try: inotifyx.rm_watch(self._inx_fd, fd)
+			try: pynotifyx.rm_watch(self._inx_fd, fd)
 			except: pass
 		else:
 			try: os.close(fd)
@@ -362,13 +363,13 @@ class watch(object):
 			if fd in self.fds_open:
 				try:
 					path = self.fds_open[fd]
-					nfd = inotifyx.add_watch(self._inx_fd, path, self._inx_mask|inotifyx.IN_OPEN)
+					nfd = pynotifyx.add_watch(self._inx_fd, path, self._inx_mask|pynotifyx.IN_OPEN)
 					if nfd != fd:
 						raise Exception("Assertion failed: IN_OPEN add_watch() set gave new wd")
 					tfd = os.open(path, os.O_RDONLY)
 					try: os.close(tfd)
 					except: pass
-					nfd = inotifyx.add_watch(self._inx_fd, path, self._inx_mask)
+					nfd = pynotifyx.add_watch(self._inx_fd, path, self._inx_mask)
 					if nfd != fd:
 						raise Exception("Assertion failed: IN_OPEN add_watch() clear gave new wd")
 				except Exception as e:
@@ -433,7 +434,7 @@ class watch(object):
 			try: os.close(fd)
 			except: pass
 			try:
-				fd = inotifyx.add_watch(self._inx_fd, path, self._inx_mask)
+				fd = pynotifyx.add_watch(self._inx_fd, path, self._inx_mask)
 				log.debug("path %s watched with wd %d", path, fd)
 			except Exception as e:
 				log.error("inotify failed on watched path '%s' -- %s", path, str(e))
@@ -473,7 +474,7 @@ class watch(object):
 						log.warning("close failed on watched file '%s' -- %s", path, str(e))
 				elif self._mode == WF_INOTIFYX:
 					try:
-						inotifyx.rm_watch(self._inx_fd, fd)
+						pynotifyx.rm_watch(self._inx_fd, fd)
 					except Exception as e:
 						log.warning("remove failed on watched file '%s' -- %s", path, str(e))
 					if path in self._inx_inode:
@@ -588,7 +589,7 @@ class watch(object):
 			evagg = {}
 			while True:
 				try:
-					evlist = inotifyx.get_events(self._inx_fd, timeout)
+					evlist = pynotifyx.get_events(self._inx_fd, timeout)
 				except IOError as e:
 					if e.errno == errno.EINTR:
 						break
@@ -596,7 +597,7 @@ class watch(object):
 				if not evlist:
 					break
 
-				log.debug("inotifyx.get_events() returned %d event%s", len(evlist), ses(len(evlist)))
+				log.debug("pynotifyx.get_events() returned %d event%s", len(evlist), ses(len(evlist)))
 
 				for ev in evlist:
 					if ev.wd in self.fds_open:
@@ -605,7 +606,7 @@ class watch(object):
 							evagg[path].mask |= ev.mask
 						else:
 							evagg[path] = ev
-					elif ev.mask & inotifyx.IN_IGNORED:
+					elif ev.mask & pynotifyx.IN_IGNORED:
 						log.debug("skipping IN_IGNORED event on unknown wd %d", ev.wd)
 					else:
 						log.warning("attempt to handle unknown inotify event wd %d", ev.wd)
@@ -613,9 +614,9 @@ class watch(object):
 					break
 			for path, ev in evagg.items():
 				log.debug("Change on '%s' -- %s", path, ev.get_mask_description())
-				if ev.mask & (inotifyx.IN_DELETE_SELF | inotifyx.IN_MOVE_SELF):
+				if ev.mask & (pynotifyx.IN_DELETE_SELF | pynotifyx.IN_MOVE_SELF):
 					self._disappeared(ev.wd, path, **params)
-				elif ev.mask & inotifyx.IN_ATTRIB:
+				elif ev.mask & pynotifyx.IN_ATTRIB:
 					file_move_del = False
 					try:
 						s = os.stat(path)
