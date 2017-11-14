@@ -4,91 +4,91 @@ import re, sys, os, time, signal, random, argparse
 from taskforce import utils
 
 try:
-	from setproctitle import setproctitle
-	has_setproctitle = True
+    from setproctitle import setproctitle
+    has_setproctitle = True
 except:
-	has_setproctitle = False
+    has_setproctitle = False
 
 def final(code, fmt=None, *fargs):
-	global pidfile, procname, args
+    global pidfile, procname, args
 
-	if code < 10:
-		if args.exit_delay:
-			#  Exit with a random delay.  This is typically
-			#  less than a second but every now and then
-			#  much longer.  Exercises the kill-code a little.
-			#
-			random_delay = random.uniform(0.0, 1.0)
-			if random_delay > 0.95:
-				random_delay += random.uniform(0.0, 5.0)
-			time.sleep(random_delay)
-		sys.exit(code)
-	msg = fmt.rstrip() % fargs
-	if 'NOSE_LOG_LEVEL' not in os.environ or not pidfile:
-		sys.stderr.write(msg + '\n')
-		sys.exit(code)
-	try:
-		outfile = re.sub(r'\.pid', '', pidfile) + '.err'
-		stamp = time.strftime('%Y.%m.%d-%H:%M:%S ')
-		with open(outfile, 'a') as f:
-			f.write(stamp + msg + '\n')
-	except:
-		sys.stderr.write(msg + '\n')
-	sys.exit(code)
+    if code < 10:
+        if args.exit_delay:
+            #  Exit with a random delay.  This is typically
+            #  less than a second but every now and then
+            #  much longer.  Exercises the kill-code a little.
+            #
+            random_delay = random.uniform(0.0, 1.0)
+            if random_delay > 0.95:
+                random_delay += random.uniform(0.0, 5.0)
+            time.sleep(random_delay)
+        sys.exit(code)
+    msg = fmt.rstrip() % fargs
+    if 'NOSE_LOG_LEVEL' not in os.environ or not pidfile:
+        sys.stderr.write(msg + '\n')
+        sys.exit(code)
+    try:
+        outfile = re.sub(r'\.pid', '', pidfile) + '.err'
+        stamp = time.strftime('%Y.%m.%d-%H:%M:%S ')
+        with open(outfile, 'a') as f:
+            f.write(stamp + msg + '\n')
+    except:
+        sys.stderr.write(msg + '\n')
+    sys.exit(code)
 
 def catch(sig, frame):
-	if sig == signal.SIGTERM:
-		final(0)
-	elif sig == signal.SIGHUP:
-		#  Represents a reconfiguation
-		return
-	elif sig == signal.SIGUSR1:
-		final(1)
-	elif sig == signal.SIGUSR2:
-		final(2)
-	else:
-		final(76, 'Unknown signal %s', str(sig))
+    if sig == signal.SIGTERM:
+        final(0)
+    elif sig == signal.SIGHUP:
+        #  Represents a reconfiguation
+        return
+    elif sig == signal.SIGUSR1:
+        final(1)
+    elif sig == signal.SIGUSR2:
+        final(2)
+    else:
+        final(76, 'Unknown signal %s', sig)
 
 def daemonize(**params):
-	if os.fork() != 0:
-		os._exit(0)
+    if os.fork() != 0:
+        os._exit(0)
 
-	try: os.setsid()
-	except: pass
+    try: os.setsid()
+    except: pass
 
-	if os.fork() != 0:
-		os._exit(0)
+    if os.fork() != 0:
+        os._exit(0)
 
-	try: os.chdir('/')
-	except: pass
-	try: os.close(0)
-	except: pass
-	try: fd = os.open('/dev/null', os.O_RDONLY)
-	except: pass
-	try: os.close(1)
-	except: pass
-	try: fd = os.open('/dev/null', os.O_WRONLY)
-	except: pass
-	try: os.setpgrp()
-	except: pass
-	try: os.close(2)
-	except: pass
-	try: fd = os.dup(1)
-	except: pass
-	utils.closeall(exclude = [0,1,2])
+    try: os.chdir('/')
+    except: pass
+    try: os.close(0)
+    except: pass
+    try: fd = os.open('/dev/null', os.O_RDONLY)
+    except: pass
+    try: os.close(1)
+    except: pass
+    try: fd = os.open('/dev/null', os.O_WRONLY)
+    except: pass
+    try: os.setpgrp()
+    except: pass
+    try: os.close(2)
+    except: pass
+    try: fd = os.dup(1)
+    except: pass
+    utils.closeall(exclude = [0,1,2])
 
 procname = utils.appname()
 appname = procname
 
 if 'Task_name' in os.environ:
-	procname = os.environ['Task_name']
+    procname = os.environ['Task_name']
 if 'Task_instance' in os.environ:
-	procname += '-'+os.environ['Task_instance']
+    procname += '-'+os.environ['Task_instance']
 procname = re.sub(r'[^-\w.+]+', '_', procname)
 if 'Task_pidfile' in os.environ:
-	def_pidfile = os.environ['Task_pidfile']
+    def_pidfile = os.environ['Task_pidfile']
 else:
-	def_pidfile = '/var/run/' + procname + '.pid'
+    def_pidfile = '/var/run/' + procname + '.pid'
 
 p = argparse.ArgumentParser(description="""
 Simulate a daemon execution.  The command sleeps until a given exit timer
@@ -99,47 +99,47 @@ Without --min-sleep, sleep will be between 0 and --sleep-range.
 Without --sleep-range, sleep will be exactly --min-sleep.
 With neither, process will sleep forever.
 """)
-p.add_argument('--min-sleep', action='store', dest='min_sleep', type=float, help='Sleep no less than this number of seconds')
-p.add_argument('--sleep-range', action='store', dest='sleep_range', type=float, help='Sleep randomly within this range')
-p.add_argument('-b', '--background', action='store_true', dest='daemonize', help='Run in the background')
-p.add_argument('-p', '--pidfile', action='store', dest='pidfile', help='Pidfile path, default '+def_pidfile+', "-" means none')
-p.add_argument('-q', '--quit', action='store_true', dest='quit', help='ntpd simulation, same as "--sleep-range 3"')
-p.add_argument('-d', '--exit-delay', action='store_true', dest='exit_delay', help='Add random exit delay to exercise shutdown code')
-p.add_argument('-g', '--dont-panic', action='store_true', dest='dont_panic', help='ntpd simulation, no simulated action')
-p.add_argument('-n', '--dont-fork', action='store_true', dest='dont_fork', help='ntpd simulation, no simulated action')
-p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='general simulation, no simulated action')
-p.add_argument('-f', '--file', action='store', dest='file', help='general simulation, no simulated action')
-p.add_argument('-c', '--config', action='store', dest='config', help='general simulation, no simulated action')
-p.add_argument('-l', '--listen-url', action='store', dest='listen_url', help='general simulation, no simulated action')
+p.add_argument('--min-sleep', action='store', type=float, help='Sleep no less than this number of seconds')
+p.add_argument('--sleep-range', action='store', type=float, help='Sleep randomly within this range')
+p.add_argument('-b', '--background', action='store_true', help='Run in the background')
+p.add_argument('-p', '--pidfile', action='store', help='Pidfile path, default '+def_pidfile+', "-" means none')
+p.add_argument('-q', '--quit', action='store_true', help='ntpd simulation, same as "--sleep-range 3"')
+p.add_argument('-d', '--exit-delay', action='store_true', help='Add random exit delay to exercise shutdown code')
+p.add_argument('-g', '--dont-panic', action='store_true', help='ntpd simulation, no simulated action')
+p.add_argument('-n', '--dont-fork', action='store_true', help='ntpd simulation, no simulated action')
+p.add_argument('-v', '--verbose', action='store_true', help='general simulation, no simulated action')
+p.add_argument('-f', '--file', action='store', help='general simulation, no simulated action')
+p.add_argument('-c', '--config', action='store', help='general simulation, no simulated action')
+p.add_argument('-l', '--listen-url', action='store', help='general simulation, no simulated action')
 p.add_argument('cmd_args', nargs='*', action='store', metavar='arg', help='Arg available to the particular simulation')
 
 args = p.parse_args()
 
-if args.pidfile is None and args.daemonize:
-	pidfile = def_pidfile
+if args.pidfile is None and args.background:
+    pidfile = def_pidfile
 else:
-	pidfile = args.pidfile
+    pidfile = args.pidfile
 if pidfile == '' or pidfile == '-':
-	pidfile = None
+    pidfile = None
 
 if args.quit:
-	args.sleep_range = 3
+    args.sleep_range = 3
 if args.min_sleep is None and args.sleep_range is None:
-	sleep_period = None
+    sleep_period = None
 elif args.min_sleep is None:
-	sleep_period = random.uniform(0.0, args.sleep_range)
+    sleep_period = random.uniform(0.0, args.sleep_range)
 elif args.sleep_range is None:
-	sleep_period = args.min_sleep
+    sleep_period = args.min_sleep
 else:
-	sleep_period = random.uniform(args.min_sleep, args.min_sleep+args.sleep_range)
+    sleep_period = random.uniform(args.min_sleep, args.min_sleep+args.sleep_range)
 
 if appname == 'service':
-	#  Apply a configuration that looks a little like a 'service facility operation'
-	#  command.  It will just sleep briefly and exit.
-	sleep_period = sleep_period = random.uniform(0, 1.0)
+    #  Apply a configuration that looks a little like a 'service facility operation'
+    #  command.  It will just sleep briefly and exit.
+    sleep_period = sleep_period = random.uniform(0, 1.0)
 
-if args.daemonize:
-	daemonize()
+if args.background:
+    daemonize()
 
 signal.signal(signal.SIGINT, signal.SIG_IGN)
 signal.signal(signal.SIGHUP, catch)
@@ -148,24 +148,24 @@ signal.signal(signal.SIGUSR1, catch)
 signal.signal(signal.SIGUSR2, catch)
 
 if pidfile is not None:
-	try:
-		utils.pidclaim(pidfile)
-	except Exception as e:
-		final(75, "Error claiming pidfile '%s' -- %s", pidfile, str(e))
+    try:
+        utils.pidclaim(pidfile)
+    except Exception as e:
+        final(75, "Error claiming pidfile %r -- %s", pidfile, e)
 
 started = time.time()
 if sleep_period is None:
-	while True:
-		now = time.time()
-		if has_setproctitle:
-			setproctitle("%s %.0f secs so far, sleeping forever" % (procname, now-started))
-		time.sleep(1)
+    while True:
+        now = time.time()
+        if has_setproctitle:
+            setproctitle("%s %.0f secs so far, sleeping forever" % (procname, now-started))
+        time.sleep(1)
 else:
-	toolong = started + sleep_period
-	while True:
-		now = time.time()
-		if now >= toolong:
-			final(0)
-		if has_setproctitle:
-			setproctitle("%s %.1f of %.1f secs" % (procname, now-started, sleep_period))
-		time.sleep(0.2)
+    toolong = started + sleep_period
+    while True:
+        now = time.time()
+        if now >= toolong:
+            final(0)
+        if has_setproctitle:
+            setproctitle("%s %.1f of %.1f secs" % (procname, now-started, sleep_period))
+        time.sleep(0.2)
