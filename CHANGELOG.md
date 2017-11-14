@@ -2,8 +2,14 @@ Changelog
 =========
 
 
+0.5.0 (2017-11-14)
+------------------
+- Capitulating on the whole PEP-8 indent style. [Andrew Fullford]
+
+
 0.4.2 (2017-11-13)
 ------------------
+- Release 0.4.2. [Andrew Fullford]
 - PyPi no longer allows multiline descriptions. [Andrew Fullford]
 
 
