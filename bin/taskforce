@@ -31,7 +31,7 @@ import os, time, sys, signal, argparse, logging
 #    beginning of sys.path
 #  So add code in here so at least this program behaves as expected.
 if 'PYTHONPATH' in os.environ:
-	sys.path = os.environ['PYTHONPATH'].split(os.pathsep) + sys.path
+    sys.path = os.environ['PYTHONPATH'].split(os.pathsep) + sys.path
 
 from taskforce.watch_files import WF_POLLING
 from taskforce import utils, task, httpd
@@ -40,7 +40,7 @@ from taskforce.__init__ import __version__ as package_version
 cmd_at_startup = list(sys.argv)
 env_at_startup = {}
 for tag, val in os.environ.items():
-	env_at_startup[tag] = val
+    env_at_startup[tag] = val
 
 program = utils.appname()
 def_logging_name = program
@@ -49,22 +49,22 @@ def_roles_filelist = ['/var/local/etc/tf_roles.conf', '/usr/local/etc/tf_roles.c
 def_config_file = '/usr/local/etc/' + program + '.conf'
 
 def send_signal(pidfile, sig):
-	if pidfile is None:
-		raise Exception("No pid file specified")
-	pid = None
-	with open(pidfile, 'r') as f:
-		pidstr = None
-		try:
-			pidstr = f.readline().strip()
-			pid = int(pidstr)
-		except Exception as e:
-			raise Exception("Invalid pid '%s' in '%s' -- %s"%(str(pidstr), pidfile))
-	os.kill(pid, sig)
+    if pidfile is None:
+        raise Exception("No pid file specified")
+    pid = None
+    with open(pidfile, 'r') as f:
+        pidstr = None
+        try:
+            pidstr = f.readline().strip()
+            pid = int(pidstr)
+        except Exception as e:
+            raise Exception("Invalid pid '%s' in '%s' -- %s" % (pidstr, pidfile))
+    os.kill(pid, sig)
 
 def sanity_test(l):
-	import tempfile
-	code = 1
-	sanity_config = '''
+    import tempfile
+    code = 1
+    sanity_config = '''
 {
     "tasks": {
         "testtask_a": {
@@ -84,21 +84,21 @@ def sanity_test(l):
     }
 }
 '''
-	try:
-		if l._watch_files.get_mode() == WF_POLLING and sys.platform.startswith('linux'):
-			log.warning("Warning - Polling on a linux system.  Installing 'inotifyx' will improve performance")
-		temp = tempfile.NamedTemporaryFile('w')
-		temp.write(sanity_config)
-		temp.flush()
-		if l.set_config_file(temp.name):
-			log.info("Sanity check completed ok")
-			code = 0
-		else:
-			log.error("Sanity check failed")
-	except Exception as e:
-		log.error("Sanity test failed -- %s", str(e))
-		code = 2
-	return code
+    try:
+        if l._watch_files.get_mode() == WF_POLLING and sys.platform.startswith('linux'):
+            log.warning("Warning - Polling on a linux system.  Installing 'inotifyx' will improve performance")
+        temp = tempfile.NamedTemporaryFile('w')
+        temp.write(sanity_config)
+        temp.flush()
+        if l.set_config_file(temp.name):
+            log.info("Sanity check completed ok")
+            code = 0
+        else:
+            log.error("Sanity check failed")
+    except Exception as e:
+        log.error("Sanity test failed -- %s", e)
+        code = 2
+    return code
 
 p = argparse.ArgumentParser(description="Manage tasks and process pools")
 
@@ -107,189 +107,189 @@ p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Ver
 p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Quiet logging, warnings and errors only.')
 p.add_argument('-e', '--log-stderr', action='store_true', dest='log_stderr', help='Log to stderr instead of syslog.')
 p.add_argument('-L', '--logging-name', action='store', dest='logging_name', default=def_logging_name, metavar='NAME',
-			help='Use NAME instead of the default "%s" when logging to syslog.' % (def_logging_name, ))
+            help='Use NAME instead of the default "%s" when logging to syslog.' % (def_logging_name, ))
 p.add_argument('-b', '--background', action='store_true', dest='daemonize', help='Run in the background.')
 p.add_argument('-p', '--pidfile', action='store', dest='pidfile', metavar='FILE',
-			help='Pidfile path, default "%s", "-" means none.' %(def_pidfile,))
+            help='Pidfile path, default "%s", "-" means none.' %(def_pidfile,))
 p.add_argument('-f', '--config-file', action='store', dest='config_file', metavar='FILE', default=def_config_file,
-			help='Configuration file.  FILE will be watched for changes.  Default "%s".' % (def_config_file,))
+            help='Configuration file.  FILE will be watched for changes.  Default "%s".' % (def_config_file,))
 p.add_argument('-r', '--roles-file', action='store', dest='roles_file', metavar='FILE',
-			help='File to load roles from.  FILE will be watched for changes.  Default is selected from: ' +
-			', '.join(def_roles_filelist))
+            help='File to load roles from.  FILE will be watched for changes.  Default is selected from: ' +
+            ', '.join(def_roles_filelist))
 p.add_argument('-w', '--http', action='store', dest='http_listen', metavar='LISTEN',
-			help='''Offer an HTTP service for statistics and management with listen address.
-			        Default is "%s".''' % (httpd.def_address,))
+            help='''Offer an HTTP service for statistics and management with listen address.
+                    Default is "%s".''' % (httpd.def_address,))
 p.add_argument('-c', '--certfile', action='store', dest='certfile', metavar='FILE',
-			help='''PEM-formatted certificate file.  If specified, the HTTP service will be offered over TLS.
-				Ignored if -w is not specified.''')
+            help='''PEM-formatted certificate file.  If specified, the HTTP service will be offered over TLS.
+                Ignored if -w is not specified.''')
 p.add_argument('-A', '--allow-control', action='store_true', dest='allow_control',
-			help='''Allow HTTP operations that can change the task state.
-				Without this flag, only status operations are allowed.''')
+            help='''Allow HTTP operations that can change the task state.
+                Without this flag, only status operations are allowed.''')
 p.add_argument('-C', '--check-config', action='store_true', dest='check', help='Check the config and exit.')
 p.add_argument('-R', '--reset', action='store_true', dest='reset',
-			help="""Cause the background %s to reset.
-				All unadoptable tasks will be stopped and the program will restart itself."""%(program,))
+            help="""Cause the background %s to reset.
+                All unadoptable tasks will be stopped and the program will restart itself."""%(program,))
 p.add_argument('-S', '--stop', action='store_true', dest='stop',
-			help='Cause the background %s to exit.  All unadoptable tasks will be stopped.'%(program,))
+            help='Cause the background %s to exit.  All unadoptable tasks will be stopped.'%(program,))
 p.add_argument('--expires', action='store', dest='expires', type=float, metavar='SECS',
-			help='Runs normally but exits after SECS seconds.  Normally only used during testing.')
+            help='Runs normally but exits after SECS seconds.  Normally only used during testing.')
 p.add_argument('--sanity', action='store_true', dest='sanity',
-			help='Perform a basic sanity check and exit.  This is effectively "-C -e" with a simple config.')
+            help='Perform a basic sanity check and exit.  This is effectively "-C -e" with a simple config.')
 
 args = p.parse_args()
 
 if args.version:
-	print(package_version)
-	sys.exit(0)
+    print(package_version)
+    sys.exit(0)
 
 if args.pidfile is None and (args.daemonize or args.reset or args.stop):
-	pidfile = def_pidfile
+    pidfile = def_pidfile
 else:
-	pidfile = args.pidfile
+    pidfile = args.pidfile
 if pidfile == '' or pidfile == '-':
-	pidfile = None
+    pidfile = None
 
 sig_to_send = None
 if args.reset:
-	sig_to_send = signal.SIGHUP
+    sig_to_send = signal.SIGHUP
 elif args.stop:
-	sig_to_send = signal.SIGTERM
+    sig_to_send = signal.SIGTERM
 
 if sig_to_send:
-	try:
-		send_signal(pidfile, sig_to_send)
-		sys.exit(0)
-	except Exception as e:
-		sys.stderr.write(str(e)+'\n')
-		sys.exit(1)
+    try:
+        send_signal(pidfile, sig_to_send)
+        sys.exit(0)
+    except Exception as e:
+        sys.stderr.write(str(e)+'\n')
+        sys.exit(1)
 
 if args.sanity:
-	args.daemonize = False
-	args.log_stderr = True
-	if args.roles_file is None:
-		args.roles_file = ''
+    args.daemonize = False
+    args.log_stderr = True
+    if args.roles_file is None:
+        args.roles_file = ''
 
 if args.roles_file is None:
-	for fname in def_roles_filelist:
-		try:
-			with open(fname, 'r') as f:
-				args.roles_file = fname
-				break
-		except:
-			pass
+    for fname in def_roles_filelist:
+        try:
+            with open(fname, 'r') as f:
+                args.roles_file = fname
+                break
+        except:
+            pass
 
 if args.log_stderr:
-	log_handler = logging.StreamHandler()
-	log_formatter = logging.Formatter(fmt="%(asctime)s %(levelname)s %(message)s")
+    log_handler = logging.StreamHandler()
+    log_formatter = logging.Formatter(fmt="%(asctime)s %(levelname)s %(message)s")
 else:
-	logparams = {}
-	for addr in ['/dev/log', '/var/run/log']:
-		if os.path.exists(addr):
-			logparams['address'] = addr
-			break
-	log_handler = logging.handlers.SysLogHandler(**logparams)
-	log_formatter = logging.Formatter(fmt="%(name)s[%(process)d]: %(levelname)s %(message).1000s")
+    logparams = {}
+    for addr in ['/dev/log', '/var/run/log']:
+        if os.path.exists(addr):
+            logparams['address'] = addr
+            break
+    log_handler = logging.handlers.SysLogHandler(**logparams)
+    log_formatter = logging.Formatter(fmt="%(name)s[%(process)d]: %(levelname)s %(message).1000s")
 
 log = logging.getLogger(args.logging_name)
 log_handler.setFormatter(log_formatter)
 log.addHandler(log_handler)
 
 if args.verbose:
-	log.setLevel(logging.DEBUG)
+    log.setLevel(logging.DEBUG)
 elif args.quiet:
-	log.setLevel(logging.WARNING)
+    log.setLevel(logging.WARNING)
 else:
-	log.setLevel(logging.INFO)
+    log.setLevel(logging.INFO)
 
 if pidfile:
-	pidfile = os.path.realpath(pidfile)
+    pidfile = os.path.realpath(pidfile)
 
 if args.roles_file is None:
-	log.warning("None of the default roles files (%s) were accessible", ', '.join(def_roles_filelist))
+    log.warning("None of the default roles files (%s) were accessible", ', '.join(def_roles_filelist))
 
 if args.daemonize:
-	utils.daemonize()
+    utils.daemonize()
 
 log.info("Starting python v%s, config '%s', roles '%s'",
-			'.'.join(str(x) for x in sys.version_info[:3]), str(args.config_file), str(args.roles_file))
+            '.'.join(str(x) for x in sys.version_info[:3]), str(args.config_file), str(args.roles_file))
 
 if pidfile is not None:
-	try:
-		utils.pidclaim(pidfile)
-	except Exception as e:
-		log.critical('Fatal error -- %s', str(e), exc_info=args.verbose)
-		sys.exit(2)
+    try:
+        utils.pidclaim(pidfile)
+    except Exception as e:
+        log.critical('Fatal error -- %s', str(e), exc_info=args.verbose)
+        sys.exit(2)
 
 start_count = 0
 legion_start = time.time()
 while True:
-	start_count += 1
-	restart = 2 * start_count
-	if restart > 60:
-		restart = 60
-	restart = time.time() + restart
+    start_count += 1
+    restart = 2 * start_count
+    if restart > 60:
+        restart = 60
+    restart = time.time() + restart
 
-	exit_code = None
-	try:
-		if args.sanity:
-			l = task.legion(log=log)
-			sys.exit(sanity_test(l))
+    exit_code = None
+    try:
+        if args.sanity:
+            l = task.legion(log=log)
+            sys.exit(sanity_test(l))
 
-		l = task.legion(
-			log=log,
-			http=args.http_listen,
-			certfile=args.certfile,
-		 	control=args.allow_control,
-			expires=args.expires
-		)
-		if not args.check:
-			l.set_own_module(cmd_at_startup[0])
-		if args.roles_file:
-			l.set_roles_file(args.roles_file)
-		if args.check:
-			try:
-				if l.set_config_file(args.config_file):
-					log.info("Config file '%s' appears valid", args.config_file)
-					exit_code = 0
-				else:
-					log.error("Config load from '%s' failed", args.config_file)
-					exit_code = 1
-			except Exception as e:
-				log.error('Config load failed -- %s', str(e), exc_info=args.verbose)
-				exit_code = 1
-			finally:
-				sys.exit(exit_code)
-		l.set_config_file(args.config_file)
-		l.manage()
-		exit_code = 0
-	except task.LegionReset as e:
-		log.warning("Restarting via exec due to LegionReset exception")
-		try:
-			utils.closeall(exclude=[0,1,2])
-			if pidfile is not None:
-				try: os.unlink(pidfile)
-				except:pass
-			os.execvpe(cmd_at_startup[0], cmd_at_startup, env_at_startup)
-		except Exception as e:
-			log.error("Restart exec failed, failing back to normal restart -- %s", str(e))
-	except Exception as e:
-		if time.time() - legion_start < legion_start_limit:
-			#  If an unexpected exception occurs shortly after processing starts,
-			#  treat it as fatal.
-			#
-			log.error('Legion startup error -- %s', str(e), exc_info=args.verbose)
-			exit_code = 3
-		else:
-			log.error('Legion processing error -- %s', str(e), exc_info=args.verbose)
+        l = task.legion(
+            log=log,
+            http=args.http_listen,
+            certfile=args.certfile,
+            control=args.allow_control,
+            expires=args.expires
+        )
+        if not args.check:
+            l.set_own_module(cmd_at_startup[0])
+        if args.roles_file:
+            l.set_roles_file(args.roles_file)
+        if args.check:
+            try:
+                if l.set_config_file(args.config_file):
+                    log.info("Config file '%s' appears valid", args.config_file)
+                    exit_code = 0
+                else:
+                    log.error("Config load from '%s' failed", args.config_file)
+                    exit_code = 1
+            except Exception as e:
+                log.error('Config load failed -- %s', str(e), exc_info=args.verbose)
+                exit_code = 1
+            finally:
+                sys.exit(exit_code)
+        l.set_config_file(args.config_file)
+        l.manage()
+        exit_code = 0
+    except task.LegionReset as e:
+        log.warning("Restarting via exec due to LegionReset exception")
+        try:
+            utils.closeall(exclude=[0,1,2])
+            if pidfile is not None:
+                try: os.unlink(pidfile)
+                except:pass
+            os.execvpe(cmd_at_startup[0], cmd_at_startup, env_at_startup)
+        except Exception as e:
+            log.error("Restart exec failed, failing back to normal restart -- %s", str(e))
+    except Exception as e:
+        if time.time() - legion_start < legion_start_limit:
+            #  If an unexpected exception occurs shortly after processing starts,
+            #  treat it as fatal.
+            #
+            log.error('Legion startup error -- %s', str(e), exc_info=args.verbose)
+            exit_code = 3
+        else:
+            log.error('Legion processing error -- %s', str(e), exc_info=args.verbose)
 
-	if exit_code is not None:
-		sys.exit(exit_code)
+    if exit_code is not None:
+        sys.exit(exit_code)
 
-	now = time.time()
-	if restart > now:
-		delta = restart - now
-		log.info("Delaying %s before attempting restart", utils.deltafmt(delta, decimals=0))
-		time.sleep(delta)
-		log.info("Restarting now")
-	else:
-		log.info("Attempting immediate restart following error")
+    now = time.time()
+    if restart > now:
+        delta = restart - now
+        log.info("Delaying %s before attempting restart", utils.deltafmt(delta, decimals=0))
+        time.sleep(delta)
+        log.info("Restarting now")
+    else:
+        log.info("Attempting immediate restart following error")

@@ -21,9 +21,9 @@ import os, sys, time
 import taskforce.utils as utils
 
 if len(sys.argv) > 1:
-	pidfile = sys.argv[1]
+    pidfile = sys.argv[1]
 else:
-	raise Exception("Need pidfile as first arg")
+    raise Exception("Need pidfile as first arg")
 
 utils.pidclaim(pidfile)
 time.sleep(3)

@@ -22,18 +22,17 @@ import taskforce.poll as poll
 import taskforce.watch_files as watch_files
 
 p = argparse.ArgumentParser(
-	formatter_class=argparse.RawDescriptionHelpFormatter,
-	description="Test the %s module\n%s" %
-	(os.path.splitext(os.path.basename(__file__))[0], watch_files.watch.__doc__))
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description="Test the %s module\n%s" % (os.path.splitext(os.path.basename(__file__))[0], watch_files.watch.__doc__))
 
-p.add_argument('-v', '--verbose', action='store_true', dest='verbose', help='Verbose logging for debugging')
-p.add_argument('-q', '--quiet', action='store_true', dest='quiet', help='Warnings and errors only')
-p.add_argument('-e', '--log-stderr', action='store_true', dest='log_stderr', help='Ignored, always logs to stderr')
-p.add_argument('-r', '--poll-rate', action='store', dest='poll_rate', type=float, default=5.0, help='Poll rate in seconds')
-p.add_argument('-T', '--agg-timeout', action='store', dest='agg_timeout', type=float, default=0.0, help='Aggregation timeout')
-p.add_argument('-L', '--agg-limit', action='store', dest='agg_limit', type=int, default=0, help='Aggregation limit')
-p.add_argument('-p', '--polling', action='store_true', dest='polling', help='Using polling instead of file-system events')
-p.add_argument('-R', '--require', action='store_true', dest='require', help='Require watched files to be present')
+p.add_argument('-v', '--verbose', action='store_true', help='Verbose logging for debugging')
+p.add_argument('-q', '--quiet', action='store_true', help='Warnings and errors only')
+p.add_argument('-e', '--log-stderr', action='store_true', help='Ignored, always logs to stderr')
+p.add_argument('-r', '--poll-rate', action='store', type=float, default=5.0, help='Poll rate in seconds')
+p.add_argument('-T', '--agg-timeout', action='store', type=float, default=0.0, help='Aggregation timeout')
+p.add_argument('-L', '--agg-limit', action='store', type=int, default=0, help='Aggregation limit')
+p.add_argument('-p', '--polling', action='store_true', help='Using polling instead of file-system events')
+p.add_argument('-R', '--require', action='store_true', help='Require watched files to be present')
 p.add_argument('file', nargs='+', help='List of files to watch')
 
 args = p.parse_args()
@@ -41,9 +40,9 @@ args = p.parse_args()
 log = logging.getLogger()
 log.addHandler(logging.StreamHandler())
 if args.verbose:
-	log.setLevel(logging.DEBUG)
+    log.setLevel(logging.DEBUG)
 if args.quiet:
-	log.setLevel(logging.WARNING)
+    log.setLevel(logging.WARNING)
 
 snoop = watch_files.watch(polling=args.polling, log=log, timeout=args.agg_timeout, limit=args.agg_limit)
 log.info("Watching in %s mode", snoop.get_mode_name())
@@ -53,15 +52,15 @@ pset = poll.poll()
 pset.register(snoop, poll.POLLIN)
 
 while True:
-	try:
-		evlist = pset.poll(args.poll_rate * 1000)
-	except OSError as e:
-		if e.errno != errno.EINTR:
-			log.error("Select failed -- %s", str(e))
-		break
-	if not evlist:
-		snoop.scan()
-	else:
-		print('Changes detected ...')
-		for path in snoop.get():
-			print('    ' + path)
+    try:
+        evlist = pset.poll(args.poll_rate * 1000)
+    except OSError as e:
+        if e.errno != errno.EINTR:
+            log.error("Select failed -- %s", str(e))
+        break
+    if not evlist:
+        snoop.scan()
+    else:
+        print('Changes detected ...')
+        for path in snoop.get():
+            print('    ' + path)
