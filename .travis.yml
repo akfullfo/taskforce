@@ -1,7 +1,6 @@
 # set "sudo: false" to enable travis container-based testing
 #sudo: false
-sudo: true
-group: edge
+group: travis_latest
 language: python
 python:
   - "2.7"
