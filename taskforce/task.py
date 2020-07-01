@@ -2255,7 +2255,7 @@ Params are:
                 start_command = list(start_command)
 
             if control != 'suspend':
-                needed = self._get(conf.get('count'), default=1)
+                needed = int(_fmt_context(self._get(conf.get('count'), default=1), self._context))
                 running = len(self.get_pids())
                 if needed < running:
                     self._shrink(needed, running)
