@@ -84,6 +84,8 @@ Roles are stored in a file, one name per line, on a taskforce host.  Each task i
 
 Roles provide a way of managing task allocation across different hosts while using a single distributed taskforce configuration file.  For example, a production service might consist of multple hosts with some running web front-ends, some running application services, and some running database backends.  These individual deployments could be labelled "web", "app", and "db".  Those names are then the *roles* and a role file on each host is used to indicate the roles that host is configured to handle.
 
+A role may have a value which is any text after the first '=' up to and excluding the next newline.  Any white space before the first '=' will be stripped from the role name, but all text following the '=' will be retained.  Role values are not used in task selection, but are included in [`task context`] and so exported to the task environment.
+
 The approach allows for flexible configuration:
 
 Within | Roles | Deployment
@@ -121,6 +123,7 @@ Key | Decription
 <a name="Task_gid"></a>`Task_gid`| The numeric group id of the process.
 <a name="Task_host"></a>`Task_host`| The name of the host running the taskforce application.
 <a name="Task_fqdn"></a>`Task_fqdn`| The fully qualified domain name of the host running the taskforce application.
+<a name="Task_role_xxxx"></a>`Task_role_xxxx`| The value of the role "xxxx" if a value was provided in the role file.
 
 When taskforce starts a process, the entire context is exported as the process's Unix environment.  In addition, the context is used to perform tagged substitutions in configuration file values.  Substitution tags are surrounded by braces. For example, a specification like:
 

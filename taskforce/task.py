@@ -161,7 +161,7 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
     cmd_list    - The path and arg vector
     context     - Task's context
     instance    - An integer instance number used with multi-process tasks
-    log     - Logging object (default is nothing logged).
+    log         - Logging object (default is nothing logged).
 
     The context is used to format command args.  In addition, these values will
     be used to change the process execution environment:
@@ -169,7 +169,7 @@ def _exec_process(cmd_list, base_context, instance=0, log=None):
     procname    - Changes the process name of the executed command (but not the path executed).
     user        - Does a setuid for the process
     group       - Does a setgid for the process
-    cwd     - Does a chdir before executing
+    cwd         - Does a chdir before executing
 
     The passed context is extended to include these specific runtime values which
     are only available for cmd_list substitution.
@@ -769,12 +769,12 @@ Params are:
         #          processing to roles specified or
         #          tasks with no roles.
         #
-        self._role_set = None
+        self._role_map = None
 
         #  Used to build the prior context.  Can go away when the context is kept
         #  in the task.
         #
-        self.prev_role_set = None
+        self.prev_role_map = None
 
         self._config_file = None
 
@@ -904,13 +904,6 @@ Params are:
         #
         signal.siginterrupt(sig, False)
 
-    def _fmt_set(self, val):
-        if val is None:
-            return 'None'
-        elif not val:
-            return '()'
-        else:
-            return '(' + ', '.join(val) + ')'
     def _context_build(self, pending=False):
         """
         Create a context dict from standard legion configuration.
@@ -1072,40 +1065,64 @@ Params are:
 
     def _load_roles(self):
         """
-        Load the roles, one per line, from the roles file.  This is
-        called at startup and whenever the roles file changes.
+            Load the roles, one per line, from the roles file.  This is called at startup
+            and whenever the roles file changes.
 
-        Note that it is not strictly an error for the roles file to
-        be missing but a warning is logged in case that was not
-        intended.
+            A role may now have a value which is any text after the first '=' up to and
+            excluding the next newline.  Any white space before the first '=' will be
+            stripped from the role name, but all text following the '=' will be retained.
+            There is no allowance for quoting.
 
-        Returns True if there was a change in roles, False otherwise.
-        On any change, the config should be reapplied except this is
-        typically skipped at startup as the first apply() will not
-        yet have happened.
-    """
+            The presence of a role name declares the role.  Any value with the role is
+            injected into the configuration context but is otherwise unused.  Roles with
+            no value (no '=') are mapped as None and are not injected into the context.  A
+            role with an '=' and nothing following will be injected with an empty string
+            as the value.
+
+            Note that it is not strictly an error for the roles file to be missing but a
+            warning is logged in case that was not intended.
+
+            Returns True if there was a change in roles, False otherwise.  On any change,
+            the config should be reapplied except this is typically skipped at startup as
+            the first apply() will not yet have happened.
+        """
         log = self._params.get('log', self._discard)
 
-        new_role_set = None
+        def _fmt_map(val):
+            if val is None:
+                return 'None'
+            elif not val:
+                return '()'
+            else:
+                return '(' + ', '.join(str(t) if v is None else "%s=%s" % (t, v) for t, v in val.items()) + ')'
+
+        new_role_map = None
         if self._roles_file:
             try:
-                with open(self._roles_file, 'r') as f:
-                    new_role_set = set()
+                with open(self._roles_file, 'rt') as f:
+                    new_role_map = {}
                     for line in f:
                         line = line.strip()
                         if line and not re.match(r'^\s*#', line):
-                            new_role_set.add(line)
+                            if '=' in line:
+                                role, val = line.split('=', 1)
+                                role = role.strip()
+                                log.info("Role %s value %r", role, val)
+                            else:
+                                role = line
+                                val = None
+                            new_role_map[role] = val
             except Exception as e:
                 log.warning("Open failed on roles file %r -- %s", self._roles_file, e)
-        if self._role_set == new_role_set:
-            log.info("Roles file check gave no changes from current set '%s'", self._fmt_set(new_role_set))
+        if self._role_map == new_role_map:
+            log.info("No changes to current roles: %s", _fmt_map(new_role_map))
             return False
-        elif self._role_set is None:
-            log.info("Roles set to: %s", self._fmt_set(new_role_set))
+        elif self._role_map is None:
+            log.info("Roles set to: %s", _fmt_map(new_role_map))
         else:
-            log.info("Roles changing from '%s' to '%s'", self._fmt_set(self._role_set), self._fmt_set(new_role_set))
-        self._prev_role_set = self._role_set
-        self._role_set = new_role_set
+            log.info("Roles changing from '%s' to '%s'", _fmt_map(self._role_map), _fmt_map(new_role_map))
+        self._prev_role_map = self._role_map
+        self._role_map = new_role_map
         return True
 
     def set_roles_file(self, path):
@@ -1138,9 +1155,9 @@ Params are:
 
     def get_roles(self, previous=False):
         if previous:
-            return self._prev_role_set
+            return self._prev_role_map
         else:
-            return self._role_set
+            return self._role_map
 
     def _load_config(self):
         """
@@ -1784,6 +1801,11 @@ Params are:
         for tag in ['user', 'group', 'pidfile', 'cwd']:
             if tag in conf:
                 context[context_prefix+tag] = self._get(conf[tag], context=context)
+
+        #  Add any roles with values
+        for role, value in self._legion.get_roles().items():
+            if value is not None:
+                context[context_prefix + 'role_' + role] = value
 
         if self._legion._config_running:
             self._context_defines(context, self._legion._config_running)
