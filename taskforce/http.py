@@ -19,9 +19,9 @@
 import os, sys, socket, ssl, json, re, logging
 from . import httpd
 try:
-    from http.client import HTTPConnection, HTTPSConnection, BadStatusLine
+    from http.client import HTTPConnection, HTTPSConnection, BadStatusLine, IncompleteRead
 except:
-    from httplib import HTTPConnection, HTTPSConnection, BadStatusLine
+    from httplib import HTTPConnection, HTTPSConnection, BadStatusLine, IncompleteRead
 try:
     from urllib.parse import parse_qs, urlparse, urlencode
 except:

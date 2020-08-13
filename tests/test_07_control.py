@@ -520,7 +520,7 @@ class Test(object):
             self.log.info('%s stop response info: %d %s "%s"', taskname, count_code, content_type, content.strip())
             assert stop_code < 300
             assert content.strip().endswith('exit initiated')
-        except (taskforce.http.BadStatusLine, taskforce.http.HttpError) as e:
+        except (taskforce.http.BadStatusLine, taskforce.http.HttpError, taskforce.http.IncompleteRead) as e:
             self.log.info('%s Expected possible error from stop manage -- %s', my(self), str(e))
         except socket.error as e:
             if e.errno == errno.ECONNRESET:
