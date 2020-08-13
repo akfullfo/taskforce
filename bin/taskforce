@@ -96,7 +96,7 @@ def sanity_test(l):
         else:
             log.error("Sanity check failed")
     except Exception as e:
-        log.error("Sanity test failed -- %s", e)
+        log.error("Sanity test failed -- %s", e, exc_info=True)
         code = 2
     return code
 

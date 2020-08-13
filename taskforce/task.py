@@ -1803,9 +1803,11 @@ Params are:
                 context[context_prefix+tag] = self._get(conf[tag], context=context)
 
         #  Add any roles with values
-        for role, value in self._legion.get_roles().items():
-            if value is not None:
-                context[context_prefix + 'role_' + role] = value
+        roles = self._legion.get_roles()
+        if roles:
+            for role, value in roles.items():
+                if value is not None:
+                    context[context_prefix + 'role_' + role] = value
 
         if self._legion._config_running:
             self._context_defines(context, self._legion._config_running)
