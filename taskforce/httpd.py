@@ -16,9 +16,12 @@
 # ________________________________________________________________________
 #
 
-import os, sys, stat, errno, re, logging, ssl
+import os
+import stat
+import re
+import logging
+import ssl
 from cgi import parse_header, parse_multipart
-from . import utils
 try:                                                                                            # pragma: no cover
     import socketserver
     import http.server as http_server
@@ -36,6 +39,7 @@ def_address = '/var/run/s.taskforce'
 #  Used when a IP address is provided with no port
 def_port = 8080
 def_sslport = 8443
+
 
 class HttpService(object):
     """
@@ -76,7 +80,7 @@ class HttpService(object):
         return "[%s]%s%s" % (
                 self.listen if hasattr(self, 'listen') and self.listen else ':default:',
                 ' controlling' if hasattr(self, 'allow_control') and self.allow_control else '',
-                ' cert='+self.certfile if hasattr(self, 'certfile') and self.certfile else ''
+                ' cert=' + self.certfile if hasattr(self, 'certfile') and self.certfile else ''
         )
 
     def cmp(self, other_service):
@@ -96,23 +100,27 @@ class HttpService(object):
                 return False
         return True
 
+
 class HTTP_handler(http_server.BaseHTTPRequestHandler):
     server_version = 'taskforce/' + taskforce_version
 
     #  Uncomment if we want to keep the python version a secret
-    #sys_version = ''
+    # sys_version = ''
+
+    def _rem_ip(self):
+        return self.format_addr(self.client_address)
 
     def fault(self, code, message):
         self.send_response(code)
         if code < 500:
-            self.server.log.warning("HTTP %d on '%s' -- %s", code, self.path, message)
+            self.server.log.warning("%s: HTTP %d on '%s' -- %s", self._rem_ip(), self.path, message)
             message = message.encode('utf-8')
             self.send_header("Content-Type", "text/plain")
             self.send_header("Content-Length", len(message))
             self.end_headers()
             self.wfile.write(message)
         else:
-            self.server.log.error("HTTP %d on '%s' -- %s", code, self.path, message)
+            self.server.log.error("%s: HTTP %d on '%s' -- %s", self._rem_ip(), code, self.path, message)
             self.end_headers()
 
     def do_GET(self):
@@ -126,7 +134,7 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
                 self.fault(500, 'Bad callback response for ' + self.path)
             code, content, content_type = resp
         except Exception as e:
-            self.server.log.warning("Traceback -- %s", e, exc_info=True)
+            self.server.log.warning("%s: Traceback -- %s", self._rem_ip(), e, exc_info=True)
             self.fault(500, "Callback error -- %s" % e)
             return
         content = content.encode('utf-8')
@@ -164,7 +172,7 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
                 self.fault(500, 'Bad callback response for ' + self.path)
             code, content, content_type = resp
         except Exception as e:
-            self.server.log.warning("Traceback -- %s", e, exc_info=True)
+            self.server.log.warning("%s: Traceback -- %s", self._rem_ip(), e, exc_info=True)
             self.fault(500, "Callback error -- %s" % e)
             return
 
@@ -200,6 +208,7 @@ class HTTP_handler(http_server.BaseHTTPRequestHandler):
         except:                                                                                 # pragma: no cover
             raddr = 'unknown'
         self.server.log.info("%s>%s %s", raddr, saddr, msg)
+
 
 class BaseServer(object):
 
@@ -237,9 +246,9 @@ class BaseServer(object):
         for ex, callback in registrations.values():
             m = ex.match(path)
             if m:
-                l = len(m.group(0))
-                if l > match_len:
-                    match_len = l
+                mlen = len(m.group(0))
+                if mlen > match_len:
+                    match_len = mlen
                     matched = callback
         return matched
 
@@ -259,7 +268,8 @@ class BaseServer(object):
 
         None is returned if no registered callback is willing to handle a path.
     """
-        if path is None: return None
+        if path is None:
+            return None
 
         matched = self._match_path(path, self.get_registrations)
         if matched is None:
@@ -290,6 +300,7 @@ class BaseServer(object):
         else:
             return matched(path, postmap, **params)
 
+
 class TCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer, BaseServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -312,6 +323,7 @@ class TCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer, BaseServer)
         if self.timeout:
             info[0].settimeout(self.timeout)
         return info
+
 
 class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer, BaseServer):
     daemon_threads = True
@@ -342,8 +354,10 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
     def close(self):
         self.server_close()
         if self.path and os.path.exists(self.path):
-            try: os.unlink(self.path)
-            except: pass                                                                        # pragma: no cover
+            try:
+                os.unlink(self.path)
+            except:
+                pass                                                                        # pragma: no cover
         self.path = None
 
     def get_request(self):
@@ -352,6 +366,7 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
             info[0].settimeout(self.timeout)
         return info
 
+
 #  The cipher suite here insists on high quality crypto as per ssllabs.com.
 #  This checked from time to time and updated.
 #
@@ -359,7 +374,7 @@ class UnixStreamServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 #  just trying to present enough such that our http module and the likes
 #  of libcurl can connect.
 #
-ssl_ciphers=[
+ssl_ciphers = [
     'EECDH+ECDSA+AESGCM',
     'EECDH+aRSA+AESGCM',
     'EECDH+ECDSA+SHA384',
@@ -378,6 +393,7 @@ ssl_ciphers=[
     '!MD5',
     '!DES'
 ]
+
 
 def server(service, log=None):
     """
@@ -415,7 +431,7 @@ def server(service, log=None):
     if not service.listen:
         service.listen = def_address
 
-    if service.listen.find('/') >=0 :
+    if service.listen.find('/') >= 0:
         httpd = UnixStreamServer(service.listen, service.timeout, log)
     else:
         port = None
@@ -453,24 +469,25 @@ def server(service, log=None):
             else:                                                                               # pragma: no cover
                 log.warning("Implementation does not offer ssl.OP_NO_SSLv3 which may allow less secure connections")
             log.info("Certificate file: %s", service.certfile)
-            with open(service.certfile, 'r') as f: pass
             ctx.load_cert_chain(service.certfile)
             ctx.set_ciphers(ciphers)
             httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
         else:                                                                                   # pragma: no cover
             httpd.socket = ssl.wrap_socket(httpd.socket, server_side=True,
-                certfile=service.certfile, ssl_version=ssl.PROTOCOL_TLSv1, ciphers=ciphers)
+                                            certfile=service.certfile,
+                                            ssl_version=ssl.PROTOCOL_TLSv1, ciphers=ciphers)
     if service.allow_control:
         httpd.allow_control = True
     log.info("HTTP service %s", str(service))
     return httpd
 
+
 def _unicode(p):
     """
-    Used when force_unicode is True (default), the tags and values in the dict
-    will be coerced as 'str' (or 'unicode' with Python2).   In Python3 they can
-    otherwise end up as a mixtures of 'str' and 'bytes'.
-"""
+        Used when force_unicode is True (default), the tags and values in the dict
+        will be coerced as 'str' (or 'unicode' with Python2).   In Python3 they can
+        otherwise end up as a mixtures of 'str' and 'bytes'.
+    """
     q = {}
     for tag in p:
         vals = []
@@ -483,11 +500,12 @@ def _unicode(p):
         q[tag] = vals
     return q
 
+
 def get_query(path, force_unicode=True):
     """
-    Convert the query path of the URL to a dict.
-    See _unicode regarding force_unicode.
-"""
+        Convert the query path of the URL to a dict.
+        See _unicode regarding force_unicode.
+    """
     u = urlparse(path)
     if not u.query:
         return {}
@@ -497,15 +515,16 @@ def get_query(path, force_unicode=True):
         p = _unicode(p)
     return p
 
+
 def merge_query(path, postmap, force_unicode=True):
     """
-    Merges params parsed from the URI into the mapping from the POST body and
-    returns a new dict with the values.
+        Merges params parsed from the URI into the mapping from the POST body and
+        returns a new dict with the values.
 
-    This is a convenience function that gives use a dict a bit like PHP's $_REQUEST
-    array.  The original 'postmap' is preserved so the caller can identify a
-    param's source if necessary.
-"""
+        This is a convenience function that gives use a dict a bit like PHP's $_REQUEST
+        array.  The original 'postmap' is preserved so the caller can identify a
+        param's source if necessary.
+    """
     if postmap:
         p = postmap.copy()
     else:
@@ -516,13 +535,16 @@ def merge_query(path, postmap, force_unicode=True):
         p = _unicode(p)
     return p
 
+
 truthy_true_yes = re.compile(r'^[tTyY]')
+
+
 def truthy(value):
     """
-    Evaluates True if "value" looks like it is intended to be true.  This translates
-    to an integer value greater than 0 or the first character starting with 'y'
-    or 't' (case independent).
-"""
+        Evaluates True if "value" looks like it is intended to be true.  This translates
+        to an integer value greater than 0 or the first character starting with 'y'
+        or 't' (case independent).
+    """
     if value is None or value == '':
         return False
     value = str(value)
