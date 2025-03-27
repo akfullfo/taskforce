@@ -1923,10 +1923,19 @@ Params are:
             log.debug("Including task '%s' -- no explicit roles", self._name)
             return True
 
+        match_all_roles = self._legion._config_running.get('settings', {}).get('all_roles')
+
+        role_match = set()
         for role in roles:
             if role in active_roles:
-                log.debug("Including task '%s' -- has role '%s'", self._name, role)
+                role_match.add(role)
+        if match_all_roles:
+            if len(role_match) == len(roles):
+                log.debug("Including task '%s' -- has all roles %s", self._name, sorted(roles))
                 return True
+        elif role_match:
+            log.debug("Including task '%s' -- has role %s", self._name, sorted(role_match))
+            return True
         log.debug("Excluding task %r -- no role matches %s", self._name, active_roles)
         return False
 
