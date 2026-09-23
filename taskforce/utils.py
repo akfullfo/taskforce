@@ -17,8 +17,12 @@
 # ________________________________________________________________________
 #
 
-import sys, os, re, fcntl, atexit, time, random, signal, inspect, pipes, logging
+import sys, os, re, fcntl, atexit, time, random, signal, inspect, logging
 from logging.handlers import SysLogHandler
+try:
+    from shlex import quote as shlex_quote
+except ImportError:
+    from pipes import quote as shlex_quote
 
 def get_caller(*caller_class, **params):
     """
@@ -491,7 +495,7 @@ def format_cmd(args):
     for arg in args:
         if out != '':
             out += ' '
-        out += pipes.quote(str(arg))
+        out += shlex_quote(str(arg))
     return out
 
 def daemonize(**params):
